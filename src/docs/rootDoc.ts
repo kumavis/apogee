@@ -4,14 +4,14 @@ import { ContactDoc, create as createContact } from "./contact";
 const ROOT_DOC_URL_KEY = "root-doc-url";
 
 export type RootDocument = {
-  selfId: AutomergeUrl | null;
+  selfId: AutomergeUrl;
   games: AutomergeUrl[];
 };
 
 const createRootDoc = (repo: Repo): DocHandle<RootDocument> => {
   const contact = repo.create<ContactDoc>();
   createContact(contact);
-  
+
   const root = repo.create<RootDocument>({
     selfId: contact.url,
     games: [],

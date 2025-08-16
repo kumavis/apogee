@@ -1,0 +1,20 @@
+import { useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { AutomergeUrl } from '@automerge/react';
+
+export const useGameNavigation = () => {
+  const navigate = useNavigate();
+
+  const navigateToGame = useCallback((gameUrl: AutomergeUrl) => {
+    navigate(`/game/${gameUrl}`);
+  }, [navigate]);
+
+  const navigateToHome = useCallback(() => {
+    navigate('/');
+  }, [navigate]);
+
+  return {
+    navigateToGame,
+    navigateToHome,
+  };
+};

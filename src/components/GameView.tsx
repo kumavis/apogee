@@ -1,19 +1,22 @@
 import React from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { AutomergeUrl, useDocument } from '@automerge/react';
 import { GameDoc } from '../docs/game';
 import { getFormattedTime } from '../utils/timeUtils';
+import { useGameNavigation } from '../hooks/useGameNavigation';
 
-const GameView: React.FC = () => {
+type GameViewProps = {};
+
+const GameView: React.FC<GameViewProps> = () => {
   const { gameDocUrl } = useParams<{ gameDocUrl: string }>();
-  const navigate = useNavigate();
+  const { navigateToHome } = useGameNavigation();
   
   const [gameDoc] = useDocument<GameDoc>(gameDocUrl as AutomergeUrl, {
     suspense: false,
   });
 
   const handleBackToMenu = () => {
-    navigate('/');
+    navigateToHome();
   };
 
   if (!gameDoc) {
