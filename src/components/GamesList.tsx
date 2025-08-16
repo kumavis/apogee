@@ -1,6 +1,7 @@
 import React from 'react';
 import { AutomergeUrl, useDocument } from '@automerge/react';
 import { GameDoc } from '../docs/game';
+import { getRelativeTime } from '../utils/timeUtils';
 
 type GameListEntryProps = {
   gameUrl: AutomergeUrl;
@@ -27,7 +28,8 @@ const GameListEntry: React.FC<GameListEntryProps> = ({ gameUrl, onClick }) => {
     );
   }
 
-  const createdDate = new Date(gameDoc.createdAt).toLocaleDateString();
+  // Get relative time for display
+  const relativeTime = getRelativeTime(gameDoc.createdAt);
   const playerCount = gameDoc.players?.length || 0;
 
   return (
@@ -58,7 +60,7 @@ const GameListEntry: React.FC<GameListEntryProps> = ({ gameUrl, onClick }) => {
             Game #{gameUrl.slice(-8)}
           </div>
           <div style={{ fontSize: 12, opacity: 0.7 }}>
-            Created: {createdDate}
+            Created {relativeTime}
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
