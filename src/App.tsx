@@ -11,9 +11,18 @@ function App({ rootDocUrl }: { rootDocUrl: AutomergeUrl }) {
   const [rootDoc, changeRootDoc] = useDocument<RootDocument>(rootDocUrl, {
     suspense: true,
   });
+
+  // For debugging purposes, we store the rootDoc in the globalThis object
+  if (rootDoc && !(globalThis as any).rootDoc) {
+    (globalThis as any).rootDoc = rootDoc;
+  }
+
   const addGame = useCallback((gameUrl: AutomergeUrl) => {
     changeRootDoc((doc) => {
-      doc.games.push(gameUrl);
+      // Only add if the game is not already in the list
+      if (!doc.games.includes(gameUrl)) {
+        doc.games.push(gameUrl);
+      }
     });
   }, [changeRootDoc]);
 
@@ -22,7 +31,7 @@ function App({ rootDocUrl }: { rootDocUrl: AutomergeUrl }) {
       <ErrorBoundary>
         <Routes>
           <Route path="/" element={<HomePage rootDoc={rootDoc} addGame={addGame} />} />
-          <Route path="/game/:gameDocUrl" element={<GameView />} />
+          <Route path="/game/:gameDocUrl" element={<GameView rootDoc={rootDoc} addGame={addGame} />} />
         </Routes>
       </ErrorBoundary>
     </div>
