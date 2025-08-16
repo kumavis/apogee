@@ -4,6 +4,7 @@
   "description": "An example project for Automerge + React",
   "type": "module",
   "scripts": {
+    "start": "vite",
     "dev": "vite",
     "dev:host": "vite --host",
     "build": "tsc && vite build",

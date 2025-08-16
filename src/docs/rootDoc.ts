@@ -5,13 +5,16 @@ const ROOT_DOC_URL_KEY = "root-doc-url";
 
 export type RootDocument = {
   selfId: AutomergeUrl | null;
+  games: AutomergeUrl[];
 };
 
 const createRootDoc = (repo: Repo): DocHandle<RootDocument> => {
   const contact = repo.create<ContactDoc>();
-  createContact(undefined, contact);
+  createContact(contact);
+  
   const root = repo.create<RootDocument>({
-    selfId: contact.url 
+    selfId: contact.url,
+    games: [],
   });
 
   return root;
