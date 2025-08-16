@@ -31,6 +31,22 @@ const GameListEntry: React.FC<GameListEntryProps> = ({ gameUrl, onClick }) => {
   // Get relative time for display
   const relativeTime = getRelativeTime(gameDoc.createdAt);
   const playerCount = gameDoc.players?.length || 0;
+  
+  // Get status display info
+  const getStatusInfo = (status: string) => {
+    switch (status) {
+      case 'waiting':
+        return { text: 'Waiting', color: '#ffa940', emoji: '⏳' };
+      case 'playing':
+        return { text: 'Playing', color: '#52c41a', emoji: '🎮' };
+      case 'finished':
+        return { text: 'Finished', color: '#ff4d4f', emoji: '🏁' };
+      default:
+        return { text: 'Unknown', color: '#d9d9d9', emoji: '❓' };
+    }
+  };
+  
+  const statusInfo = getStatusInfo(gameDoc.status);
 
   return (
     <div 
@@ -55,7 +71,7 @@ const GameListEntry: React.FC<GameListEntryProps> = ({ gameUrl, onClick }) => {
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
+        <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 600, marginBottom: 4 }}>
             Game #{gameUrl.slice(-8)}
           </div>
@@ -63,8 +79,23 @@ const GameListEntry: React.FC<GameListEntryProps> = ({ gameUrl, onClick }) => {
             Created {relativeTime}
           </div>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 14, opacity: 0.8 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            fontSize: 12,
+            fontWeight: 600,
+            color: statusInfo.color,
+            background: `${statusInfo.color}20`,
+            padding: '2px 6px',
+            borderRadius: 4,
+            border: `1px solid ${statusInfo.color}40`
+          }}>
+            <span>{statusInfo.emoji}</span>
+            <span>{statusInfo.text}</span>
+          </div>
+          <div style={{ fontSize: 12, opacity: 0.8 }}>
             {playerCount} player{playerCount !== 1 ? 's' : ''}
           </div>
         </div>
