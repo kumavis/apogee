@@ -1,8 +1,9 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
 import { AutomergeUrl, useDocument } from '@automerge/react';
-import { GameDoc } from '../docs/game';
+import { GameDoc, PlayerHand } from '../docs/game';
 import { RootDocument } from '../docs/rootDoc';
+import { createStandardDeck, shuffleDeck, drawCards } from '../utils/cardLibrary';
 import GameLobby from './GameLobby';
 import TCGGameBoard from './TCGGameBoard';
 
@@ -35,11 +36,35 @@ const GameView: React.FC<GameViewProps> = ({ rootDoc, addGame }) => {
   };
 
   const handleStartGame = () => {
-    if (gameDoc && changeGameDoc) {
-      changeGameDoc((doc) => {
-        doc.status = 'playing';
+    if (!changeGameDoc || !gameDoc) return;
+    
+    // Initialize the game state
+    changeGameDoc((doc) => {
+      // Create and shuffle the deck
+      const standardDeck = createStandardDeck();
+      const shuffledDeck = shuffleDeck(standardDeck);
+      
+      // Initialize player hands
+      const playerHands: PlayerHand[] = [];
+      let currentDeck = [...shuffledDeck];
+      
+      // Deal 5 cards to each player
+      doc.players.forEach((playerId) => {
+        const { drawnCards, remainingDeck } = drawCards(currentDeck, 5);
+        playerHands.push({
+          playerId,
+          cards: drawnCards
+        });
+        currentDeck = remainingDeck;
       });
-    }
+      
+      // Update the game document
+      doc.status = 'playing';
+      doc.deck = currentDeck;
+      doc.playerHands = playerHands;
+      doc.currentPlayerIndex = 0;
+      doc.turn = 1;
+    });
   };
 
   const handleSpectateGame = () => {
@@ -79,6 +104,7 @@ const GameView: React.FC<GameViewProps> = ({ rootDoc, addGame }) => {
   if (gameDoc.status === 'playing') {
     return (
       <TCGGameBoard
+        gameDoc={gameDoc}
         gameDocUrl={gameDocUrl!}
         rootDoc={rootDoc}
         playerList={gameDoc.players}

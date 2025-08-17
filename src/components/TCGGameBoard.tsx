@@ -1,73 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { AutomergeUrl } from '@automerge/react';
+import { GameDoc } from '../docs/game';
 import { RootDocument } from '../docs/rootDoc';
 import { useGameNavigation } from '../hooks/useGameNavigation';
 import Card, { CardData } from './Card';
 import Contact from './Contact';
 
 type TCGGameBoardProps = {
+  gameDoc: GameDoc;
   gameDocUrl: string;
   rootDoc: RootDocument;
   playerList: AutomergeUrl[];
 };
-
-// Sci-fi themed mock card data
-const createMockCards = (): CardData[] => [
-  {
-    id: '1',
-    name: 'Quantum Destroyer',
-    cost: 5,
-    attack: 4,
-    health: 3,
-    type: 'creature',
-    description: 'A cybernetic war machine from the future.',
-    isPlayable: true
-  },
-  {
-    id: '2',
-    name: 'Plasma Burst',
-    cost: 3,
-    type: 'spell',
-    description: 'Deal 3 energy damage to any target.',
-    isPlayable: true
-  },
-  {
-    id: '3',
-    name: 'Steel Sentinel',
-    cost: 4,
-    attack: 2,
-    health: 6,
-    type: 'creature',
-    description: 'An automated defense unit.',
-    isPlayable: false
-  },
-  {
-    id: '4',
-    name: 'Nano Enhancer',
-    cost: 2,
-    type: 'artifact',
-    description: 'Equipped unit gains +2/+1.',
-    isPlayable: true
-  },
-  {
-    id: '5',
-    name: 'Bio-Mech Guardian',
-    cost: 6,
-    attack: 5,
-    health: 5,
-    type: 'creature',
-    description: 'Protects all allied units.',
-    isPlayable: false
-  },
-  {
-    id: '6',
-    name: 'Data Spike',
-    cost: 1,
-    type: 'spell',
-    description: 'Hack enemy systems.',
-    isPlayable: true
-  }
-];
 
 const createPlayAreaCards = (): CardData[] => [
   {
@@ -93,13 +37,34 @@ const createPlayAreaCards = (): CardData[] => [
 ];
 
 const TCGGameBoard: React.FC<TCGGameBoardProps> = ({ 
+  gameDoc,
   gameDocUrl, 
   rootDoc, 
   playerList 
 }) => {
   const { navigateToHome } = useGameNavigation();
   const [currentOpponentIndex, setCurrentOpponentIndex] = useState(0);
-  const [playerHand] = useState(createMockCards);
+
+  // Convert card IDs to CardData using the game's card library
+  const convertCardsToData = (cardIds: string[]): CardData[] => {
+    if (!gameDoc.cardLibrary) return [];
+    return cardIds.map(cardId => {
+      const card = gameDoc.cardLibrary![cardId];
+      return {
+        ...card,
+        isPlayable: true // For now, all cards are playable
+      };
+    }).filter(card => card); // Filter out undefined cards
+  };
+
+  // Get player's hand
+  const playerHand = useMemo(() => {
+    if (!gameDoc.playerHands) return [];
+    const playerHandData = gameDoc.playerHands.find(hand => hand.playerId === rootDoc.selfId);
+    return playerHandData ? convertCardsToData(playerHandData.cards) : [];
+  }, [gameDoc.playerHands, gameDoc.cardLibrary, rootDoc.selfId]);
+
+  // Mock board state for now (will be implemented later)
   const [playerBoard] = useState(createPlayAreaCards);
   const [opponentBoard] = useState(createPlayAreaCards);
 
@@ -169,8 +134,9 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>Turn 1</div>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>Turn {gameDoc.turn || 1}</div>
           <div style={{ fontSize: 12, opacity: 0.7, color: '#00ffff' }}>Energy: 5/5</div>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>Deck: {gameDoc.deck?.length || 0}</div>
         </div>
       </div>
 
@@ -259,14 +225,21 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
           padding: '10px 20px',
           overflow: 'visible'
         }}>
-          {Array.from({ length: 6 }, (_, i) => (
-            <Card
-              key={`opp-hand-${i}`}
-              card={{} as CardData}
-              size="small"
-              faceDown={true}
-            />
-          ))}
+          {(() => {
+            // Get current opponent's hand size
+            const currentOpponent = opponents[currentOpponentIndex];
+            const opponentHand = gameDoc.playerHands?.find(hand => hand.playerId === currentOpponent);
+            const handSize = opponentHand?.cards.length || 0;
+            
+            return Array.from({ length: handSize }, (_, i) => (
+              <Card
+                key={`opp-hand-${i}`}
+                card={{} as CardData}
+                size="small"
+                faceDown={true}
+              />
+            ));
+          })()}
         </div>
 
         {/* Opponent's Board */}
@@ -358,8 +331,9 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
             />
             <div style={{ display: 'flex', gap: 20, fontSize: 14 }}>
               <div>Health: 20</div>
-              <div>Deck: 15</div>
-              <div>Graveyard: 3</div>
+              <div>Hand: {playerHand.length}</div>
+              <div>Deck: {gameDoc.deck?.length || 0}</div>
+              <div>Graveyard: 0</div>
             </div>
           </div>
 
