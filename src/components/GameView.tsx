@@ -1,11 +1,13 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
-import { AutomergeUrl, useDocument } from '@automerge/react';
-import { GameDoc, initializeGame } from '../docs/game';
+import { AutomergeUrl, useDocument, useRepo } from '@automerge/react';
+import { GameDoc, initializeGame, createRematchGame } from '../docs/game';
 import { RootDocument } from '../docs/rootDoc';
 import { createStandardDeck, shuffleDeck } from '../utils/cardLibrary';
+import { useGameNavigation } from '../hooks/useGameNavigation';
 import GameLobby from './GameLobby';
 import TCGGameBoard from './TCGGameBoard';
+import GameFinished from './GameFinished';
 
 type GameViewProps = {
   rootDoc: RootDocument;
@@ -14,6 +16,8 @@ type GameViewProps = {
 
 const GameView: React.FC<GameViewProps> = ({ rootDoc, addGame }) => {
   const { gameDocUrl } = useParams<{ gameDocUrl: string }>();
+  const { navigateToHome, navigateToGame } = useGameNavigation();
+  const repo = useRepo();
   
   const [gameDoc, changeGameDoc] = useDocument<GameDoc>(gameDocUrl as AutomergeUrl, {
     suspense: false,
@@ -61,6 +65,23 @@ const GameView: React.FC<GameViewProps> = ({ rootDoc, addGame }) => {
     }
   };
 
+  const handleCreateRematch = () => {
+    if (!changeGameDoc || !repo || !gameDoc) {
+      console.error('handleCreateRematch: Missing required dependencies');
+      return;
+    }
+
+    changeGameDoc((doc) => {
+      const rematchId = createRematchGame(doc, repo);
+      if (rematchId) {
+        addGame(rematchId);
+        console.log(`Rematch created and added: ${rematchId}`);
+        // Navigate to the newly created rematch game
+        navigateToGame(rematchId);
+      }
+    });
+  };
+
   if (!gameDoc) {
     return (
       <div style={{
@@ -86,19 +107,28 @@ const GameView: React.FC<GameViewProps> = ({ rootDoc, addGame }) => {
   }
 
   // Render different views based on game status
+  if (gameDoc.status === 'finished') {
+    return (
+      <GameFinished
+        gameDoc={gameDoc}
+        selfId={rootDoc.selfId}
+        onReturnToMenu={navigateToHome}
+        onCreateRematch={handleCreateRematch}
+      />
+    );
+  }
+
   if (gameDoc.status === 'playing') {
     return (
       <TCGGameBoard
         gameDoc={gameDoc}
-        gameDocUrl={gameDocUrl!}
-        rootDoc={rootDoc}
-        playerList={gameDoc.players}
+        selfId={rootDoc.selfId}
         changeGameDoc={changeGameDoc}
       />
     );
   }
 
-  // For 'waiting' and 'finished' status, show the lobby
+  // For 'waiting' status, show the lobby
   return (
     <GameLobby
       gameDoc={gameDoc}

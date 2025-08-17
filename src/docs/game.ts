@@ -18,16 +18,24 @@ export type PlayerHand = {
   cards: string[]; // Array of card IDs
 };
 
+export type BattlefieldCard = {
+  instanceId: string; // Unique ID for this specific card instance
+  cardId: string; // Reference to card definition in library
+  sapped: boolean; // True if creature has attacked this turn
+};
+
 export type PlayerBattlefield = {
   playerId: AutomergeUrl;
-  cards: string[]; // Array of card IDs on battlefield
+  cards: BattlefieldCard[]; // Array of battlefield cards with status
 };
 
 export type GameLogEntry = {
   id: string;
   playerId: AutomergeUrl;
-  action: 'play_card' | 'end_turn' | 'draw_card' | 'game_start';
+  action: 'play_card' | 'end_turn' | 'draw_card' | 'game_start' | 'attack' | 'take_damage' | 'game_end';
   cardId?: string;
+  targetId?: AutomergeUrl; // For attacks/targeting
+  amount?: number; // For damage/healing
   timestamp: number;
   description: string;
 };
@@ -36,6 +44,8 @@ export type PlayerState = {
   playerId: AutomergeUrl;
   energy: number;
   maxEnergy: number;
+  health: number;
+  maxHealth: number;
 };
 
 export type GameDoc = {
@@ -55,6 +65,9 @@ export type GameDoc = {
   
   // Card definitions (shared by all players)
   cardLibrary: { [cardId: string]: GameCard };
+  
+  // Rematch system
+  rematchGameId?: AutomergeUrl; // Reference to rematch game if one exists
 };
 
 // Helper functions for game state mutations
@@ -82,7 +95,14 @@ export const addCardToBattlefield = (doc: GameDoc, playerId: AutomergeUrl, cardI
     return false;
   }
   
-  doc.playerBattlefields[battlefieldIndex].cards.push(cardId);
+  // Generate unique instance ID for this card copy
+  const instanceId = `instance_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
+  doc.playerBattlefields[battlefieldIndex].cards.push({
+    instanceId,
+    cardId,
+    sapped: true // New creatures start sapped (summoning sickness)
+  });
   return true;
 };
 
@@ -197,8 +217,171 @@ export const playCard = (doc: GameDoc, playerId: AutomergeUrl, cardId: string): 
   return true;
 };
 
+export const drawCard = (doc: GameDoc, playerId: AutomergeUrl): boolean => {
+  // Check if deck is empty
+  if (doc.deck.length === 0) {
+    // Try to reshuffle graveyard into deck
+    if (doc.graveyard.length === 0) {
+      console.warn(`drawCard: No cards available to draw for player ${playerId}`);
+      return false;
+    }
+    
+    // Reshuffle graveyard into deck
+    doc.deck = [...doc.graveyard];
+    doc.graveyard = [];
+    
+    // Simple shuffle (Fisher-Yates)
+    for (let i = doc.deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [doc.deck[i], doc.deck[j]] = [doc.deck[j], doc.deck[i]];
+    }
+    
+    addGameLogEntry(doc, {
+      playerId,
+      action: 'draw_card',
+      description: 'Reshuffled graveyard into deck'
+    });
+  }
+  
+  // Draw the top card
+  const cardId = doc.deck.pop();
+  if (!cardId) {
+    console.error(`drawCard: Failed to draw card for player ${playerId}`);
+    return false;
+  }
+  
+  // Add to player's hand
+  const playerHandIndex = doc.playerHands.findIndex(hand => hand.playerId === playerId);
+  if (playerHandIndex === -1) {
+    console.error(`drawCard: Player hand not found for playerId: ${playerId}`);
+    return false;
+  }
+  
+  doc.playerHands[playerHandIndex].cards.push(cardId);
+  
+  // Add to game log
+  addGameLogEntry(doc, {
+    playerId,
+    action: 'draw_card',
+    cardId,
+    description: 'Drew a card'
+  });
+  
+  return true;
+};
+
+export const dealDamage = (doc: GameDoc, targetPlayerId: AutomergeUrl, damage: number): boolean => {
+  const playerStateIndex = doc.playerStates.findIndex(state => state.playerId === targetPlayerId);
+  if (playerStateIndex === -1) {
+    console.error(`dealDamage: Player state not found for targetPlayerId: ${targetPlayerId}`);
+    return false;
+  }
+  
+  const playerState = doc.playerStates[playerStateIndex];
+  playerState.health = Math.max(0, playerState.health - damage);
+  
+  // Add to game log - show damage from target's perspective
+  addGameLogEntry(doc, {
+    playerId: targetPlayerId, // Always log from target's perspective for damage
+    action: 'take_damage',
+    targetId: targetPlayerId,
+    amount: damage,
+    description: `Took ${damage} damage`
+  });
+  
+  // Check for game end
+  if (playerState.health <= 0) {
+    doc.status = 'finished';
+    addGameLogEntry(doc, {
+      playerId: targetPlayerId,
+      action: 'game_end',
+      description: 'Player defeated'
+    });
+  }
+  
+  return true;
+};
+
+export const attackPlayerWithCreature = (doc: GameDoc, attackerId: AutomergeUrl, instanceId: string, targetPlayerId: AutomergeUrl, damage: number): boolean => {
+  // Mark creature as sapped first
+  if (!sapCreature(doc, attackerId, instanceId)) {
+    console.error(`attackPlayerWithCreature: Failed to sap creature ${instanceId} for player ${attackerId}`);
+    return false;
+  }
+
+  const success = dealDamage(doc, targetPlayerId, damage);
+  
+  if (success) {
+    addGameLogEntry(doc, {
+      playerId: attackerId,
+      action: 'attack',
+      targetId: targetPlayerId,
+      amount: damage,
+      description: `Attacked for ${damage} damage`
+    });
+  }
+  
+  return success;
+};
+
+// Keep old function for backwards compatibility
+export const attackPlayer = (doc: GameDoc, attackerId: AutomergeUrl, targetPlayerId: AutomergeUrl, damage: number): boolean => {
+  const success = dealDamage(doc, targetPlayerId, damage);
+  
+  if (success) {
+    addGameLogEntry(doc, {
+      playerId: attackerId,
+      action: 'attack',
+      targetId: targetPlayerId,
+      amount: damage,
+      description: `Attacked for ${damage} damage`
+    });
+  }
+  
+  return success;
+};
+
+export const sapCreature = (doc: GameDoc, playerId: AutomergeUrl, instanceId: string): boolean => {
+  const battlefieldIndex = doc.playerBattlefields.findIndex(battlefield => battlefield.playerId === playerId);
+  if (battlefieldIndex === -1) {
+    console.error(`sapCreature: Battlefield not found for playerId: ${playerId}`);
+    return false;
+  }
+  
+  const cardIndex = doc.playerBattlefields[battlefieldIndex].cards.findIndex(card => card.instanceId === instanceId);
+  if (cardIndex === -1) {
+    console.error(`sapCreature: Card instance ${instanceId} not found on battlefield for player ${playerId}`);
+    return false;
+  }
+  
+  doc.playerBattlefields[battlefieldIndex].cards[cardIndex].sapped = true;
+  return true;
+};
+
+export const refreshCreatures = (doc: GameDoc, playerId: AutomergeUrl): boolean => {
+  const battlefieldIndex = doc.playerBattlefields.findIndex(battlefield => battlefield.playerId === playerId);
+  if (battlefieldIndex === -1) {
+    console.error(`refreshCreatures: Battlefield not found for playerId: ${playerId}`);
+    return false;
+  }
+  
+  // Reset sapped status for all creatures
+  doc.playerBattlefields[battlefieldIndex].cards.forEach(card => {
+    card.sapped = false;
+  });
+  
+  return true;
+};
+
 export const endPlayerTurn = (doc: GameDoc, playerId: AutomergeUrl): void => {
   const nextPlayerIndex = advanceToNextPlayer(doc);
+  const nextPlayerId = doc.players[nextPlayerIndex];
+  
+  // Draw a card for the next player (start of their turn)
+  drawCard(doc, nextPlayerId);
+  
+  // Refresh creatures for the next player (unsap them)
+  refreshCreatures(doc, nextPlayerId);
   
   // If we've gone through all players, increment turn and increase max energy
   if (nextPlayerIndex === 0) {
@@ -211,7 +394,6 @@ export const endPlayerTurn = (doc: GameDoc, playerId: AutomergeUrl): void => {
     });
   } else {
     // Restore energy for the next player only
-    const nextPlayerId = doc.players[nextPlayerIndex];
     restoreEnergy(doc, nextPlayerId);
   }
   
@@ -245,7 +427,9 @@ export const initializeGame = (doc: GameDoc, shuffledDeck: string[]): void => {
     playerStates.push({
       playerId,
       energy: 2, // Starting energy
-      maxEnergy: 2 // Starting max energy
+      maxEnergy: 2, // Starting max energy
+      health: 25, // Starting health
+      maxHealth: 25 // Max health
     });
   });
   
@@ -265,6 +449,29 @@ export const initializeGame = (doc: GameDoc, shuffledDeck: string[]): void => {
     action: 'game_start',
     description: 'Game started'
   });
+  
+  // First player draws an additional card to start
+  drawCard(doc, doc.players[0]);
+};
+
+export const createRematchGame = (doc: GameDoc, repo: Repo): AutomergeUrl | null => {
+  try {
+    // Create a new game with the same players
+    const rematchHandle = create(repo, {
+      players: [...doc.players] // Copy players from original game
+    });
+    
+    const rematchId = rematchHandle.url;
+    
+    // Update the original game to reference the rematch
+    doc.rematchGameId = rematchId;
+    
+    console.log(`Created rematch game: ${rematchId}`);
+    return rematchId;
+  } catch (error) {
+    console.error('Failed to create rematch game:', error);
+    return null;
+  }
 };
 
 export const create = (repo: Repo, initialState?: Partial<GameDoc>): DocHandle<GameDoc> => {

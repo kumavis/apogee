@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { AutomergeUrl } from '@automerge/react';
-import { GameDoc, playCard, endPlayerTurn } from '../docs/game';
-import { RootDocument } from '../docs/rootDoc';
+import { GameDoc, playCard, endPlayerTurn, attackPlayerWithCreature } from '../docs/game';
 import { useGameNavigation } from '../hooks/useGameNavigation';
 import Card, { CardData } from './Card';
 import Contact from './Contact';
@@ -9,30 +8,27 @@ import GameLog from './GameLog';
 
 type TCGGameBoardProps = {
   gameDoc: GameDoc;
-  gameDocUrl: string;
-  rootDoc: RootDocument;
-  playerList: AutomergeUrl[];
+  selfId: AutomergeUrl;
   changeGameDoc: ((callback: (doc: GameDoc) => void) => void) | null;
 };
 
 
-const TCGGameBoard: React.FC<TCGGameBoardProps> = ({ 
+const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
   gameDoc,
-  gameDocUrl, 
-  rootDoc, 
-  playerList,
+  selfId,
   changeGameDoc
 }) => {
   const { navigateToHome } = useGameNavigation();
   const [currentOpponentIndex, setCurrentOpponentIndex] = useState(0);
+  const playerList = gameDoc.players;
 
   // Check if it's the current player's turn
-  const isCurrentPlayer = gameDoc.currentPlayerIndex === playerList.indexOf(rootDoc.selfId);
+  const isCurrentPlayer = gameDoc.currentPlayerIndex === playerList.indexOf(selfId);
 
   // Get current player state
   const currentPlayerState = useMemo(() => {
-    return gameDoc.playerStates?.find(state => state.playerId === rootDoc.selfId);
-  }, [gameDoc.playerStates, rootDoc.selfId]);
+    return gameDoc.playerStates?.find(state => state.playerId === selfId);
+  }, [gameDoc.playerStates, selfId]);
 
   // Convert card IDs to CardData using the game's card library
   const convertCardsToData = (cardIds: string[], isHand = false): CardData[] => {
@@ -52,16 +48,61 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
   // Get player's hand
   const playerHand = useMemo(() => {
     if (!gameDoc.playerHands) return [];
-    const playerHandData = gameDoc.playerHands.find(hand => hand.playerId === rootDoc.selfId);
+    const playerHandData = gameDoc.playerHands.find(hand => hand.playerId === selfId);
     return playerHandData ? convertCardsToData(playerHandData.cards, true) : [];
-  }, [gameDoc.playerHands, gameDoc.cardLibrary, rootDoc.selfId, currentPlayerState, isCurrentPlayer]);
+  }, [gameDoc.playerHands, gameDoc.cardLibrary, selfId, currentPlayerState, isCurrentPlayer]);
 
   // Get player's battlefield
   const playerBattlefield = useMemo(() => {
     if (!gameDoc.playerBattlefields) return [];
-    const playerBattlefieldData = gameDoc.playerBattlefields.find(battlefield => battlefield.playerId === rootDoc.selfId);
-    return playerBattlefieldData ? convertCardsToData(playerBattlefieldData.cards) : [];
-  }, [gameDoc.playerBattlefields, gameDoc.cardLibrary, rootDoc.selfId]);
+    const playerBattlefieldData = gameDoc.playerBattlefields.find(battlefield => battlefield.playerId === selfId);
+    if (!playerBattlefieldData) return [];
+    
+    return playerBattlefieldData.cards.map(battlefieldCard => {
+      const card = gameDoc.cardLibrary[battlefieldCard.cardId];
+      if (!card) return null;
+      
+      return {
+        ...card,
+        instanceId: battlefieldCard.instanceId, // Add instance ID for unique identification
+        sapped: battlefieldCard.sapped,
+        isPlayable: false // Battlefield cards aren't "playable" in the same sense
+      };
+    }).filter(card => card !== null) as (CardData & { instanceId: string; sapped: boolean })[];
+  }, [gameDoc.playerBattlefields, gameDoc.cardLibrary, selfId]);
+
+
+
+  // Handle attacking opponent directly with a creature
+  const handleCreatureAttack = (instanceId: string) => {
+    if (!changeGameDoc) {
+      console.error('handleCreatureAttack: Cannot attack - missing changeGameDoc');
+      return;
+    }
+    if (!isCurrentPlayer) {
+      console.warn('handleCreatureAttack: Cannot attack - not current player');
+      return;
+    }
+
+    // Find the card by instanceId
+    const battlefieldCard = playerBattlefield.find(c => c.instanceId === instanceId);
+    if (!battlefieldCard || !battlefieldCard.attack) {
+      console.error(`handleCreatureAttack: Invalid creature instance: ${instanceId}`);
+      return;
+    }
+
+    // Attack the first opponent for simplicity
+    const targetPlayerId = opponents[currentOpponentIndex];
+    if (!targetPlayerId) {
+      console.error('handleCreatureAttack: No opponent to attack');
+      return;
+    }
+
+    const attackValue = battlefieldCard.attack;
+    changeGameDoc((doc) => {
+      attackPlayerWithCreature(doc, selfId, instanceId, targetPlayerId, attackValue);
+    });
+  };
 
   // Handle ending turn
   const handleEndTurn = () => {
@@ -75,7 +116,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
     }
 
     changeGameDoc((doc) => {
-      endPlayerTurn(doc, rootDoc.selfId);
+      endPlayerTurn(doc, selfId);
     });
   };
 
@@ -107,12 +148,12 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
     }
 
     changeGameDoc((doc) => {
-      playCard(doc, rootDoc.selfId, cardId);
+      playCard(doc, selfId, cardId);
     });
   };
 
   // Get opponents (all players except self)
-  const opponents = playerList.filter(player => player !== rootDoc.selfId);
+  const opponents = playerList.filter(player => player !== selfId);
   const currentOpponent = opponents[currentOpponentIndex];
 
   const nextOpponent = () => {
@@ -167,15 +208,6 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
           ✕ Exit Game
         </button>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontSize: 16, fontWeight: 600, color: '#00ffff' }}>
-            ⚡ Cyber Arena
-          </div>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>
-            Session #{gameDocUrl?.slice(-8)}
-          </div>
-        </div>
-        
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{ fontSize: 12, opacity: 0.7 }}>Turn {gameDoc.turn || 1}</div>
           <div style={{ 
@@ -185,11 +217,14 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
           }}>
             {isCurrentPlayer ? '🎯 Your Turn' : '⏳ Waiting...'}
           </div>
-          <div style={{ fontSize: 12, opacity: 0.7, color: '#00ffff' }}>
-            Energy: {currentPlayerState?.energy || 0}/{currentPlayerState?.maxEnergy || 0}
+          <div style={{ fontSize: 12, opacity: 0.7, color: '#ff4444' }}>
+            ❤️ Health: {currentPlayerState?.health || 0}/{currentPlayerState?.maxHealth || 0}
           </div>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>Deck: {gameDoc.deck?.length || 0}</div>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>Graveyard: {gameDoc.graveyard?.length || 0}</div>
+          <div style={{ fontSize: 12, opacity: 0.7, color: '#00ffff' }}>
+            ⚡ Energy: {currentPlayerState?.energy || 0}/{currentPlayerState?.maxEnergy || 0}
+          </div>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>📚 Deck: {gameDoc.deck?.length || 0}</div>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>🪦 Graveyard: {gameDoc.graveyard?.length || 0}</div>
         </div>
       </div>
 
@@ -309,14 +344,48 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
             // Get current opponent's battlefield
             const currentOpponent = opponents[currentOpponentIndex];
             const opponentBattlefield = gameDoc.playerBattlefields?.find(battlefield => battlefield.playerId === currentOpponent);
-            const opponentCards = opponentBattlefield ? convertCardsToData(opponentBattlefield.cards) : [];
+            const opponentCards = opponentBattlefield ? 
+              opponentBattlefield.cards.map(battlefieldCard => {
+                const card = gameDoc.cardLibrary[battlefieldCard.cardId];
+                if (!card) return null;
+                return {
+                  ...card,
+                  instanceId: battlefieldCard.instanceId,
+                  sapped: battlefieldCard.sapped,
+                  isPlayable: false
+                };
+              }).filter(card => card !== null) as (CardData & { instanceId: string; sapped: boolean })[] : [];
             
-            return opponentCards.length > 0 ? opponentCards.map((card, index) => (
-              <Card
-                key={`opponent-${card.id}-${index}`}
-                card={card}
-                size="medium"
-              />
+            return opponentCards.length > 0 ? opponentCards.map((card) => (
+              <div
+                key={`opponent-${card.instanceId}`}
+                style={{
+                  position: 'relative',
+                  opacity: card.sapped ? 0.6 : 1
+                }}
+              >
+                <Card
+                  card={card}
+                  size="medium"
+                />
+                {card.sapped && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    background: 'rgba(0, 0, 0, 0.8)',
+                    color: '#ffaa00',
+                    padding: '4px 8px',
+                    borderRadius: 4,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    pointerEvents: 'none'
+                  }}>
+                    💤 SAPPED
+                  </div>
+                )}
+              </div>
             )) : (
               <div style={{
                 color: 'rgba(255,255,255,0.5)',
@@ -347,13 +416,48 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
           padding: '20px',
           flexWrap: 'wrap'
         }}>
-          {playerBattlefield.map((card, index) => (
-            <Card
-              key={`battlefield-${card.id}-${index}`}
-              card={card}
-              size="medium"
-            />
-          ))}
+          {playerBattlefield.map((card) => {
+            const canAttack = isCurrentPlayer && card.attack && card.attack > 0 && !card.sapped;
+            const instanceId = card.instanceId;
+            
+            return (
+              <div
+                key={`battlefield-${card.instanceId}`}
+                onClick={canAttack ? () => handleCreatureAttack(instanceId) : undefined}
+                style={{
+                  cursor: canAttack ? 'pointer' : 'default',
+                  border: canAttack ? '2px solid #ff4444' : card.sapped ? '2px solid #666666' : '2px solid transparent',
+                  borderRadius: 8,
+                  boxShadow: canAttack ? '0 0 8px rgba(255, 68, 68, 0.4)' : 'none',
+                  opacity: card.sapped ? 0.6 : 1,
+                  transition: 'all 0.2s ease',
+                  position: 'relative'
+                }}
+              >
+                <Card
+                  card={card}
+                  size="medium"
+                />
+                {card.sapped && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    background: 'rgba(0, 0, 0, 0.8)',
+                    color: '#ffaa00',
+                    padding: '4px 8px',
+                    borderRadius: 4,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    pointerEvents: 'none'
+                  }}>
+                    💤 SAPPED
+                  </div>
+                )}
+              </div>
+            );
+          })}
           {playerBattlefield.length === 0 && (
             <div style={{
               color: 'rgba(255,255,255,0.5)',
@@ -383,7 +487,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
             color: '#fff'
           }}>
             <Contact 
-              contactUrl={rootDoc.selfId}
+              contactUrl={selfId}
               style={{ background: 'rgba(0, 100, 150, 0.6)', borderColor: 'rgba(0, 255, 255, 0.5)' }}
             />
             <div style={{ display: 'flex', gap: 20, fontSize: 14 }}>
@@ -455,7 +559,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
               e.currentTarget.style.boxShadow = '0 4px 12px rgba(82, 196, 26, 0.4)';
             }}
           >
-            End Turn
+            ⏭️ End Turn
           </button>
         )}
         <button style={{
