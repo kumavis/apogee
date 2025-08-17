@@ -217,14 +217,6 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
           }}>
             {isCurrentPlayer ? '🎯 Your Turn' : '⏳ Waiting...'}
           </div>
-          <div style={{ fontSize: 12, opacity: 0.7, color: '#ff4444' }}>
-            ❤️ Health: {currentPlayerState?.health || 0}/{currentPlayerState?.maxHealth || 0}
-          </div>
-          <div style={{ fontSize: 12, opacity: 0.7, color: '#00ffff' }}>
-            ⚡ Energy: {currentPlayerState?.energy || 0}/{currentPlayerState?.maxEnergy || 0}
-          </div>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>📚 Deck: {gameDoc.deck?.length || 0}</div>
-          <div style={{ fontSize: 12, opacity: 0.7 }}>🪦 Graveyard: {gameDoc.graveyard?.length || 0}</div>
         </div>
       </div>
 
@@ -491,10 +483,14 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
               style={{ background: 'rgba(0, 100, 150, 0.6)', borderColor: 'rgba(0, 255, 255, 0.5)' }}
             />
             <div style={{ display: 'flex', gap: 20, fontSize: 14 }}>
-              <div>Health: 20</div>
-              <div>Hand: {playerHand.length}</div>
-              <div>Deck: {gameDoc.deck?.length || 0}</div>
-              <div>Graveyard: 0</div>
+              <div style={{ fontSize: 12, opacity: 0.7, color: '#ff4444' }}>
+                ❤️ Health: {currentPlayerState?.health || 0}/{currentPlayerState?.maxHealth || 0}
+              </div>
+              <div style={{ fontSize: 12, opacity: 0.7, color: '#00ffff' }}>
+                ⚡ Energy: {currentPlayerState?.energy || 0}/{currentPlayerState?.maxEnergy || 0}
+              </div>
+              <div style={{ fontSize: 12, opacity: 0.7 }}>📚 Deck: {gameDoc.deck?.length || 0}</div>
+              <div style={{ fontSize: 12, opacity: 0.7 }}>🪦 Graveyard: {gameDoc.graveyard?.length || 0}</div>
             </div>
           </div>
 
@@ -562,18 +558,6 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
             ⏭️ End Turn
           </button>
         )}
-        <button style={{
-          background: 'rgba(255,255,255,0.1)',
-          color: '#fff',
-          border: '1px solid rgba(255,255,255,0.2)',
-          padding: '8px 16px',
-          borderRadius: 6,
-          cursor: 'pointer',
-          fontSize: 12,
-          transition: 'all 0.2s ease'
-        }}>
-          Settings
-        </button>
       </div>
     </div>
   );
