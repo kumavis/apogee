@@ -1,58 +1,50 @@
 import React, { useState, useMemo } from 'react';
 import { AutomergeUrl } from '@automerge/react';
-import { GameDoc } from '../docs/game';
+import { GameDoc, playCard, endPlayerTurn } from '../docs/game';
 import { RootDocument } from '../docs/rootDoc';
 import { useGameNavigation } from '../hooks/useGameNavigation';
 import Card, { CardData } from './Card';
 import Contact from './Contact';
+import GameLog from './GameLog';
 
 type TCGGameBoardProps = {
   gameDoc: GameDoc;
   gameDocUrl: string;
   rootDoc: RootDocument;
   playerList: AutomergeUrl[];
+  changeGameDoc: ((callback: (doc: GameDoc) => void) => void) | null;
 };
 
-const createPlayAreaCards = (): CardData[] => [
-  {
-    id: 'p1',
-    name: 'Cyber Drone',
-    cost: 2,
-    attack: 2,
-    health: 1,
-    type: 'creature',
-    description: 'A fast reconnaissance unit.',
-    isPlayable: false
-  },
-  {
-    id: 'p2',
-    name: 'Energy Shield',
-    cost: 3,
-    attack: 1,
-    health: 4,
-    type: 'creature',
-    description: 'Deflects incoming attacks.',
-    isPlayable: false
-  }
-];
 
 const TCGGameBoard: React.FC<TCGGameBoardProps> = ({ 
   gameDoc,
   gameDocUrl, 
   rootDoc, 
-  playerList 
+  playerList,
+  changeGameDoc
 }) => {
   const { navigateToHome } = useGameNavigation();
   const [currentOpponentIndex, setCurrentOpponentIndex] = useState(0);
 
+  // Check if it's the current player's turn
+  const isCurrentPlayer = gameDoc.currentPlayerIndex === playerList.indexOf(rootDoc.selfId);
+
+  // Get current player state
+  const currentPlayerState = useMemo(() => {
+    return gameDoc.playerStates?.find(state => state.playerId === rootDoc.selfId);
+  }, [gameDoc.playerStates, rootDoc.selfId]);
+
   // Convert card IDs to CardData using the game's card library
-  const convertCardsToData = (cardIds: string[]): CardData[] => {
+  const convertCardsToData = (cardIds: string[], isHand = false): CardData[] => {
     if (!gameDoc.cardLibrary) return [];
     return cardIds.map(cardId => {
       const card = gameDoc.cardLibrary![cardId];
+      const isPlayable = isHand && currentPlayerState ? 
+        card.cost <= currentPlayerState.energy && isCurrentPlayer : 
+        false;
       return {
         ...card,
-        isPlayable: true // For now, all cards are playable
+        isPlayable
       };
     }).filter(card => card); // Filter out undefined cards
   };
@@ -61,12 +53,63 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
   const playerHand = useMemo(() => {
     if (!gameDoc.playerHands) return [];
     const playerHandData = gameDoc.playerHands.find(hand => hand.playerId === rootDoc.selfId);
-    return playerHandData ? convertCardsToData(playerHandData.cards) : [];
-  }, [gameDoc.playerHands, gameDoc.cardLibrary, rootDoc.selfId]);
+    return playerHandData ? convertCardsToData(playerHandData.cards, true) : [];
+  }, [gameDoc.playerHands, gameDoc.cardLibrary, rootDoc.selfId, currentPlayerState, isCurrentPlayer]);
 
-  // Mock board state for now (will be implemented later)
-  const [playerBoard] = useState(createPlayAreaCards);
-  const [opponentBoard] = useState(createPlayAreaCards);
+  // Get player's battlefield
+  const playerBattlefield = useMemo(() => {
+    if (!gameDoc.playerBattlefields) return [];
+    const playerBattlefieldData = gameDoc.playerBattlefields.find(battlefield => battlefield.playerId === rootDoc.selfId);
+    return playerBattlefieldData ? convertCardsToData(playerBattlefieldData.cards) : [];
+  }, [gameDoc.playerBattlefields, gameDoc.cardLibrary, rootDoc.selfId]);
+
+  // Handle ending turn
+  const handleEndTurn = () => {
+    if (!changeGameDoc) {
+      console.error('handleEndTurn: Cannot end turn - missing changeGameDoc');
+      return;
+    }
+    if (!isCurrentPlayer) {
+      console.warn('handleEndTurn: Cannot end turn - not current player');
+      return;
+    }
+
+    changeGameDoc((doc) => {
+      endPlayerTurn(doc, rootDoc.selfId);
+    });
+  };
+
+  // Handle card playing
+  const handlePlayCard = (cardId: string) => {
+    if (!changeGameDoc) {
+      console.error('handlePlayCard: Cannot play card - missing changeGameDoc');
+      return;
+    }
+    if (!currentPlayerState) {
+      console.error('handlePlayCard: Cannot play card - missing currentPlayerState');
+      return;
+    }
+    
+    const card = gameDoc.cardLibrary[cardId];
+    if (!card) {
+      console.error(`handlePlayCard: Card not found in library: ${cardId}`);
+      return;
+    }
+    if (card.cost > currentPlayerState.energy) {
+      console.warn(`handlePlayCard: Cannot afford card ${cardId} (cost: ${card.cost}, available energy: ${currentPlayerState.energy})`);
+      return;
+    }
+    
+    // Check if it's the player's turn
+    if (!isCurrentPlayer) {
+      console.warn('handlePlayCard: Cannot play card - not current player turn');
+      return;
+    }
+
+    changeGameDoc((doc) => {
+      playCard(doc, rootDoc.selfId, cardId);
+    });
+  };
 
   // Get opponents (all players except self)
   const opponents = playerList.filter(player => player !== rootDoc.selfId);
@@ -135,8 +178,18 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
         
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{ fontSize: 12, opacity: 0.7 }}>Turn {gameDoc.turn || 1}</div>
-          <div style={{ fontSize: 12, opacity: 0.7, color: '#00ffff' }}>Energy: 5/5</div>
+          <div style={{ 
+            fontSize: 12, 
+            color: isCurrentPlayer ? '#00ff00' : '#ffaa00',
+            fontWeight: 600
+          }}>
+            {isCurrentPlayer ? '🎯 Your Turn' : '⏳ Waiting...'}
+          </div>
+          <div style={{ fontSize: 12, opacity: 0.7, color: '#00ffff' }}>
+            Energy: {currentPlayerState?.energy || 0}/{currentPlayerState?.maxEnergy || 0}
+          </div>
           <div style={{ fontSize: 12, opacity: 0.7 }}>Deck: {gameDoc.deck?.length || 0}</div>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>Graveyard: {gameDoc.graveyard?.length || 0}</div>
         </div>
       </div>
 
@@ -233,7 +286,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
             
             return Array.from({ length: handSize }, (_, i) => (
               <Card
-                key={`opp-hand-${i}`}
+                key={`opp-hand-${currentOpponent}-${i}`}
                 card={{} as CardData}
                 size="small"
                 faceDown={true}
@@ -252,23 +305,28 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
           padding: '20px',
           flexWrap: 'wrap'
         }}>
-          {opponentBoard.map((card) => (
-            <Card
-              key={card.id}
-              card={card}
-              size="medium"
-              style={{ transform: 'rotate(180deg)' }}
-            />
-          ))}
-          {opponentBoard.length === 0 && (
-            <div style={{
-              color: 'rgba(255,255,255,0.5)',
-              fontSize: 16,
-              fontStyle: 'italic'
-            }}>
-              No cards in play
-            </div>
-          )}
+          {(() => {
+            // Get current opponent's battlefield
+            const currentOpponent = opponents[currentOpponentIndex];
+            const opponentBattlefield = gameDoc.playerBattlefields?.find(battlefield => battlefield.playerId === currentOpponent);
+            const opponentCards = opponentBattlefield ? convertCardsToData(opponentBattlefield.cards) : [];
+            
+            return opponentCards.length > 0 ? opponentCards.map((card, index) => (
+              <Card
+                key={`opponent-${card.id}-${index}`}
+                card={card}
+                size="medium"
+              />
+            )) : (
+              <div style={{
+                color: 'rgba(255,255,255,0.5)',
+                fontSize: 16,
+                fontStyle: 'italic'
+              }}>
+                No cards in play
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -289,15 +347,14 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
           padding: '20px',
           flexWrap: 'wrap'
         }}>
-          {playerBoard.map((card) => (
+          {playerBattlefield.map((card, index) => (
             <Card
-              key={card.id}
+              key={`battlefield-${card.id}-${index}`}
               card={card}
               size="medium"
-              onClick={() => console.log('Clicked card:', card.name)}
             />
           ))}
-          {playerBoard.length === 0 && (
+          {playerBattlefield.length === 0 && (
             <div style={{
               color: 'rgba(255,255,255,0.5)',
               fontSize: 16,
@@ -347,17 +404,23 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
             padding: '0 20px',
             overflowX: 'auto'
           }}>
-            {playerHand.map((card) => (
-              <Card
-                key={card.id}
-                card={card}
-                size="medium"
-                onClick={() => console.log('Play card:', card.name)}
-              />
-            ))}
+                      {playerHand.map((card, index) => (
+            <Card
+              key={`hand-${card.id}-${index}`}
+              card={card}
+              size="medium"
+              onClick={card.isPlayable ? () => handlePlayCard(card.id) : undefined}
+            />
+          ))}
           </div>
         </div>
       </div>
+
+      {/* Game Log */}
+      <GameLog 
+        gameLog={gameDoc.gameLog}
+        cardLibrary={gameDoc.cardLibrary}
+      />
 
       {/* Action Buttons */}
       <div style={{
@@ -368,20 +431,33 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
         flexDirection: 'column',
         gap: 8
       }}>
-        <button style={{
-          background: 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)',
-          color: '#fff',
-          border: 'none',
-          padding: '12px 20px',
-          borderRadius: 8,
-          cursor: 'pointer',
-          fontSize: 14,
-          fontWeight: 600,
-          boxShadow: '0 4px 12px rgba(82, 196, 26, 0.4)',
-          transition: 'all 0.2s ease'
-        }}>
-          End Turn
-        </button>
+        {isCurrentPlayer && (
+          <button 
+            onClick={handleEndTurn}
+            style={{
+              background: 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)',
+              color: '#fff',
+              border: 'none',
+              padding: '12px 20px',
+              borderRadius: 8,
+              cursor: 'pointer',
+              fontSize: 14,
+              fontWeight: 600,
+              boxShadow: '0 4px 12px rgba(82, 196, 26, 0.4)',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-1px)';
+              e.currentTarget.style.boxShadow = '0 6px 16px rgba(82, 196, 26, 0.5)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(82, 196, 26, 0.4)';
+            }}
+          >
+            End Turn
+          </button>
+        )}
         <button style={{
           background: 'rgba(255,255,255,0.1)',
           color: '#fff',
