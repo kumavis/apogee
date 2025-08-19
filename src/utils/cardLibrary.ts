@@ -1,4 +1,5 @@
 import { GameCard } from '../docs/game';
+import { functionToString } from './spellEffects';
 
 // Sci-fi themed card library
 export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
@@ -16,7 +17,33 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     name: 'Plasma Burst',
     cost: 3,
     type: 'spell',
-    description: 'Deal 3 energy damage to any target.'
+    description: 'Deal 3 energy damage to any target.',
+    spellEffect: functionToString(async (api) => {
+      // Select any target (player or creature)
+      const targets = await api.selectTargets({
+        targetCount: 1,
+        targetType: 'any',
+        canTargetSelf: false,
+        canTargetAllies: true,
+        description: 'Choose a target to deal 3 damage'
+      });
+      
+      if (targets.length === 0) {
+        api.log('No target selected for Plasma Burst');
+        return false;
+      }
+      
+      const target = targets[0];
+      if (target.type === 'player') {
+        api.dealDamageToPlayer(target.playerId, 3);
+        api.log(`Plasma Burst deals 3 damage to player`);
+      } else if (target.type === 'creature' && target.instanceId) {
+        api.dealDamageToCreature(target.playerId, target.instanceId, 3);
+        api.log(`Plasma Burst destroys target creature`);
+      }
+      
+      return true;
+    })
   },
   'card_003': {
     id: 'card_003',
@@ -48,7 +75,25 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     name: 'Data Spike',
     cost: 1,
     type: 'spell',
-    description: 'Hack enemy systems for 1 damage.'
+    description: 'Hack enemy systems for 1 damage.',
+    spellEffect: functionToString(async (api) => {
+      const targets = await api.selectTargets({
+        targetCount: 1,
+        targetType: 'player',
+        canTargetSelf: false,
+        canTargetAllies: false,
+        description: 'Choose an opponent to hack for 1 damage'
+      });
+      
+      if (targets.length === 0) {
+        api.log('No target selected for Data Spike');
+        return false;
+      }
+      
+      api.dealDamageToPlayer(targets[0].playerId, 1);
+      api.log(`Data Spike hacks opponent for 1 damage`);
+      return true;
+    })
   },
   'card_007': {
     id: 'card_007',
@@ -96,7 +141,47 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     name: 'System Crash',
     cost: 4,
     type: 'spell',
-    description: 'Destroy target artifact or spell.'
+    description: 'Destroy target creature.',
+    spellEffect: functionToString(async (api) => {
+      // Get all creatures on all battlefields
+      const allCreatures = [];
+      for (const playerId of api.getAllPlayers()) {
+        const creatures = api.getCreaturesForPlayer(playerId);
+        for (const creature of creatures) {
+          allCreatures.push({
+            type: 'creature' as const,
+            playerId,
+            instanceId: creature.instanceId
+          });
+        }
+      }
+      
+      if (allCreatures.length === 0) {
+        api.log('No creatures to destroy');
+        return false;
+      }
+      
+      const targets = await api.selectTargets({
+        targetCount: 1,
+        targetType: 'creature',
+        canTargetSelf: true,
+        canTargetAllies: true,
+        description: 'Choose a creature to destroy'
+      });
+      
+      if (targets.length === 0) {
+        api.log('No target selected for System Crash');
+        return false;
+      }
+      
+      const target = targets[0];
+      if (target.instanceId) {
+        api.destroyCreature(target.playerId, target.instanceId);
+        api.log(`System Crash destroys target creature`);
+      }
+      
+      return true;
+    })
   },
   'card_013': {
     id: 'card_013',
@@ -112,7 +197,33 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     name: 'Photon Cannon',
     cost: 5,
     type: 'spell',
-    description: 'Deal 5 damage to target.'
+    description: 'Deal 5 damage to target.',
+    spellEffect: functionToString(async (api) => {
+      // Select any target (player or creature)
+      const targets = await api.selectTargets({
+        targetCount: 1,
+        targetType: 'any',
+        canTargetSelf: false,
+        canTargetAllies: true,
+        description: 'Choose a target to deal 5 damage'
+      });
+      
+      if (targets.length === 0) {
+        api.log('No target selected for Photon Cannon');
+        return false;
+      }
+      
+      const target = targets[0];
+      if (target.type === 'player') {
+        api.dealDamageToPlayer(target.playerId, 5);
+        api.log(`Photon Cannon blasts player for 5 damage`);
+      } else if (target.type === 'creature' && target.instanceId) {
+        api.dealDamageToCreature(target.playerId, target.instanceId, 5);
+        api.log(`Photon Cannon destroys target creature`);
+      }
+      
+      return true;
+    })
   },
   'card_015': {
     id: 'card_015',
@@ -122,6 +233,217 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     health: 1,
     type: 'creature',
     description: 'Cannot be blocked.'
+  },
+  'card_016': {
+    id: 'card_016',
+    name: 'Chain Lightning',
+    cost: 4,
+    type: 'spell',
+    description: 'Deal 2 damage to up to 3 targets.',
+    spellEffect: functionToString(async (api) => {
+      const targets = await api.selectTargets({
+        targetCount: 3,
+        targetType: 'any',
+        canTargetSelf: false,
+        canTargetAllies: true,
+        description: 'Choose up to 3 targets for Chain Lightning (2 damage each)'
+      });
+      
+      if (targets.length === 0) {
+        api.log('No targets selected for Chain Lightning');
+        return false;
+      }
+      
+      targets.forEach((target: any) => {
+        if (target.type === 'player') {
+          api.dealDamageToPlayer(target.playerId, 2);
+        } else if (target.type === 'creature' && target.instanceId) {
+          api.dealDamageToCreature(target.playerId, target.instanceId, 2);
+        }
+      });
+      
+      api.log(`Chain Lightning strikes ${targets.length} target(s) for 2 damage each`);
+      return true;
+    })
+  },
+  'card_017': {
+    id: 'card_017',
+    name: 'Mass Heal',
+    cost: 3,
+    type: 'spell',
+    description: 'Restore 3 health to yourself and all allies.',
+    spellEffect: functionToString(async (api) => {
+      const allPlayers = api.getAllPlayers();
+      let healed = 0;
+      
+      allPlayers.forEach((playerId: any) => {
+        api.healPlayer(playerId, 3);
+        healed++;
+      });
+      
+      api.log(`Mass Heal restores 3 health to ${healed} player(s)`);
+      return true;
+    })
+  },
+  'card_018': {
+    id: 'card_018',
+    name: 'Mind Control',
+    cost: 6,
+    type: 'spell',
+    description: 'Deal 1 damage to target creature and 1 damage to its owner.',
+    spellEffect: functionToString(async (api) => {
+      const targets = await api.selectTargets({
+        targetCount: 1,
+        targetType: 'creature',
+        canTargetSelf: true,
+        canTargetAllies: true,
+        description: 'Choose a creature to mind control (damages creature and owner)'
+      });
+      
+      if (targets.length === 0) {
+        api.log('No target selected for Mind Control');
+        return false;
+      }
+      
+      const target = targets[0];
+      if (target.instanceId) {
+        // Damage the creature
+        api.dealDamageToCreature(target.playerId, target.instanceId, 1);
+        // Damage the owner
+        api.dealDamageToPlayer(target.playerId, 1);
+        api.log(`Mind Control damages creature and its owner`);
+      }
+      
+      return true;
+    })
+  },
+  'card_019': {
+    id: 'card_019',
+    name: 'Electromagnetic Pulse',
+    cost: 5,
+    type: 'spell',
+    description: 'Destroy all creatures on the battlefield.',
+    spellEffect: functionToString(async (api) => {
+      const allPlayers = api.getAllPlayers();
+      let destroyedCount = 0;
+      
+      allPlayers.forEach((playerId: any) => {
+        const creatures = api.getCreaturesForPlayer(playerId);
+        creatures.forEach((creature: any) => {
+          api.destroyCreature(playerId, creature.instanceId);
+          destroyedCount++;
+        });
+      });
+      
+      if (destroyedCount > 0) {
+        api.log(`Electromagnetic Pulse destroys ${destroyedCount} creature(s)`);
+      } else {
+        api.log('Electromagnetic Pulse finds no creatures to destroy');
+      }
+      
+      return true;
+    })
+  },
+  'card_020': {
+    id: 'card_020',
+    name: 'Targeted Strike',
+    cost: 2,
+    type: 'spell',
+    description: 'Deal 2 damage to target creature and 1 damage to its owner.',
+    spellEffect: functionToString(async (api) => {
+      const targets = await api.selectTargets({
+        targetCount: 1,
+        targetType: 'creature',
+        canTargetSelf: true,
+        canTargetAllies: true,
+        description: 'Choose a creature for Targeted Strike'
+      });
+      
+      if (targets.length === 0) {
+        api.log('No target selected for Targeted Strike');
+        return false;
+      }
+      
+      const target = targets[0];
+      if (target.instanceId) {
+        api.dealDamageToCreature(target.playerId, target.instanceId, 2);
+        api.dealDamageToPlayer(target.playerId, 1);
+        api.log(`Targeted Strike hits creature for 2 and owner for 1 damage`);
+      }
+      
+      return true;
+    })
+  },
+  'card_021': {
+    id: 'card_021',
+    name: 'Cleansing Light',
+    cost: 2,
+    type: 'spell',
+    description: 'Heal yourself for 4 health.',
+    spellEffect: functionToString(async (api) => {
+      api.healPlayer(api.casterId, 4);
+      api.log('Cleansing Light restores 4 health');
+      return true;
+    })
+  },
+  'card_022': {
+    id: 'card_022',
+    name: 'Twin Missiles',
+    cost: 3,
+    type: 'spell',
+    description: 'Deal 2 damage to two different targets.',
+    spellEffect: functionToString(async (api) => {
+      const targets = await api.selectTargets({
+        targetCount: 2,
+        targetType: 'any',
+        canTargetSelf: false,
+        canTargetAllies: true,
+        description: 'Choose 2 targets for Twin Missiles (2 damage each)'
+      });
+      
+      if (targets.length === 0) {
+        api.log('No targets selected for Twin Missiles');
+        return false;
+      }
+      
+      targets.forEach((target: any) => {
+        if (target.type === 'player') {
+          api.dealDamageToPlayer(target.playerId, 2);
+        } else if (target.type === 'creature' && target.instanceId) {
+          api.dealDamageToCreature(target.playerId, target.instanceId, 2);
+        }
+      });
+      
+      api.log(`Twin Missiles hit ${targets.length} target(s) for 2 damage each`);
+      return true;
+    })
+  },
+  'card_023': {
+    id: 'card_023',
+    name: 'Overcharge',
+    cost: 1,
+    type: 'spell',
+    description: 'Deal 1 damage to all enemies.',
+    spellEffect: functionToString(async (api) => {
+      const allPlayers = api.getAllPlayers();
+      const enemies = allPlayers.filter((p: any) => p !== api.casterId);
+      let damagedCount = 0;
+      
+      enemies.forEach((enemyId: any) => {
+        api.dealDamageToPlayer(enemyId, 1);
+        damagedCount++;
+        
+        // Also damage all enemy creatures
+        const creatures = api.getCreaturesForPlayer(enemyId);
+        creatures.forEach((creature: any) => {
+          api.dealDamageToCreature(enemyId, creature.instanceId, 1);
+          damagedCount++;
+        });
+      });
+      
+      api.log(`Overcharge damages ${damagedCount} target(s) for 1 damage each`);
+      return true;
+    })
   }
 };
 
@@ -146,6 +468,14 @@ export const createStandardDeck = (): string[] => {
     'card_013': 3, // Repair Drone
     'card_014': 1, // Photon Cannon (rare)
     'card_015': 3, // Stealth Infiltrator
+    'card_016': 1, // Chain Lightning (rare)
+    'card_017': 2, // Mass Heal
+    'card_018': 1, // Mind Control (rare)
+    'card_019': 1, // Electromagnetic Pulse (rare)
+    'card_020': 2, // Targeted Strike
+    'card_021': 3, // Cleansing Light
+    'card_022': 2, // Twin Missiles
+    'card_023': 3, // Overcharge (common)
   };
   
   // Add cards to deck based on copy counts

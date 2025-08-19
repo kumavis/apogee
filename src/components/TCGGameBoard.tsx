@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { AutomergeUrl } from '@automerge/react';
-import { GameDoc, playCard, endPlayerTurn, attackPlayerWithCreature } from '../docs/game';
+import { GameDoc, playCard, endPlayerTurn, attackPlayerWithCreature, removeCardFromHand, spendEnergy, addCardToGraveyard, addGameLogEntry } from '../docs/game';
 import { useGameNavigation } from '../hooks/useGameNavigation';
 import Card, { CardData } from './Card';
 import Contact from './Contact';
 import GameLog from './GameLog';
+import { SpellTargetSelector, SpellTarget, createSpellEffectAPI, executeSpellEffect, executeSpellOperations } from '../utils/spellEffects';
 
 type TCGGameBoardProps = {
   gameDoc: GameDoc;
@@ -22,6 +23,21 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
   const [currentOpponentIndex, setCurrentOpponentIndex] = useState(0);
   const playerList = gameDoc.players;
 
+  // Spell targeting state
+  const [targetingState, setTargetingState] = useState<{
+    isTargeting: boolean;
+    selector: SpellTargetSelector | null;
+    selectedTargets: SpellTarget[];
+    resolve: ((targets: SpellTarget[]) => void) | null;
+    cardBeingPlayed: string | null;
+  }>({
+    isTargeting: false,
+    selector: null,
+    selectedTargets: [],
+    resolve: null,
+    cardBeingPlayed: null
+  });
+
   // Check if it's the current player's turn
   const isCurrentPlayer = gameDoc.currentPlayerIndex === playerList.indexOf(selfId);
 
@@ -36,7 +52,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
     return cardIds.map(cardId => {
       const card = gameDoc.cardLibrary![cardId];
       const isPlayable = isHand && currentPlayerState ? 
-        card.cost <= currentPlayerState.energy && isCurrentPlayer : 
+        card.cost <= currentPlayerState.energy && isCurrentPlayer && !targetingState.isTargeting : 
         false;
       return {
         ...card,
@@ -50,7 +66,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
     if (!gameDoc.playerHands) return [];
     const playerHandData = gameDoc.playerHands.find(hand => hand.playerId === selfId);
     return playerHandData ? convertCardsToData(playerHandData.cards, true) : [];
-  }, [gameDoc.playerHands, gameDoc.cardLibrary, selfId, currentPlayerState, isCurrentPlayer]);
+  }, [gameDoc.playerHands, gameDoc.cardLibrary, selfId, currentPlayerState, isCurrentPlayer, targetingState.isTargeting]);
 
   // Get player's battlefield
   const playerBattlefield = useMemo(() => {
@@ -114,20 +130,136 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
       console.warn('handleEndTurn: Cannot end turn - not current player');
       return;
     }
+    
+    // Prevent ending turn while targeting
+    if (targetingState.isTargeting) {
+      console.warn('handleEndTurn: Cannot end turn while selecting targets for a spell');
+      return;
+    }
 
     changeGameDoc((doc) => {
       endPlayerTurn(doc, selfId);
     });
   };
 
-  // Handle card playing
-  const handlePlayCard = (cardId: string) => {
+  // Implementation of target selection for spells
+  const selectTargets = async (selector: SpellTargetSelector): Promise<SpellTarget[]> => {
+    // Handle auto-targeting cases
+    if (selector.targetType === 'player' && selector.targetCount === 1) {
+      const allPlayers = gameDoc.players;
+      let validTargets: AutomergeUrl[] = [];
+      
+      if (selector.canTargetSelf === false && selector.canTargetAllies === false) {
+        // Only target opponents
+        validTargets = allPlayers.filter(p => p !== selfId);
+      } else if (selector.canTargetSelf === true && selector.canTargetAllies === false) {
+        // Only target self
+        validTargets = [selfId];
+      } else {
+        // Can target anyone (self and allies)
+        validTargets = allPlayers;
+      }
+      
+      // Auto-target if only one valid option
+      if (validTargets.length === 1) {
+        return [{
+          type: 'player',
+          playerId: validTargets[0]
+        }];
+      }
+    }
+    
+    // Need manual selection
+    return new Promise((resolve) => {
+      setTargetingState({
+        isTargeting: true,
+        selector,
+        selectedTargets: [],
+        resolve,
+        cardBeingPlayed: null
+      });
+    });
+  };
+
+  // Handle target selection during spell casting
+  const handleTargetSelection = (target: SpellTarget) => {
+    if (!targetingState.isTargeting || !targetingState.selector) return;
+
+    const { selector, selectedTargets } = targetingState;
+    const newSelectedTargets = [...selectedTargets];
+
+    // Check if target is already selected
+    const targetIndex = newSelectedTargets.findIndex(t => 
+      t.playerId === target.playerId && 
+      t.instanceId === target.instanceId &&
+      t.type === target.type
+    );
+
+    if (targetIndex >= 0) {
+      // Remove if already selected
+      newSelectedTargets.splice(targetIndex, 1);
+    } else if (newSelectedTargets.length < selector.targetCount) {
+      // Add if under target limit
+      newSelectedTargets.push(target);
+    }
+
+    setTargetingState(prev => ({
+      ...prev,
+      selectedTargets: newSelectedTargets
+    }));
+
+    // Auto-confirm only for single-target spells
+    if (newSelectedTargets.length === selector.targetCount && selector.targetCount === 1) {
+      confirmTargetSelection(newSelectedTargets);
+    }
+  };
+
+  // Confirm target selection
+  const confirmTargetSelection = (targets?: SpellTarget[]) => {
+    const finalTargets = targets || targetingState.selectedTargets;
+    
+    if (targetingState.resolve) {
+      targetingState.resolve(finalTargets);
+    }
+    
+    setTargetingState({
+      isTargeting: false,
+      selector: null,
+      selectedTargets: [],
+      resolve: null,
+      cardBeingPlayed: null
+    });
+  };
+
+  // Cancel target selection
+  const cancelTargetSelection = () => {
+    if (targetingState.resolve) {
+      targetingState.resolve([]);
+    }
+    
+    setTargetingState({
+      isTargeting: false,
+      selector: null,
+      selectedTargets: [],
+      resolve: null,
+      cardBeingPlayed: null
+    });
+  };
+
+  // Handle card playing (updated for async spells)
+  const handlePlayCard = async (cardId: string) => {
     if (!changeGameDoc) {
       console.error('handlePlayCard: Cannot play card - missing changeGameDoc');
       return;
     }
     if (!currentPlayerState) {
       console.error('handlePlayCard: Cannot play card - missing currentPlayerState');
+      return;
+    }
+    
+    // Prevent playing cards while targeting
+    if (targetingState.isTargeting) {
+      console.warn('handlePlayCard: Cannot play card while selecting targets for another spell');
       return;
     }
     
@@ -147,9 +279,59 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
       return;
     }
 
-    changeGameDoc((doc) => {
-      playCard(doc, selfId, cardId);
-    });
+    // If it's a spell with effects, handle targeting first then cast
+    if (card.type === 'spell' && card.spellEffect) {
+      // Handle spell casting asynchronously
+      (async () => {
+        try {
+          // First execute the spell effect to collect operations
+          const api = createSpellEffectAPI(gameDoc, selfId, selectTargets);
+          const success = card.spellEffect ? await executeSpellEffect(card.spellEffect, api) : false;
+          
+          // Now update the game state in one synchronous operation
+          changeGameDoc((doc) => {
+            const currentCard = doc.cardLibrary[cardId];
+            if (!currentCard) return;
+            
+            // Check if we can afford the card and remove it from hand
+            if (removeCardFromHand(doc, selfId, cardId) && spendEnergy(doc, selfId, currentCard.cost)) {
+              // Add to graveyard
+              addCardToGraveyard(doc, cardId);
+              
+              // Add cast log entry FIRST
+              addGameLogEntry(doc, {
+                playerId: selfId,
+                action: 'play_card',
+                cardId,
+                description: `Cast ${card.name}`
+              });
+              
+              // Then execute the collected spell operations
+              if (success && api.operations.length > 0) {
+                executeSpellOperations(doc, api.operations);
+              }
+            } else {
+              console.error('Failed to cast spell - insufficient resources');
+            }
+          });
+        } catch (error) {
+          console.error('Error casting spell:', error);
+          changeGameDoc((doc) => {
+            addGameLogEntry(doc, {
+              playerId: selfId,
+              action: 'play_card',
+              cardId,
+              description: `Failed to cast ${card.name}`
+            });
+          });
+        }
+      })();
+    } else {
+      // Use sync version for creatures and simple spells
+      changeGameDoc((doc) => {
+        playCard(doc, selfId, cardId);
+      });
+    }
   };
 
   // Get opponents (all players except self)
@@ -162,6 +344,41 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
 
   const prevOpponent = () => {
     setCurrentOpponentIndex((prev) => (prev - 1 + opponents.length) % opponents.length);
+  };
+
+  // Helper functions for targeting
+  const canTargetPlayer = (playerId: AutomergeUrl): boolean => {
+    if (!targetingState.isTargeting || !targetingState.selector) return false;
+    
+    const { selector } = targetingState;
+    if (selector.targetType === 'creature') return false;
+    
+    if (playerId === selfId) {
+      return selector.canTargetSelf !== false;
+    } else {
+      return selector.canTargetAllies !== false;
+    }
+  };
+
+  const canTargetCreature = (playerId: AutomergeUrl, _instanceId: string): boolean => {
+    if (!targetingState.isTargeting || !targetingState.selector) return false;
+    
+    const { selector } = targetingState;
+    if (selector.targetType === 'player') return false;
+    
+    if (playerId === selfId) {
+      return selector.canTargetSelf !== false;
+    } else {
+      return selector.canTargetAllies !== false;
+    }
+  };
+
+  const isTargetSelected = (target: SpellTarget): boolean => {
+    return targetingState.selectedTargets.some(t => 
+      t.playerId === target.playerId && 
+      t.instanceId === target.instanceId &&
+      t.type === target.type
+    );
   };
 
   return (
@@ -265,16 +482,72 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
             transition: 'transform 0.3s ease'
           }}>
             {currentOpponent && (
-              <Contact 
-                contactUrl={currentOpponent}
-                style={{ background: 'rgba(100, 0, 150, 0.6)', borderColor: 'rgba(0, 255, 255, 0.5)' }}
-              />
-            )}
-            {opponents.length > 1 && (
-              <div style={{ fontSize: 14, fontWeight: 600 }}>
-                Opponent {currentOpponentIndex + 1} of {opponents.length}
+              <div
+                onClick={() => {
+                  if (canTargetPlayer(currentOpponent)) {
+                    handleTargetSelection({
+                      type: 'player',
+                      playerId: currentOpponent
+                    });
+                  }
+                }}
+                style={{
+                  cursor: canTargetPlayer(currentOpponent) ? 'pointer' : 'default',
+                  border: canTargetPlayer(currentOpponent) ? '3px solid #00ff00' : 'none',
+                  borderRadius: 8,
+                  padding: canTargetPlayer(currentOpponent) ? 2 : 0,
+                  boxShadow: isTargetSelected({type: 'player', playerId: currentOpponent}) ? '0 0 15px #00ff00' : 'none'
+                }}
+              >
+                <Contact 
+                  contactUrl={currentOpponent}
+                  style={{ 
+                    background: 'rgba(100, 0, 150, 0.6)', 
+                    borderColor: 'rgba(0, 255, 255, 0.5)',
+                    opacity: canTargetPlayer(currentOpponent) ? 1 : (targetingState.isTargeting ? 0.5 : 1)
+                  }}
+                />
               </div>
             )}
+            {/* Opponent Info */}
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'center', 
+              gap: 4 
+            }}>
+              {opponents.length > 1 && (
+                <div style={{ fontSize: 14, fontWeight: 600 }}>
+                  Opponent {currentOpponentIndex + 1} of {opponents.length}
+                </div>
+              )}
+              
+              {/* Opponent Health Display */}
+              {(() => {
+                const currentOpponent = opponents[currentOpponentIndex];
+                const opponentState = gameDoc.playerStates?.find(state => state.playerId === currentOpponent);
+                
+                return currentOpponent && opponentState ? (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '4px 12px',
+                    background: 'rgba(100, 0, 150, 0.3)',
+                    border: '1px solid rgba(255, 68, 68, 0.5)',
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: '#fff'
+                  }}>
+                    <span style={{ color: '#ff4444' }}>❤️</span>
+                    <span>{opponentState.health}/{opponentState.maxHealth}</span>
+                    <span style={{ color: '#00ffff', marginLeft: 6 }}>⚡</span>
+                    <span>{opponentState.energy}/{opponentState.maxEnergy}</span>
+                  </div>
+                ) : null;
+              })()}
+            </div>
           </div>
 
           {opponents.length > 1 && (
@@ -351,14 +624,31 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
             return opponentCards.length > 0 ? opponentCards.map((card) => (
               <div
                 key={`opponent-${card.instanceId}`}
+                onClick={() => {
+                  if (canTargetCreature(currentOpponent, card.instanceId)) {
+                    handleTargetSelection({
+                      type: 'creature',
+                      playerId: currentOpponent,
+                      instanceId: card.instanceId
+                    });
+                  }
+                }}
                 style={{
                   position: 'relative',
-                  opacity: card.sapped ? 0.6 : 1
+                  opacity: card.sapped ? 0.6 : 1,
+                  cursor: canTargetCreature(currentOpponent, card.instanceId) ? 'pointer' : 'default',
+                  border: canTargetCreature(currentOpponent, card.instanceId) ? '3px solid #00ff00' : 'none',
+                  borderRadius: 8,
+                  padding: canTargetCreature(currentOpponent, card.instanceId) ? 2 : 0,
+                  boxShadow: isTargetSelected({type: 'creature', playerId: currentOpponent, instanceId: card.instanceId}) ? '0 0 15px #00ff00' : 'none'
                 }}
               >
                 <Card
                   card={card}
                   size="medium"
+                  style={{
+                    opacity: canTargetCreature(currentOpponent, card.instanceId) ? 1 : (targetingState.isTargeting ? 0.5 : 1)
+                  }}
                 />
                 {card.sapped && (
                   <div style={{
@@ -410,20 +700,42 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
         }}>
           {playerBattlefield.map((card) => {
             const canAttack = isCurrentPlayer && card.attack && card.attack > 0 && !card.sapped;
+            const canTargetThisCreature = canTargetCreature(selfId, card.instanceId);
             const instanceId = card.instanceId;
+            
+            // Prioritize targeting over attacking when targeting is active
+            const shouldHandleTargeting = targetingState.isTargeting && canTargetThisCreature;
+            const handleClick = shouldHandleTargeting 
+              ? () => handleTargetSelection({
+                  type: 'creature',
+                  playerId: selfId,
+                  instanceId: card.instanceId
+                })
+              : (canAttack ? () => handleCreatureAttack(instanceId) : undefined);
             
             return (
               <div
                 key={`battlefield-${card.instanceId}`}
-                onClick={canAttack ? () => handleCreatureAttack(instanceId) : undefined}
+                onClick={handleClick}
                 style={{
-                  cursor: canAttack ? 'pointer' : 'default',
-                  border: canAttack ? '2px solid #ff4444' : card.sapped ? '2px solid #666666' : '2px solid transparent',
+                  cursor: shouldHandleTargeting || canAttack ? 'pointer' : 'default',
+                  border: shouldHandleTargeting 
+                    ? '3px solid #00ff00' 
+                    : canAttack 
+                      ? '2px solid #ff4444' 
+                      : card.sapped 
+                        ? '2px solid #666666' 
+                        : '2px solid transparent',
                   borderRadius: 8,
-                  boxShadow: canAttack ? '0 0 8px rgba(255, 68, 68, 0.4)' : 'none',
-                  opacity: card.sapped ? 0.6 : 1,
+                  boxShadow: shouldHandleTargeting 
+                    ? (isTargetSelected({type: 'creature', playerId: selfId, instanceId: card.instanceId}) ? '0 0 15px #00ff00' : '0 0 8px rgba(0, 255, 0, 0.4)')
+                    : canAttack 
+                      ? '0 0 8px rgba(255, 68, 68, 0.4)' 
+                      : 'none',
+                  opacity: card.sapped ? 0.6 : (shouldHandleTargeting ? 1 : (targetingState.isTargeting ? 0.5 : 1)),
                   transition: 'all 0.2s ease',
-                  position: 'relative'
+                  position: 'relative',
+                  padding: shouldHandleTargeting ? 2 : 0
                 }}
               >
                 <Card
@@ -478,10 +790,32 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
             padding: '0 20px',
             color: '#fff'
           }}>
-            <Contact 
-              contactUrl={selfId}
-              style={{ background: 'rgba(0, 100, 150, 0.6)', borderColor: 'rgba(0, 255, 255, 0.5)' }}
-            />
+            <div
+              onClick={() => {
+                if (canTargetPlayer(selfId)) {
+                  handleTargetSelection({
+                    type: 'player',
+                    playerId: selfId
+                  });
+                }
+              }}
+              style={{
+                cursor: canTargetPlayer(selfId) ? 'pointer' : 'default',
+                border: canTargetPlayer(selfId) ? '3px solid #00ff00' : 'none',
+                borderRadius: 8,
+                padding: canTargetPlayer(selfId) ? 2 : 0,
+                boxShadow: isTargetSelected({type: 'player', playerId: selfId}) ? '0 0 15px #00ff00' : 'none'
+              }}
+            >
+              <Contact 
+                contactUrl={selfId}
+                style={{ 
+                  background: 'rgba(0, 100, 150, 0.6)', 
+                  borderColor: 'rgba(0, 255, 255, 0.5)',
+                  opacity: canTargetPlayer(selfId) ? 1 : (targetingState.isTargeting ? 0.5 : 1)
+                }}
+              />
+            </div>
             <div style={{ display: 'flex', gap: 20, fontSize: 14 }}>
               <div style={{ fontSize: 12, opacity: 0.7, color: '#ff4444' }}>
                 ❤️ Health: {currentPlayerState?.health || 0}/{currentPlayerState?.maxHealth || 0}
@@ -534,31 +868,125 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
         {isCurrentPlayer && (
           <button 
             onClick={handleEndTurn}
+            disabled={targetingState.isTargeting}
             style={{
-              background: 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)',
-              color: '#fff',
+              background: targetingState.isTargeting 
+                ? 'linear-gradient(135deg, #666666 0%, #444444 100%)'
+                : 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)',
+              color: targetingState.isTargeting ? '#999999' : '#fff',
               border: 'none',
               padding: '12px 20px',
               borderRadius: 8,
-              cursor: 'pointer',
+              cursor: targetingState.isTargeting ? 'not-allowed' : 'pointer',
               fontSize: 14,
               fontWeight: 600,
-              boxShadow: '0 4px 12px rgba(82, 196, 26, 0.4)',
-              transition: 'all 0.2s ease'
+              boxShadow: targetingState.isTargeting 
+                ? '0 4px 12px rgba(102, 102, 102, 0.2)'
+                : '0 4px 12px rgba(82, 196, 26, 0.4)',
+              transition: 'all 0.2s ease',
+              opacity: targetingState.isTargeting ? 0.6 : 1
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-1px)';
-              e.currentTarget.style.boxShadow = '0 6px 16px rgba(82, 196, 26, 0.5)';
+              if (!targetingState.isTargeting) {
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 6px 16px rgba(82, 196, 26, 0.5)';
+              }
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 12px rgba(82, 196, 26, 0.4)';
+              if (!targetingState.isTargeting) {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(82, 196, 26, 0.4)';
+              }
             }}
           >
             ⏭️ End Turn
           </button>
         )}
       </div>
+
+      {/* Targeting Panel */}
+      {targetingState.isTargeting && targetingState.selector && (
+        <div style={{
+          position: 'fixed',
+          left: 20,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          width: 320,
+          background: 'linear-gradient(135deg, #001122 0%, #002244 100%)',
+          border: '2px solid #00ffff',
+          borderRadius: 12,
+          padding: 24,
+          textAlign: 'center',
+          color: '#fff',
+          zIndex: 1000,
+          boxShadow: '0 8px 32px rgba(0, 255, 255, 0.3)'
+        }}>
+          <h3 style={{ 
+            margin: '0 0 16px 0', 
+            color: '#00ffff',
+            fontSize: 18
+          }}>
+            🎯 Target Selection
+          </h3>
+          
+          <p style={{ 
+            margin: '0 0 16px 0', 
+            fontSize: 14,
+            lineHeight: 1.4
+          }}>
+            {targetingState.selector.description}
+          </p>
+          
+          <div style={{
+            margin: '0 0 20px 0',
+            fontSize: 12,
+            color: '#00ff00'
+          }}>
+            Selected: {targetingState.selectedTargets.length} / {targetingState.selector.targetCount}
+            {targetingState.selector.targetCount > 1 && targetingState.selectedTargets.length > 0 && (
+              <div style={{ fontSize: 10, color: '#ffff00', marginTop: 4 }}>
+                Click Confirm to cast with {targetingState.selectedTargets.length} target(s)
+              </div>
+            )}
+          </div>
+          
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+            {targetingState.selectedTargets.length > 0 && (
+              <button 
+                onClick={() => confirmTargetSelection()}
+                style={{
+                  background: 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  fontWeight: 600
+                }}
+              >
+                ✅ Confirm ({targetingState.selectedTargets.length})
+              </button>
+            )}
+            
+            <button 
+              onClick={cancelTargetSelection}
+              style={{
+                background: 'linear-gradient(135deg, #ff4d4f 0%, #d32f2f 100%)',
+                color: '#fff',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: 6,
+                cursor: 'pointer',
+                fontSize: 12,
+                fontWeight: 600
+              }}
+            >
+              ❌ Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

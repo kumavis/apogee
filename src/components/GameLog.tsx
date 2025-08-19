@@ -7,10 +7,21 @@ import { getRelativeTime } from '../utils/timeUtils';
 type GameLogProps = {
   gameLog: GameLogEntry[];
   cardLibrary: { [cardId: string]: any };
+  isExpanded?: boolean;
+  canToggle?: boolean;
+  position?: 'fixed' | 'relative';
+  style?: React.CSSProperties;
 };
 
-const GameLog: React.FC<GameLogProps> = ({ gameLog, cardLibrary }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+const GameLog: React.FC<GameLogProps> = ({ 
+  gameLog, 
+  cardLibrary,
+  isExpanded: initialExpanded = false,
+  canToggle = true,
+  position = 'fixed',
+  style = {}
+}) => {
+  const [isExpanded, setIsExpanded] = useState(initialExpanded);
   const [, setCurrentTime] = useState(Date.now());
 
   // Update current time every minute to refresh relative times
@@ -23,18 +34,30 @@ const GameLog: React.FC<GameLogProps> = ({ gameLog, cardLibrary }) => {
   }, []);
 
   const formatLogEntry = (entry: GameLogEntry) => {
+    // If we have a description, prefer that over the default formatting
+    if (entry.description && entry.description !== `Played ${entry.cardId}`) {
+      return entry.description;
+    }
+    
     const card = entry.cardId ? cardLibrary[entry.cardId] : null;
     const cardName = card ? card.name : 'Unknown Card';
     
     switch (entry.action) {
       case 'game_start':
-        return `Game started`;
+        return `🎮 Game started`;
       case 'play_card':
-        return `Played ${cardName}`;
+        return `🃏 Played ${cardName}`;
       case 'end_turn':
-        return `Ended turn`;
+        return `⏭️ Ended turn`;
       case 'draw_card':
-        return `Drew a card`;
+        return entry.description === 'Reshuffled graveyard into deck' ? 
+          `🔄 Reshuffled deck` : `📚 Drew a card`;
+      case 'attack':
+        return `⚔️ Attacked for ${entry.amount} damage`;
+      case 'take_damage':
+        return `💔 Took ${entry.amount} damage`;
+      case 'game_end':
+        return `🏁 Game ended`;
       default:
         return entry.description;
     }
@@ -47,45 +70,46 @@ const GameLog: React.FC<GameLogProps> = ({ gameLog, cardLibrary }) => {
 
   return (
     <div style={{
-      position: 'fixed',
-      top: 70,
-      right: 20,
+      position,
+      ...(position === 'fixed' ? { top: 70, right: 20, zIndex: 1000 } : {}),
       width: 300,
-      maxHeight: isExpanded ? 400 : 50,
+      maxHeight: isExpanded ? 400 : (canToggle ? 50 : 'none'),
       background: 'rgba(0, 0, 0, 0.9)',
       border: '1px solid rgba(0, 255, 255, 0.3)',
       borderRadius: 8,
       overflow: 'hidden',
       transition: 'all 0.3s ease',
-      zIndex: 1000
+      ...style
     }}>
       {/* Header */}
-      <div 
-        onClick={() => setIsExpanded(!isExpanded)}
-        style={{
-          padding: '12px 16px',
-          background: 'rgba(0, 255, 255, 0.1)',
-          borderBottom: isExpanded ? '1px solid rgba(0, 255, 255, 0.3)' : 'none',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          color: '#00ffff',
-          fontSize: 14,
-          fontWeight: 600
-        }}
-      >
-        <span>📜 Game Log ({gameLog.length})</span>
-        <span style={{ 
-          transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-          transition: 'transform 0.3s ease'
-        }}>
-          ▼
-        </span>
-      </div>
+      {canToggle && (
+        <div 
+          onClick={() => setIsExpanded(!isExpanded)}
+          style={{
+            padding: '12px 16px',
+            background: 'rgba(0, 255, 255, 0.1)',
+            borderBottom: isExpanded ? '1px solid rgba(0, 255, 255, 0.3)' : 'none',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            color: '#00ffff',
+            fontSize: 14,
+            fontWeight: 600
+          }}
+        >
+          <span>📜 Game Log ({gameLog.length})</span>
+          <span style={{ 
+            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+            transition: 'transform 0.3s ease'
+          }}>
+            ▼
+          </span>
+        </div>
+      )}
 
       {/* Log Content */}
-      {isExpanded && (
+      {(isExpanded || !canToggle) && (
         <div style={{
           maxHeight: 350,
           overflowY: 'auto',

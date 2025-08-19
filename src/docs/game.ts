@@ -1,5 +1,6 @@
 import { AutomergeUrl, DocHandle, Repo } from "@automerge/react";
 import { CARD_LIBRARY } from "../utils/cardLibrary";
+import { executeSpellEffect, createSpellEffectAPI, SpellTargetSelector, SpellTarget } from "../utils/spellEffects";
 
 export type CardType = 'creature' | 'spell' | 'artifact';
 
@@ -11,6 +12,7 @@ export type GameCard = {
   health?: number;
   type: CardType;
   description: string;
+  spellEffect?: string; // Code string for spell effects
 };
 
 export type PlayerHand = {
@@ -171,11 +173,188 @@ export const addGameLogEntry = (doc: GameDoc, entry: Omit<GameLogEntry, 'id' | '
   doc.gameLog.push(logEntry);
 };
 
+// Helper function to remove creature from battlefield and add to graveyard
+export const removeCreatureFromBattlefield = (
+  doc: GameDoc, 
+  playerId: AutomergeUrl, 
+  instanceId: string
+): boolean => {
+  const battlefieldIndex = doc.playerBattlefields.findIndex(
+    battlefield => battlefield.playerId === playerId
+  );
+  
+  if (battlefieldIndex === -1) {
+    console.error(`removeCreatureFromBattlefield: Battlefield not found for playerId: ${playerId}`);
+    return false;
+  }
+  
+  const cardIndex = doc.playerBattlefields[battlefieldIndex].cards.findIndex(
+    card => card.instanceId === instanceId
+  );
+  
+  if (cardIndex === -1) {
+    console.error(`removeCreatureFromBattlefield: Creature ${instanceId} not found on battlefield`);
+    return false;
+  }
+  
+  // Get the card before removing it
+  const battlefieldCard = doc.playerBattlefields[battlefieldIndex].cards[cardIndex];
+  
+  // Remove from battlefield
+  doc.playerBattlefields[battlefieldIndex].cards.splice(cardIndex, 1);
+  
+  // Add to graveyard
+  doc.graveyard.push(battlefieldCard.cardId);
+  
+  return true;
+};
+
+export const castSpell = async (
+  doc: GameDoc, 
+  playerId: AutomergeUrl, 
+  cardId: string,
+  selectTargetsImpl: (selector: SpellTargetSelector) => Promise<SpellTarget[]>
+): Promise<boolean> => {
+  const card = doc.cardLibrary[cardId];
+  if (!card) {
+    console.error(`castSpell: Card not found in library: ${cardId}`);
+    return false;
+  }
+
+  if (card.type !== 'spell') {
+    console.error(`castSpell: Card ${cardId} is not a spell`);
+    return false;
+  }
+
+  if (!card.spellEffect) {
+    console.error(`castSpell: Spell card ${cardId} has no effect code`);
+    return false;
+  }
+
+  try {
+    // Create the spell effect API
+    const api = createSpellEffectAPI(doc, playerId, selectTargetsImpl);
+    
+    // Execute the spell effect
+    const success = await executeSpellEffect(card.spellEffect, api);
+    
+    if (success) {
+      // Add to game log
+      addGameLogEntry(doc, {
+        playerId,
+        action: 'play_card',
+        cardId,
+        description: `Cast ${card.name}`
+      });
+    }
+    
+    return success;
+  } catch (error) {
+    console.error(`castSpell: Error casting spell ${cardId}:`, error);
+    addGameLogEntry(doc, {
+      playerId,
+      action: 'play_card',
+      cardId,
+      description: `Failed to cast ${card.name}`
+    });
+    return false;
+  }
+};
+
+// Async version of playCard that handles spells with targeting
+export const playCardAsync = async (
+  doc: GameDoc, 
+  playerId: AutomergeUrl, 
+  cardId: string,
+  selectTargetsImpl?: (selector: SpellTargetSelector) => Promise<SpellTarget[]>
+): Promise<boolean> => {
+  const card = doc.cardLibrary[cardId];
+  if (!card) {
+    console.error(`playCardAsync: Card not found in library: ${cardId}`);
+    return false;
+  }
+
+  // Remove card from hand
+  if (!removeCardFromHand(doc, playerId, cardId)) {
+    console.error(`playCardAsync: Failed to remove card ${cardId} from player ${playerId}'s hand`);
+    return false;
+  }
+
+  // Spend energy
+  if (!spendEnergy(doc, playerId, card.cost)) {
+    console.error(`playCardAsync: Failed to spend energy for card ${cardId} (cost: ${card.cost}) for player ${playerId}`);
+    // Try to add the card back to hand since we couldn't spend energy
+    const playerHandIndex = doc.playerHands.findIndex(hand => hand.playerId === playerId);
+    if (playerHandIndex !== -1) {
+      doc.playerHands[playerHandIndex].cards.push(cardId);
+      console.warn(`playCardAsync: Restored card ${cardId} to player ${playerId}'s hand after energy failure`);
+    }
+    return false;
+  }
+
+  // Handle card based on type
+  if (card.type === 'creature' || card.type === 'artifact') {
+    if (!addCardToBattlefield(doc, playerId, cardId)) {
+      console.error(`playCardAsync: Failed to add card ${cardId} to battlefield for player ${playerId}`);
+      return false;
+    }
+    
+    // Add to game log
+    addGameLogEntry(doc, {
+      playerId,
+      action: 'play_card',
+      cardId,
+      description: `Played ${card.name}`
+    });
+  } else if (card.type === 'spell') {
+    // Add to graveyard first
+    addCardToGraveyard(doc, cardId);
+    
+    // Execute spell effect if it has one
+    if (card.spellEffect && selectTargetsImpl) {
+      const api = createSpellEffectAPI(doc, playerId, selectTargetsImpl);
+      const success = await executeSpellEffect(card.spellEffect, api);
+      
+      if (!success) {
+        console.error(`playCardAsync: Spell effect failed for card ${cardId}`);
+        return false;
+      }
+    } else {
+      // Add basic log entry for spells without effects
+      addGameLogEntry(doc, {
+        playerId,
+        action: 'play_card',
+        cardId,
+        description: `Played ${card.name}`
+      });
+    }
+  } else {
+    // Other card types go to graveyard
+    addCardToGraveyard(doc, cardId);
+    
+    addGameLogEntry(doc, {
+      playerId,
+      action: 'play_card',
+      cardId,
+      description: `Played ${card.name}`
+    });
+  }
+
+  return true;
+};
+
+// Synchronous version kept for backwards compatibility
 export const playCard = (doc: GameDoc, playerId: AutomergeUrl, cardId: string): boolean => {
   const card = doc.cardLibrary[cardId];
   if (!card) {
     console.error(`playCard: Card not found in library: ${cardId}`);
     return false;
+  }
+
+  // For spells with effects, we should use playCardAsync instead
+  if (card.type === 'spell' && card.spellEffect) {
+    console.warn(`playCard: Spell ${cardId} has effects but was called synchronously. Use playCardAsync instead.`);
+    // Fall through to basic behavior for backwards compatibility
   }
 
   // Remove card from hand
@@ -303,41 +482,43 @@ export const dealDamage = (doc: GameDoc, targetPlayerId: AutomergeUrl, damage: n
 };
 
 export const attackPlayerWithCreature = (doc: GameDoc, attackerId: AutomergeUrl, instanceId: string, targetPlayerId: AutomergeUrl, damage: number): boolean => {
+  // Find the creature to get its name
+  const battlefield = doc.playerBattlefields.find(b => b.playerId === attackerId);
+  const battlefieldCard = battlefield?.cards.find(c => c.instanceId === instanceId);
+  const creatureCard = battlefieldCard ? doc.cardLibrary[battlefieldCard.cardId] : null;
+  const creatureName = creatureCard ? creatureCard.name : 'Unknown Creature';
+
   // Mark creature as sapped first
   if (!sapCreature(doc, attackerId, instanceId)) {
     console.error(`attackPlayerWithCreature: Failed to sap creature ${instanceId} for player ${attackerId}`);
     return false;
   }
 
+  // Add attack log BEFORE dealing damage (so it appears before any "Player defeated" message)
+  addGameLogEntry(doc, {
+    playerId: attackerId,
+    action: 'attack',
+    targetId: targetPlayerId,
+    amount: damage,
+    description: `${creatureName} attacked for ${damage} damage`
+  });
+
   const success = dealDamage(doc, targetPlayerId, damage);
-  
-  if (success) {
-    addGameLogEntry(doc, {
-      playerId: attackerId,
-      action: 'attack',
-      targetId: targetPlayerId,
-      amount: damage,
-      description: `Attacked for ${damage} damage`
-    });
-  }
-  
   return success;
 };
 
 // Keep old function for backwards compatibility
 export const attackPlayer = (doc: GameDoc, attackerId: AutomergeUrl, targetPlayerId: AutomergeUrl, damage: number): boolean => {
+  // Add attack log BEFORE dealing damage (so it appears before any "Player defeated" message)
+  addGameLogEntry(doc, {
+    playerId: attackerId,
+    action: 'attack',
+    targetId: targetPlayerId,
+    amount: damage,
+    description: `Attacked for ${damage} damage`
+  });
+
   const success = dealDamage(doc, targetPlayerId, damage);
-  
-  if (success) {
-    addGameLogEntry(doc, {
-      playerId: attackerId,
-      action: 'attack',
-      targetId: targetPlayerId,
-      amount: damage,
-      description: `Attacked for ${damage} damage`
-    });
-  }
-  
   return success;
 };
 
@@ -374,6 +555,13 @@ export const refreshCreatures = (doc: GameDoc, playerId: AutomergeUrl): boolean 
 };
 
 export const endPlayerTurn = (doc: GameDoc, playerId: AutomergeUrl): void => {
+  // Add to game log FIRST, before any next player actions
+  addGameLogEntry(doc, {
+    playerId,
+    action: 'end_turn',
+    description: 'Ended turn'
+  });
+
   const nextPlayerIndex = advanceToNextPlayer(doc);
   const nextPlayerId = doc.players[nextPlayerIndex];
   
@@ -396,13 +584,6 @@ export const endPlayerTurn = (doc: GameDoc, playerId: AutomergeUrl): void => {
     // Restore energy for the next player only
     restoreEnergy(doc, nextPlayerId);
   }
-  
-  // Add to game log
-  addGameLogEntry(doc, {
-    playerId,
-    action: 'end_turn',
-    description: 'Ended turn'
-  });
 };
 
 export const initializeGame = (doc: GameDoc, shuffledDeck: string[]): void => {

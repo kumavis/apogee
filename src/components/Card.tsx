@@ -8,6 +8,7 @@ export type CardData = {
   health?: number;
   type: 'creature' | 'spell' | 'artifact';
   description: string;
+  spellEffect?: string;
   isPlayable?: boolean;
 };
 

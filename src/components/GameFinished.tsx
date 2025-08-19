@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { AutomergeUrl, useDocument } from '@automerge/react';
-import { GameDoc, GameLogEntry } from '../docs/game';
+import { GameDoc } from '../docs/game';
 import { ContactDoc } from '../docs/contact';
-import { getRelativeTime } from '../utils/timeUtils';
 import { useGameNavigation } from '../hooks/useGameNavigation';
+import GameLog from './GameLog';
 
 type GameFinishedProps = {
   gameDoc: GameDoc;
@@ -49,31 +49,6 @@ const GameFinished: React.FC<GameFinishedProps> = ({
   const PlayerName: React.FC<{ playerId: AutomergeUrl }> = ({ playerId }) => {
     const [contactDoc] = useDocument<ContactDoc>(playerId, { suspense: false });
     return <span>{contactDoc?.name || 'Player'}</span>;
-  };
-
-  const formatLogEntry = (entry: GameLogEntry) => {
-    const card = entry.cardId ? gameDoc.cardLibrary?.[entry.cardId] : null;
-    const cardName = card ? card.name : 'Unknown Card';
-    
-    switch (entry.action) {
-      case 'game_start':
-        return `🎮 Game started`;
-      case 'play_card':
-        return `🃏 Played ${cardName}`;
-      case 'end_turn':
-        return `⏭️ Ended turn`;
-      case 'draw_card':
-        return entry.description === 'Reshuffled graveyard into deck' ? 
-          `🔄 Reshuffled deck` : `📚 Drew a card`;
-      case 'attack':
-        return `⚔️ Attacked for ${entry.amount} damage`;
-      case 'take_damage':
-        return `💔 Took ${entry.amount} damage`;
-      case 'game_end':
-        return `🏁 Game ended`;
-      default:
-        return entry.description;
-    }
   };
 
   return (
@@ -256,61 +231,30 @@ const GameFinished: React.FC<GameFinishedProps> = ({
             border: '1px solid rgba(255,255,255,0.2)',
             borderRadius: 12,
             padding: 20,
-            maxHeight: 400,
-            overflowY: 'auto',
             textAlign: 'left'
           }}>
             <div style={{
               fontSize: 18,
               fontWeight: 600,
               color: '#00ffff',
-              marginBottom: 16,
-              textAlign: 'center'
+              marginBottom: 16
             }}>
               📋 Complete Game History
             </div>
             
-            {gameDoc.gameLog && gameDoc.gameLog.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {gameDoc.gameLog.map((entry, index) => (
-                  <div 
-                    key={entry.id}
-                    style={{
-                      background: index % 2 === 0 ? 'rgba(255,255,255,0.03)' : 'transparent',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      fontSize: 13
-                    }}
-                  >
-                    <div style={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginBottom: 2
-                    }}>
-                      <span style={{ color: '#00ffff', fontWeight: 500 }}>
-                        <PlayerName playerId={entry.playerId} />
-                      </span>
-                      <span style={{ color: '#888', fontSize: 11 }}>
-                        {getRelativeTime(entry.timestamp, { style: 'short' })}
-                      </span>
-                    </div>
-                    <div style={{ color: '#ccc', paddingLeft: 8 }}>
-                      {formatLogEntry(entry)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{
-                textAlign: 'center',
-                color: '#888',
-                fontStyle: 'italic',
-                padding: 20
-              }}>
-                No game actions recorded
-              </div>
-            )}
+            <GameLog
+              gameLog={gameDoc.gameLog || []}
+              cardLibrary={gameDoc.cardLibrary || {}}
+              isExpanded={true}
+              canToggle={false}
+              position="relative"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                maxHeight: 300,
+                width: '100%'
+              }}
+            />
           </div>
         )}
 
