@@ -75,14 +75,18 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
     if (!gameDoc.cardLibrary) return [];
     return cardIds.map(cardId => {
       const card = gameDoc.cardLibrary![cardId];
+      if (!card) {
+        console.error(`Card not found in library: ${cardId}`);
+        return null;
+      }
       const isPlayable = isHand && currentPlayerState ? 
         card.cost <= currentPlayerState.energy && isCurrentPlayer && !targetingState.isTargeting : 
         false;
       return {
         ...card,
         isPlayable
-      };
-    }).filter(card => card); // Filter out undefined cards
+      } as CardData;
+    }).filter((card): card is CardData => card !== null); // Filter out null cards with type guard
   };
 
   // Get player's hand

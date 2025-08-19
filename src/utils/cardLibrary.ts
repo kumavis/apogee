@@ -689,7 +689,7 @@ export const createStandardDeck = (): string[] => {
     'card_001': 3, // Cyber Drone
     'card_002': 2, // Plasma Burst
     'card_003': 2, // Steel Sentinel
-    'card_004': 3, // Nano Enhancer
+    // 'card_004': 3, // Nano Enhancer
     'card_005': 1, // Quantum Destroyer (rare)
     'card_006': 4, // Data Spike (common)
     'card_007': 1, // Bio-Mech Guardian (rare)
@@ -719,6 +719,12 @@ export const createStandardDeck = (): string[] => {
     'card_031': 1, // Lightning Rod (rare)
     'card_032': 1, // Quantum Processor (rare - powerful dual ability)
   };
+  
+  // Validate that all cards in cardCopies exist in CARD_LIBRARY
+  const missingCards = Object.keys(cardCopies).filter(cardId => !CARD_LIBRARY[cardId]);
+  if (missingCards.length > 0) {
+    throw new Error(`createStandardDeck: Cards in deck but not in library: ${missingCards.join(', ')}`);
+  }
   
   // Add cards to deck based on copy counts
   Object.entries(cardCopies).forEach(([cardId, count]) => {
