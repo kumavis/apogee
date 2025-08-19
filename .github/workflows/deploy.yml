@@ -35,6 +35,7 @@ jobs:
       - name: Install dependencies
         run: |
           npm install
+          npm install -D @rollup/rollup-linux-x64-gnu
       
       - name: Build for production (non-minified)
         run: npm run build
