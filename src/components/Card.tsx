@@ -1,14 +1,31 @@
 import React from 'react';
 
+export type InfrastructurePlacement = {
+  infrastructureInstanceId: string;
+  infrastructureCardId: string;
+  infrastructureType: 'tech' | 'mechanical' | 'bio' | 'cultural';
+};
+
 export type CardData = {
   id: string;
   name: string;
   cost: number;
   attack?: number;
   health?: number;
-  type: 'creature' | 'spell' | 'artifact';
+  type: 'creature' | 'spell' | 'artifact' | 'planet' | 'infrastructure';
   description: string;
   isPlayable?: boolean;
+  // Planet-specific properties
+  planetCapacity?: {
+    tech: number;
+    mechanical: number;
+    bio: number;
+    cultural: number;
+  };
+  infrastructurePlacements?: InfrastructurePlacement[];
+  // Infrastructure-specific properties
+  infrastructureType?: 'tech' | 'mechanical' | 'bio' | 'cultural';
+  infrastructureEffects?: string;
 };
 
 type CardProps = {
@@ -36,9 +53,11 @@ const Card: React.FC<CardProps> = ({
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case 'creature': return '#00ff41'; // Neon green
-      case 'spell': return '#00bfff';    // Cyan blue
-      case 'artifact': return '#ff0080'; // Neon pink
+      case 'creature': return '#00ff41';     // Neon green
+      case 'spell': return '#00bfff';        // Cyan blue
+      case 'artifact': return '#ff0080';     // Neon pink
+      case 'planet': return '#ffaa00';       // Orange
+      case 'infrastructure': return '#aa00ff'; // Purple
       default: return '#808080';
     }
   };
@@ -172,7 +191,15 @@ const Card: React.FC<CardProps> = ({
         border: `1px solid ${card.isPlayable ? getTypeColor(card.type) : '#404040'}`,
         boxShadow: card.isPlayable ? `0 0 8px ${getTypeColor(card.type)}40` : 'none'
       }}>
-        {card.type === 'creature' ? '🤖' : card.type === 'spell' ? '⚡' : '🔧'}
+        {card.type === 'creature' ? '🤖' : 
+         card.type === 'spell' ? '⚡' : 
+         card.type === 'artifact' ? '🔧' :
+         card.type === 'planet' ? '🌍' :
+         card.type === 'infrastructure' ? 
+           (card.infrastructureType === 'tech' ? '💻' :
+            card.infrastructureType === 'mechanical' ? '⚙️' :
+            card.infrastructureType === 'bio' ? '🧬' :
+            card.infrastructureType === 'cultural' ? '🏛️' : '🏗️') : '❓'}
       </div>
 
       {/* Description */}
@@ -224,6 +251,145 @@ const Card: React.FC<CardProps> = ({
             boxShadow: '0 0 4px #00ff41'
           }}>
             🛡{card.health}
+          </div>
+        </div>
+      )}
+
+      {/* Planet Infrastructure Display (for planets) */}
+      {card.type === 'planet' && card.planetCapacity && (
+        <div style={{
+          position: 'absolute',
+          bottom: 4,
+          left: 4,
+          right: 4,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 1
+        }}>
+          {/* Infrastructure Placements */}
+          {card.infrastructurePlacements && card.infrastructurePlacements.length > 0 && (
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              gap: 1,
+              fontSize: size === 'small' ? 6 : 8,
+              marginBottom: 1
+            }}>
+              {card.infrastructurePlacements.map((placement) => (
+                <div
+                  key={placement.infrastructureInstanceId}
+                  style={{
+                    background: placement.infrastructureType === 'tech' ? '#aa00ff' :
+                               placement.infrastructureType === 'mechanical' ? '#ff6600' :
+                               placement.infrastructureType === 'bio' ? '#00aa00' :
+                               '#ffaa00',
+                    color: placement.infrastructureType === 'cultural' ? 'black' : 'white',
+                    padding: '1px 3px',
+                    borderRadius: 2,
+                    fontSize: size === 'small' ? 6 : 7,
+                    fontWeight: 'bold'
+                  }}
+                >
+                  {placement.infrastructureType === 'tech' ? '💻' :
+                   placement.infrastructureType === 'mechanical' ? '⚙️' :
+                   placement.infrastructureType === 'bio' ? '🧬' : '🏛️'}
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {/* Capacity Display (Usage/Max) */}
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            fontSize: size === 'small' ? 5 : 6,
+            fontWeight: 'bold',
+            gap: 1
+          }}>
+            {(() => {
+              const placements = card.infrastructurePlacements || [];
+              const techUsed = placements.filter(p => p.infrastructureType === 'tech').length;
+              const mechUsed = placements.filter(p => p.infrastructureType === 'mechanical').length;
+              const bioUsed = placements.filter(p => p.infrastructureType === 'bio').length;
+              const cultUsed = placements.filter(p => p.infrastructureType === 'cultural').length;
+              
+              return (
+                <>
+                  <div style={{
+                    background: techUsed >= card.planetCapacity.tech ? '#aa00ff' : 'rgba(170, 0, 255, 0.5)',
+                    color: 'white',
+                    padding: '1px 2px',
+                    borderRadius: 2,
+                    textAlign: 'center',
+                    flex: 1,
+                    border: techUsed >= card.planetCapacity.tech ? '1px solid #ffffff' : 'none'
+                  }}>
+                    💻{techUsed}/{card.planetCapacity.tech}
+                  </div>
+                  <div style={{
+                    background: mechUsed >= card.planetCapacity.mechanical ? '#ff6600' : 'rgba(255, 102, 0, 0.5)',
+                    color: 'white',
+                    padding: '1px 2px',
+                    borderRadius: 2,
+                    textAlign: 'center',
+                    flex: 1,
+                    border: mechUsed >= card.planetCapacity.mechanical ? '1px solid #ffffff' : 'none'
+                  }}>
+                    ⚙️{mechUsed}/{card.planetCapacity.mechanical}
+                  </div>
+                  <div style={{
+                    background: bioUsed >= card.planetCapacity.bio ? '#00aa00' : 'rgba(0, 170, 0, 0.5)',
+                    color: 'white',
+                    padding: '1px 2px',
+                    borderRadius: 2,
+                    textAlign: 'center',
+                    flex: 1,
+                    border: bioUsed >= card.planetCapacity.bio ? '1px solid #ffffff' : 'none'
+                  }}>
+                    🧬{bioUsed}/{card.planetCapacity.bio}
+                  </div>
+                  <div style={{
+                    background: cultUsed >= card.planetCapacity.cultural ? '#ffaa00' : 'rgba(255, 170, 0, 0.5)',
+                    color: cultUsed >= card.planetCapacity.cultural ? 'black' : 'white',
+                    padding: '1px 2px',
+                    borderRadius: 2,
+                    textAlign: 'center',
+                    flex: 1,
+                    border: cultUsed >= card.planetCapacity.cultural ? '1px solid #000000' : 'none'
+                  }}>
+                    🏛️{cultUsed}/{card.planetCapacity.cultural}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
+      {/* Infrastructure Type (for infrastructure) */}
+      {card.type === 'infrastructure' && card.infrastructureType && (
+        <div style={{
+          position: 'absolute',
+          bottom: 4,
+          left: 4,
+          right: 4,
+          display: 'flex',
+          justifyContent: 'center',
+          fontSize: size === 'small' ? 8 : 10,
+          fontWeight: 'bold'
+        }}>
+          <div style={{
+            background: card.infrastructureType === 'tech' ? '#aa00ff' :
+                       card.infrastructureType === 'mechanical' ? '#ff6600' :
+                       card.infrastructureType === 'bio' ? '#00aa00' :
+                       '#ffaa00',
+            color: card.infrastructureType === 'cultural' ? 'black' : 'white',
+            padding: '1px 6px',
+            borderRadius: 3,
+            textAlign: 'center',
+            textTransform: 'uppercase'
+          }}>
+            {card.infrastructureType}
           </div>
         </div>
       )}

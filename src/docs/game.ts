@@ -1,7 +1,16 @@
 import { AutomergeUrl, DocHandle, Repo } from "@automerge/react";
 import { CARD_LIBRARY } from "../utils/cardLibrary";
 
-export type CardType = 'creature' | 'spell' | 'artifact';
+export type CardType = 'creature' | 'spell' | 'artifact' | 'planet' | 'infrastructure';
+
+export type InfrastructureType = 'tech' | 'mechanical' | 'bio' | 'cultural';
+
+export type PlanetCapacity = {
+  tech: number;
+  mechanical: number;
+  bio: number;
+  cultural: number;
+};
 
 export type GameCard = {
   id: string;
@@ -11,6 +20,11 @@ export type GameCard = {
   health?: number;
   type: CardType;
   description: string;
+  // Planet-specific properties
+  planetCapacity?: PlanetCapacity;
+  // Infrastructure-specific properties
+  infrastructureType?: InfrastructureType;
+  infrastructureEffects?: string; // Description of what this infrastructure does
 };
 
 export type PlayerHand = {
@@ -18,10 +32,18 @@ export type PlayerHand = {
   cards: string[]; // Array of card IDs
 };
 
+export type InfrastructurePlacement = {
+  infrastructureInstanceId: string; // Instance ID of the infrastructure card
+  infrastructureCardId: string; // Card ID of the infrastructure
+  infrastructureType: InfrastructureType;
+};
+
 export type BattlefieldCard = {
   instanceId: string; // Unique ID for this specific card instance
   cardId: string; // Reference to card definition in library
   sapped: boolean; // True if creature has attacked this turn
+  // Planet-specific data
+  infrastructurePlacements?: InfrastructurePlacement[]; // Infrastructure placed on this planet
 };
 
 export type PlayerBattlefield = {
@@ -98,16 +120,121 @@ export const addCardToBattlefield = (doc: GameDoc, playerId: AutomergeUrl, cardI
   // Generate unique instance ID for this card copy
   const instanceId = `instance_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   
-  doc.playerBattlefields[battlefieldIndex].cards.push({
+  const card = doc.cardLibrary[cardId];
+  const battlefieldCard: BattlefieldCard = {
     instanceId,
     cardId,
-    sapped: true // New creatures start sapped (summoning sickness)
-  });
+    sapped: card?.type === 'creature' // Only creatures start sapped (summoning sickness)
+  };
+  
+  // Initialize infrastructure placements for planets
+  if (card?.type === 'planet') {
+    battlefieldCard.infrastructurePlacements = [];
+  }
+  
+  doc.playerBattlefields[battlefieldIndex].cards.push(battlefieldCard);
   return true;
 };
 
 export const addCardToGraveyard = (doc: GameDoc, cardId: string): void => {
   doc.graveyard.push(cardId);
+};
+
+export const canPlaceInfrastructureOnPlanet = (doc: GameDoc, planetInstanceId: string, infrastructureType: InfrastructureType): boolean => {
+  // Find the planet on any player's battlefield
+  let planet: BattlefieldCard | undefined;
+  
+  for (const battlefield of doc.playerBattlefields) {
+    planet = battlefield.cards.find(card => card.instanceId === planetInstanceId);
+    if (planet) break;
+  }
+  
+  if (!planet) {
+    console.error(`canPlaceInfrastructureOnPlanet: Planet instance ${planetInstanceId} not found`);
+    return false;
+  }
+  
+  const planetCard = doc.cardLibrary[planet.cardId];
+  if (!planetCard || planetCard.type !== 'planet' || !planetCard.planetCapacity) {
+    console.error(`canPlaceInfrastructureOnPlanet: Invalid planet card ${planet.cardId}`);
+    return false;
+  }
+  
+  if (!planet.infrastructurePlacements) {
+    planet.infrastructurePlacements = [];
+  }
+  
+  // Count current infrastructure of this type
+  const currentCount = planet.infrastructurePlacements.filter(
+    placement => placement.infrastructureType === infrastructureType
+  ).length;
+  
+  const maxCapacity = planetCard.planetCapacity[infrastructureType];
+  
+  return currentCount < maxCapacity;
+};
+
+export const placeInfrastructureOnPlanet = (
+  doc: GameDoc, 
+  playerId: AutomergeUrl, 
+  infrastructureCardId: string, 
+  planetInstanceId: string
+): boolean => {
+  const infrastructureCard = doc.cardLibrary[infrastructureCardId];
+  if (!infrastructureCard || infrastructureCard.type !== 'infrastructure' || !infrastructureCard.infrastructureType) {
+    console.error(`placeInfrastructureOnPlanet: Invalid infrastructure card ${infrastructureCardId}`);
+    return false;
+  }
+  
+  // Check if placement is valid
+  if (!canPlaceInfrastructureOnPlanet(doc, planetInstanceId, infrastructureCard.infrastructureType)) {
+    console.error(`placeInfrastructureOnPlanet: Cannot place ${infrastructureCard.infrastructureType} infrastructure on planet ${planetInstanceId}`);
+    return false;
+  }
+  
+  // Find the planet on any player's battlefield
+  let planet: BattlefieldCard | undefined;
+  let battlefieldIndex = -1;
+  let cardIndex = -1;
+  
+  for (let i = 0; i < doc.playerBattlefields.length; i++) {
+    cardIndex = doc.playerBattlefields[i].cards.findIndex(card => card.instanceId === planetInstanceId);
+    if (cardIndex !== -1) {
+      planet = doc.playerBattlefields[i].cards[cardIndex];
+      battlefieldIndex = i;
+      break;
+    }
+  }
+  
+  if (!planet || battlefieldIndex === -1 || cardIndex === -1) {
+    console.error(`placeInfrastructureOnPlanet: Planet instance ${planetInstanceId} not found on battlefield`);
+    return false;
+  }
+  
+  // Generate unique instance ID for this infrastructure
+  const infrastructureInstanceId = `infra_instance_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
+  // Add infrastructure to planet
+  if (!planet.infrastructurePlacements) {
+    planet.infrastructurePlacements = [];
+  }
+  
+  planet.infrastructurePlacements.push({
+    infrastructureInstanceId,
+    infrastructureCardId,
+    infrastructureType: infrastructureCard.infrastructureType
+  });
+  
+  // Add to game log
+  const planetCard = doc.cardLibrary[planet.cardId];
+  addGameLogEntry(doc, {
+    playerId,
+    action: 'play_card',
+    cardId: infrastructureCardId,
+    description: `Placed ${infrastructureCard.name} on ${planetCard?.name || 'Planet'}`
+  });
+  
+  return true;
 };
 
 export const spendEnergy = (doc: GameDoc, playerId: AutomergeUrl, amount: number): boolean => {
@@ -197,12 +324,17 @@ export const playCard = (doc: GameDoc, playerId: AutomergeUrl, cardId: string): 
   }
 
   // Handle card based on type
-  if (card.type === 'creature' || card.type === 'artifact') {
+  if (card.type === 'creature' || card.type === 'artifact' || card.type === 'planet') {
     if (!addCardToBattlefield(doc, playerId, cardId)) {
       console.error(`playCard: Failed to add card ${cardId} to battlefield for player ${playerId}`);
       return false;
     }
+  } else if (card.type === 'infrastructure') {
+    // Infrastructure cards require targeting - this should be handled by a separate function
+    console.error(`playCard: Infrastructure cards require targeting and should use playInfrastructureCard function`);
+    return false;
   } else {
+    // Spells go to graveyard
     addCardToGraveyard(doc, cardId);
   }
 
@@ -213,6 +345,54 @@ export const playCard = (doc: GameDoc, playerId: AutomergeUrl, cardId: string): 
     cardId,
     description: `Played ${card.name}`
   });
+
+  return true;
+};
+
+export const playInfrastructureCard = (doc: GameDoc, playerId: AutomergeUrl, infrastructureCardId: string, targetPlanetInstanceId: string): boolean => {
+  const infrastructureCard = doc.cardLibrary[infrastructureCardId];
+  if (!infrastructureCard) {
+    console.error(`playInfrastructureCard: Card not found in library: ${infrastructureCardId}`);
+    return false;
+  }
+
+  if (infrastructureCard.type !== 'infrastructure') {
+    console.error(`playInfrastructureCard: Card ${infrastructureCardId} is not an infrastructure card`);
+    return false;
+  }
+
+  // Remove card from hand
+  if (!removeCardFromHand(doc, playerId, infrastructureCardId)) {
+    console.error(`playInfrastructureCard: Failed to remove card ${infrastructureCardId} from player ${playerId}'s hand`);
+    return false;
+  }
+
+  // Spend energy
+  if (!spendEnergy(doc, playerId, infrastructureCard.cost)) {
+    console.error(`playInfrastructureCard: Failed to spend energy for card ${infrastructureCardId} (cost: ${infrastructureCard.cost}) for player ${playerId}`);
+    // Try to add the card back to hand since we couldn't spend energy
+    const playerHandIndex = doc.playerHands.findIndex(hand => hand.playerId === playerId);
+    if (playerHandIndex !== -1) {
+      doc.playerHands[playerHandIndex].cards.push(infrastructureCardId);
+      console.warn(`playInfrastructureCard: Restored card ${infrastructureCardId} to player ${playerId}'s hand after energy failure`);
+    }
+    return false;
+  }
+
+  // Place infrastructure on target planet
+  if (!placeInfrastructureOnPlanet(doc, playerId, infrastructureCardId, targetPlanetInstanceId)) {
+    console.error(`playInfrastructureCard: Failed to place infrastructure ${infrastructureCardId} on planet ${targetPlanetInstanceId}`);
+    // Try to restore energy and card to hand
+    const playerStateIndex = doc.playerStates.findIndex(state => state.playerId === playerId);
+    if (playerStateIndex !== -1) {
+      doc.playerStates[playerStateIndex].energy += infrastructureCard.cost;
+    }
+    const playerHandIndex = doc.playerHands.findIndex(hand => hand.playerId === playerId);
+    if (playerHandIndex !== -1) {
+      doc.playerHands[playerHandIndex].cards.push(infrastructureCardId);
+    }
+    return false;
+  }
 
   return true;
 };
