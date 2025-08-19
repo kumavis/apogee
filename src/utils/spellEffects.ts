@@ -1,5 +1,5 @@
 import { AutomergeUrl } from '@automerge/react';
-import { GameDoc, dealDamage, addGameLogEntry, removeCreatureFromBattlefield } from '../docs/game';
+import { GameDoc, dealDamage, addGameLogEntry, removeCreatureFromBattlefield, dealDamageToCreature } from '../docs/game';
 
 // Types for spell targeting and effects
 export type SpellTarget = {
@@ -164,8 +164,8 @@ export const executeSpellOperations = (doc: GameDoc, operations: SpellOperation[
         
       case 'damage_creature':
         if (op.instanceId && op.amount !== undefined) {
-          // For now, any damage destroys the creature
-          removeCreatureFromBattlefield(doc, op.playerId, op.instanceId);
+          // Use new health-based damage system
+          dealDamageToCreature(doc, op.playerId, op.instanceId, op.amount);
         }
         break;
         

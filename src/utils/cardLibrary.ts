@@ -58,6 +58,7 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     id: 'card_004',
     name: 'Nano Enhancer',
     cost: 2,
+    health: 3,
     type: 'artifact',
     description: 'Equipped unit gains +2/+1.'
   },
@@ -117,6 +118,7 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     id: 'card_009',
     name: 'Neural Interface',
     cost: 1,
+    health: 2,
     type: 'artifact',
     description: 'Draw an additional card each turn.'
   },
@@ -124,6 +126,7 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     id: 'card_010',
     name: 'Fusion Core',
     cost: 4,
+    health: 5,
     type: 'artifact',
     description: 'Gain +1 energy per turn.'
   },

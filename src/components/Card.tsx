@@ -10,6 +10,7 @@ export type CardData = {
   description: string;
   spellEffect?: string;
   isPlayable?: boolean;
+  currentHealth?: number; // For battlefield cards
 };
 
 type CardProps = {
@@ -192,39 +193,43 @@ const Card: React.FC<CardProps> = ({
         {card.description}
       </div>
 
-      {/* Stats (for creatures) */}
-      {card.type === 'creature' && (
+      {/* Stats (for creatures and artifacts) */}
+      {(card.type === 'creature' || card.type === 'artifact') && (
         <div style={{
           position: 'absolute',
           bottom: 4,
           left: 4,
           right: 4,
           display: 'flex',
-          justifyContent: 'space-between',
+          justifyContent: card.type === 'artifact' ? 'center' : 'space-between',
           fontSize: size === 'small' ? 8 : 10,
           fontWeight: 'bold'
         }}>
+          {/* Attack (only for creatures) */}
+          {card.type === 'creature' && (
+            <div style={{
+              background: '#ff0080',
+              color: 'white',
+              padding: '1px 4px',
+              borderRadius: 3,
+              minWidth: size === 'small' ? 12 : 16,
+              textAlign: 'center',
+              boxShadow: '0 0 4px #ff0080'
+            }}>
+              ⚡{card.attack}
+            </div>
+          )}
+          {/* Health (for both creatures and artifacts) */}
           <div style={{
-            background: '#ff0080',
-            color: 'white',
-            padding: '1px 4px',
-            borderRadius: 3,
-            minWidth: size === 'small' ? 12 : 16,
-            textAlign: 'center',
-            boxShadow: '0 0 4px #ff0080'
-          }}>
-            ⚡{card.attack}
-          </div>
-          <div style={{
-            background: '#00ff41',
+            background: card.currentHealth !== undefined && card.currentHealth < (card.health || 0) ? '#ff8800' : '#00ff41',
             color: 'black',
             padding: '1px 4px',
             borderRadius: 3,
             minWidth: size === 'small' ? 12 : 16,
             textAlign: 'center',
-            boxShadow: '0 0 4px #00ff41'
+            boxShadow: `0 0 4px ${card.currentHealth !== undefined && card.currentHealth < (card.health || 0) ? '#ff8800' : '#00ff41'}`
           }}>
-            🛡{card.health}
+            🛡{card.currentHealth !== undefined ? `${card.currentHealth}/${card.health}` : card.health}
           </div>
         </div>
       )}

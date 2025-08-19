@@ -24,6 +24,7 @@ export type BattlefieldCard = {
   instanceId: string; // Unique ID for this specific card instance
   cardId: string; // Reference to card definition in library
   sapped: boolean; // True if creature has attacked this turn
+  currentHealth: number; // Current health of the creature/artifact
 };
 
 export type PlayerBattlefield = {
@@ -97,13 +98,20 @@ export const addCardToBattlefield = (doc: GameDoc, playerId: AutomergeUrl, cardI
     return false;
   }
   
+  const card = doc.cardLibrary[cardId];
+  if (!card) {
+    console.error(`addCardToBattlefield: Card ${cardId} not found in library`);
+    return false;
+  }
+  
   // Generate unique instance ID for this card copy
   const instanceId = `instance_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   
   doc.playerBattlefields[battlefieldIndex].cards.push({
     instanceId,
     cardId,
-    sapped: true // New creatures start sapped (summoning sickness)
+    sapped: true, // New creatures start sapped (summoning sickness)
+    currentHealth: card.health || 1 // Set initial health from card definition, default to 1
   });
   return true;
 };
@@ -205,6 +213,44 @@ export const removeCreatureFromBattlefield = (
   
   // Add to graveyard
   doc.graveyard.push(battlefieldCard.cardId);
+  
+  return true;
+};
+
+// Deal damage to a creature on the battlefield, reducing its health
+export const dealDamageToCreature = (
+  doc: GameDoc, 
+  playerId: AutomergeUrl, 
+  instanceId: string, 
+  damage: number
+): boolean => {
+  const battlefieldIndex = doc.playerBattlefields.findIndex(
+    battlefield => battlefield.playerId === playerId
+  );
+  
+  if (battlefieldIndex === -1) {
+    console.error(`dealDamageToCreature: Battlefield not found for playerId: ${playerId}`);
+    return false;
+  }
+  
+  const cardIndex = doc.playerBattlefields[battlefieldIndex].cards.findIndex(
+    card => card.instanceId === instanceId
+  );
+  
+  if (cardIndex === -1) {
+    console.error(`dealDamageToCreature: Creature ${instanceId} not found on battlefield`);
+    return false;
+  }
+  
+  const battlefieldCard = doc.playerBattlefields[battlefieldIndex].cards[cardIndex];
+  
+  // Reduce health
+  battlefieldCard.currentHealth -= damage;
+  
+  // If health is 0 or less, destroy the creature
+  if (battlefieldCard.currentHealth <= 0) {
+    return removeCreatureFromBattlefield(doc, playerId, instanceId);
+  }
   
   return true;
 };
@@ -554,6 +600,39 @@ export const refreshCreatures = (doc: GameDoc, playerId: AutomergeUrl): boolean 
   return true;
 };
 
+// Heal creatures at end of turn (not artifacts)
+export const healCreatures = (doc: GameDoc, playerId: AutomergeUrl): boolean => {
+  const battlefieldIndex = doc.playerBattlefields.findIndex(battlefield => battlefield.playerId === playerId);
+  if (battlefieldIndex === -1) {
+    console.error(`healCreatures: Battlefield not found for playerId: ${playerId}`);
+    return false;
+  }
+  
+  let healedCount = 0;
+  
+  // Heal all creatures by 1 health (not artifacts)
+  doc.playerBattlefields[battlefieldIndex].cards.forEach(battlefieldCard => {
+    const card = doc.cardLibrary[battlefieldCard.cardId];
+    if (card && card.type === 'creature') {
+      const maxHealth = card.health || 1;
+      if (battlefieldCard.currentHealth < maxHealth) {
+        battlefieldCard.currentHealth = Math.min(maxHealth, battlefieldCard.currentHealth + 1);
+        healedCount++;
+      }
+    }
+  });
+  
+  if (healedCount > 0) {
+    addGameLogEntry(doc, {
+      playerId,
+      action: 'play_card', // Reusing this action type
+      description: `${healedCount} creature(s) healed 1 health`
+    });
+  }
+  
+  return true;
+};
+
 export const endPlayerTurn = (doc: GameDoc, playerId: AutomergeUrl): void => {
   // Add to game log FIRST, before any next player actions
   addGameLogEntry(doc, {
@@ -570,6 +649,9 @@ export const endPlayerTurn = (doc: GameDoc, playerId: AutomergeUrl): void => {
   
   // Refresh creatures for the next player (unsap them)
   refreshCreatures(doc, nextPlayerId);
+  
+  // Heal creatures for the next player (only creatures, not artifacts)
+  healCreatures(doc, nextPlayerId);
   
   // If we've gone through all players, increment turn and increase max energy
   if (nextPlayerIndex === 0) {

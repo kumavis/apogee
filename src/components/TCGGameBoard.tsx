@@ -82,9 +82,10 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
         ...card,
         instanceId: battlefieldCard.instanceId, // Add instance ID for unique identification
         sapped: battlefieldCard.sapped,
+        currentHealth: battlefieldCard.currentHealth, // Add current health
         isPlayable: false // Battlefield cards aren't "playable" in the same sense
       };
-    }).filter(card => card !== null) as (CardData & { instanceId: string; sapped: boolean })[];
+    }).filter(card => card !== null) as (CardData & { instanceId: string; sapped: boolean; currentHealth: number })[];
   }, [gameDoc.playerBattlefields, gameDoc.cardLibrary, selfId]);
 
 
@@ -617,9 +618,10 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
                   ...card,
                   instanceId: battlefieldCard.instanceId,
                   sapped: battlefieldCard.sapped,
+                  currentHealth: battlefieldCard.currentHealth,
                   isPlayable: false
                 };
-              }).filter(card => card !== null) as (CardData & { instanceId: string; sapped: boolean })[] : [];
+              }).filter(card => card !== null) as (CardData & { instanceId: string; sapped: boolean; currentHealth: number })[] : [];
             
             return opponentCards.length > 0 ? opponentCards.map((card) => (
               <div
@@ -699,7 +701,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
           flexWrap: 'wrap'
         }}>
           {playerBattlefield.map((card) => {
-            const canAttack = isCurrentPlayer && card.attack && card.attack > 0 && !card.sapped;
+            const canAttack = isCurrentPlayer && card.type === 'creature' && card.attack && card.attack > 0 && !card.sapped;
             const canTargetThisCreature = canTargetCreature(selfId, card.instanceId);
             const instanceId = card.instanceId;
             
