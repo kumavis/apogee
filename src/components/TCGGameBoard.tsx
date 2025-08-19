@@ -1,11 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { AutomergeUrl } from '@automerge/react';
-import { GameDoc, playCard, endPlayerTurn, attackPlayerWithCreature, removeCardFromHand, spendEnergy, addCardToGraveyard, addGameLogEntry } from '../docs/game';
+import { GameDoc, playCard, endPlayerTurn, attackPlayerWithCreature, attackCreatureWithCreature, removeCardFromHand, spendEnergy, addCardToGraveyard, addGameLogEntry } from '../docs/game';
 import { useGameNavigation } from '../hooks/useGameNavigation';
+import { useCardTargeting } from '../hooks/useCardTargeting';
 import Card, { CardData } from './Card';
 import Contact from './Contact';
 import GameLog from './GameLog';
 import { SpellTargetSelector, SpellTarget, createSpellEffectAPI, executeSpellEffect, executeSpellOperations } from '../utils/spellEffects';
+import { Target, getTargetingSelectorForAttack } from '../utils/unifiedTargeting';
 
 type TCGGameBoardProps = {
   gameDoc: GameDoc;
@@ -23,20 +25,42 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
   const [currentOpponentIndex, setCurrentOpponentIndex] = useState(0);
   const playerList = gameDoc.players;
 
-  // Spell targeting state
-  const [targetingState, setTargetingState] = useState<{
-    isTargeting: boolean;
-    selector: SpellTargetSelector | null;
-    selectedTargets: SpellTarget[];
-    resolve: ((targets: SpellTarget[]) => void) | null;
-    cardBeingPlayed: string | null;
-  }>({
-    isTargeting: false,
-    selector: null,
-    selectedTargets: [],
-    resolve: null,
-    cardBeingPlayed: null
-  });
+  // Card targeting system
+  const {
+    targetingState,
+    startTargeting,
+    confirmSelection,
+    cancelTargeting,
+    canTargetPlayer,
+    canTargetCreature,
+    isTargetSelected,
+    handleTargetClick: hookHandleTargetClick
+  } = useCardTargeting(gameDoc, selfId);
+
+  // Enhanced target click handler that auto-confirms single attack targets
+  const handleTargetClick = useCallback((target: Target) => {
+    // For attacks with single target requirement, directly confirm the target
+    if (targetingState.context?.type === 'attack' && 
+        targetingState.selector?.targetCount === 1) {
+      // Check if target is already selected (to toggle it off) or if it's a new selection
+      const isAlreadySelected = targetingState.selectedTargets.some(t => 
+        t.playerId === target.playerId && 
+        t.instanceId === target.instanceId && 
+        t.type === target.type
+      );
+      
+      if (isAlreadySelected) {
+        // If already selected, deselect it
+        hookHandleTargetClick(target);
+      } else {
+        // If not selected, select and immediately confirm
+        confirmSelection([target]);
+      }
+    } else {
+      // For spells and multi-target scenarios, use normal selection logic
+      hookHandleTargetClick(target);
+    }
+  }, [hookHandleTargetClick, targetingState, confirmSelection]);
 
   // Check if it's the current player's turn
   const isCurrentPlayer = gameDoc.currentPlayerIndex === playerList.indexOf(selfId);
@@ -90,36 +114,71 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
 
 
 
-  // Handle attacking opponent directly with a creature
-  const handleCreatureAttack = (instanceId: string) => {
+  // Start attack targeting for a creature
+  const handleStartAttackTargeting = async (instanceId: string) => {
     if (!changeGameDoc) {
-      console.error('handleCreatureAttack: Cannot attack - missing changeGameDoc');
+      console.error('handleStartAttackTargeting: Cannot attack - missing changeGameDoc');
       return;
     }
     if (!isCurrentPlayer) {
-      console.warn('handleCreatureAttack: Cannot attack - not current player');
+      console.warn('handleStartAttackTargeting: Cannot attack - not current player');
       return;
     }
 
     // Find the card by instanceId
     const battlefieldCard = playerBattlefield.find(c => c.instanceId === instanceId);
     if (!battlefieldCard || !battlefieldCard.attack) {
-      console.error(`handleCreatureAttack: Invalid creature instance: ${instanceId}`);
+      console.error(`handleStartAttackTargeting: Invalid creature instance: ${instanceId}`);
       return;
     }
 
-    // Attack the first opponent for simplicity
-    const targetPlayerId = opponents[currentOpponentIndex];
-    if (!targetPlayerId) {
-      console.error('handleCreatureAttack: No opponent to attack');
+    // Get the creature card for targeting restrictions
+    const creatureCard = gameDoc.cardLibrary[battlefieldCard.id];
+    if (!creatureCard) {
+      console.error(`handleStartAttackTargeting: Creature card not found: ${battlefieldCard.id}`);
       return;
     }
 
-    const attackValue = battlefieldCard.attack;
+    try {
+      const selector = getTargetingSelectorForAttack(creatureCard, selfId);
+      const targets = await startTargeting(selector, { 
+        type: 'attack', 
+        attackerInstanceId: instanceId, 
+        attackerCard: creatureCard 
+      });
+      
+      if (targets.length > 0) {
+        handleExecuteAttack(instanceId, targets[0]);
+      }
+    } catch (error) {
+      console.error('Attack targeting failed:', error);
+    }
+  };
+
+  // Execute attack with selected target
+  const handleExecuteAttack = (attackerInstanceId: string, target: Target) => {
+    if (!changeGameDoc) {
+      console.error('handleExecuteAttack: Cannot attack - missing changeGameDoc');
+      return;
+    }
+
+    // Find attacker battlefield card to get attack value
+    const attackerBattlefieldCard = playerBattlefield.find(c => c.instanceId === attackerInstanceId);
+    if (!attackerBattlefieldCard) {
+      console.error('handleExecuteAttack: Attacker not found on battlefield');
+      return;
+    }
+
     changeGameDoc((doc) => {
-      attackPlayerWithCreature(doc, selfId, instanceId, targetPlayerId, attackValue);
+      if (target.type === 'player') {
+        attackPlayerWithCreature(doc, selfId, attackerInstanceId, target.playerId, attackerBattlefieldCard.attack || 0);
+      } else if ((target.type === 'creature' || target.type === 'artifact') && target.instanceId) {
+        attackCreatureWithCreature(doc, selfId, attackerInstanceId, target.playerId, target.instanceId);
+      }
     });
   };
+
+
 
   // Handle ending turn
   const handleEndTurn = () => {
@@ -134,7 +193,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
     
     // Prevent ending turn while targeting
     if (targetingState.isTargeting) {
-      console.warn('handleEndTurn: Cannot end turn while selecting targets for a spell');
+      console.warn('handleEndTurn: Cannot end turn while targeting');
       return;
     }
 
@@ -145,107 +204,18 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
 
   // Implementation of target selection for spells
   const selectTargets = async (selector: SpellTargetSelector): Promise<SpellTarget[]> => {
-    // Handle auto-targeting cases
-    if (selector.targetType === 'player' && selector.targetCount === 1) {
-      const allPlayers = gameDoc.players;
-      let validTargets: AutomergeUrl[] = [];
-      
-      if (selector.canTargetSelf === false && selector.canTargetAllies === false) {
-        // Only target opponents
-        validTargets = allPlayers.filter(p => p !== selfId);
-      } else if (selector.canTargetSelf === true && selector.canTargetAllies === false) {
-        // Only target self
-        validTargets = [selfId];
-      } else {
-        // Can target anyone (self and allies)
-        validTargets = allPlayers;
-      }
-      
-      // Auto-target if only one valid option
-      if (validTargets.length === 1) {
-        return [{
-          type: 'player',
-          playerId: validTargets[0]
-        }];
-      }
-    }
-    
-    // Need manual selection
-    return new Promise((resolve) => {
-      setTargetingState({
-        isTargeting: true,
-        selector,
-        selectedTargets: [],
-        resolve,
-        cardBeingPlayed: null
-      });
-    });
-  };
-
-  // Handle target selection during spell casting
-  const handleTargetSelection = (target: SpellTarget) => {
-    if (!targetingState.isTargeting || !targetingState.selector) return;
-
-    const { selector, selectedTargets } = targetingState;
-    const newSelectedTargets = [...selectedTargets];
-
-    // Check if target is already selected
-    const targetIndex = newSelectedTargets.findIndex(t => 
-      t.playerId === target.playerId && 
-      t.instanceId === target.instanceId &&
-      t.type === target.type
-    );
-
-    if (targetIndex >= 0) {
-      // Remove if already selected
-      newSelectedTargets.splice(targetIndex, 1);
-    } else if (newSelectedTargets.length < selector.targetCount) {
-      // Add if under target limit
-      newSelectedTargets.push(target);
-    }
-
-    setTargetingState(prev => ({
-      ...prev,
-      selectedTargets: newSelectedTargets
-    }));
-
-    // Auto-confirm only for single-target spells
-    if (newSelectedTargets.length === selector.targetCount && selector.targetCount === 1) {
-      confirmTargetSelection(newSelectedTargets);
+    try {
+      const targets = await startTargeting(selector, { type: 'spell' });
+      return targets;
+    } catch (error) {
+      console.error('Spell targeting failed:', error);
+      return [];
     }
   };
 
-  // Confirm target selection
-  const confirmTargetSelection = (targets?: SpellTarget[]) => {
-    const finalTargets = targets || targetingState.selectedTargets;
-    
-    if (targetingState.resolve) {
-      targetingState.resolve(finalTargets);
-    }
-    
-    setTargetingState({
-      isTargeting: false,
-      selector: null,
-      selectedTargets: [],
-      resolve: null,
-      cardBeingPlayed: null
-    });
-  };
 
-  // Cancel target selection
-  const cancelTargetSelection = () => {
-    if (targetingState.resolve) {
-      targetingState.resolve([]);
-    }
-    
-    setTargetingState({
-      isTargeting: false,
-      selector: null,
-      selectedTargets: [],
-      resolve: null,
-      cardBeingPlayed: null
-    });
-  };
+
+
 
   // Handle card playing (updated for async spells)
   const handlePlayCard = async (cardId: string) => {
@@ -260,7 +230,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
     
     // Prevent playing cards while targeting
     if (targetingState.isTargeting) {
-      console.warn('handlePlayCard: Cannot play card while selecting targets for another spell');
+      console.warn('handlePlayCard: Cannot play card while targeting');
       return;
     }
     
@@ -347,40 +317,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
     setCurrentOpponentIndex((prev) => (prev - 1 + opponents.length) % opponents.length);
   };
 
-  // Helper functions for targeting
-  const canTargetPlayer = (playerId: AutomergeUrl): boolean => {
-    if (!targetingState.isTargeting || !targetingState.selector) return false;
-    
-    const { selector } = targetingState;
-    if (selector.targetType === 'creature') return false;
-    
-    if (playerId === selfId) {
-      return selector.canTargetSelf !== false;
-    } else {
-      return selector.canTargetAllies !== false;
-    }
-  };
-
-  const canTargetCreature = (playerId: AutomergeUrl, _instanceId: string): boolean => {
-    if (!targetingState.isTargeting || !targetingState.selector) return false;
-    
-    const { selector } = targetingState;
-    if (selector.targetType === 'player') return false;
-    
-    if (playerId === selfId) {
-      return selector.canTargetSelf !== false;
-    } else {
-      return selector.canTargetAllies !== false;
-    }
-  };
-
-  const isTargetSelected = (target: SpellTarget): boolean => {
-    return targetingState.selectedTargets.some(t => 
-      t.playerId === target.playerId && 
-      t.instanceId === target.instanceId &&
-      t.type === target.type
-    );
-  };
+  
 
   return (
     <div style={{
@@ -486,7 +423,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
               <div
                 onClick={() => {
                   if (canTargetPlayer(currentOpponent)) {
-                    handleTargetSelection({
+                    handleTargetClick({
                       type: 'player',
                       playerId: currentOpponent
                     });
@@ -628,7 +565,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
                 key={`opponent-${card.instanceId}`}
                 onClick={() => {
                   if (canTargetCreature(currentOpponent, card.instanceId)) {
-                    handleTargetSelection({
+                    handleTargetClick({
                       type: 'creature',
                       playerId: currentOpponent,
                       instanceId: card.instanceId
@@ -702,42 +639,46 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
         }}>
           {playerBattlefield.map((card) => {
             const canAttack = isCurrentPlayer && card.type === 'creature' && card.attack && card.attack > 0 && !card.sapped;
-            const canTargetThisCreature = canTargetCreature(selfId, card.instanceId);
+
             const instanceId = card.instanceId;
             
-            // Prioritize targeting over attacking when targeting is active
-            const shouldHandleTargeting = targetingState.isTargeting && canTargetThisCreature;
-            const handleClick = shouldHandleTargeting 
-              ? () => handleTargetSelection({
-                  type: 'creature',
+
+            
+            const canBeTargeted = targetingState.isTargeting && canTargetCreature(selfId, card.instanceId);
+            const canBeAttacked = !targetingState.isTargeting && canAttack;
+            const isClickable = canBeTargeted || canBeAttacked;
+            
+            const handleClick = canBeTargeted
+              ? () => handleTargetClick({
+                  type: card.type as 'creature' | 'artifact',
                   playerId: selfId,
                   instanceId: card.instanceId
                 })
-              : (canAttack ? () => handleCreatureAttack(instanceId) : undefined);
+              : (canBeAttacked ? () => handleStartAttackTargeting(instanceId) : undefined);
             
             return (
               <div
                 key={`battlefield-${card.instanceId}`}
                 onClick={handleClick}
                 style={{
-                  cursor: shouldHandleTargeting || canAttack ? 'pointer' : 'default',
-                  border: shouldHandleTargeting 
+                  cursor: isClickable ? 'pointer' : 'default',
+                  border: canBeTargeted
                     ? '3px solid #00ff00' 
-                    : canAttack 
+                    : canBeAttacked 
                       ? '2px solid #ff4444' 
                       : card.sapped 
                         ? '2px solid #666666' 
                         : '2px solid transparent',
                   borderRadius: 8,
-                  boxShadow: shouldHandleTargeting 
-                    ? (isTargetSelected({type: 'creature', playerId: selfId, instanceId: card.instanceId}) ? '0 0 15px #00ff00' : '0 0 8px rgba(0, 255, 0, 0.4)')
-                    : canAttack 
+                  boxShadow: canBeTargeted
+                    ? (isTargetSelected({type: card.type as 'creature' | 'artifact', playerId: selfId, instanceId: card.instanceId}) ? '0 0 15px #00ff00' : '0 0 8px rgba(0, 255, 0, 0.4)')
+                    : canBeAttacked 
                       ? '0 0 8px rgba(255, 68, 68, 0.4)' 
                       : 'none',
-                  opacity: card.sapped ? 0.6 : (shouldHandleTargeting ? 1 : (targetingState.isTargeting ? 0.5 : 1)),
+                  opacity: card.sapped ? 0.6 : (canBeTargeted ? 1 : (targetingState.isTargeting ? 0.5 : 1)),
                   transition: 'all 0.2s ease',
                   position: 'relative',
-                  padding: shouldHandleTargeting ? 2 : 0
+                  padding: canBeTargeted ? 2 : 0
                 }}
               >
                 <Card
@@ -795,7 +736,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
             <div
               onClick={() => {
                 if (canTargetPlayer(selfId)) {
-                  handleTargetSelection({
+                  handleTargetClick({
                     type: 'player',
                     playerId: selfId
                   });
@@ -872,7 +813,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
             onClick={handleEndTurn}
             disabled={targetingState.isTargeting}
             style={{
-              background: targetingState.isTargeting 
+              background: targetingState.isTargeting
                 ? 'linear-gradient(135deg, #666666 0%, #444444 100%)'
                 : 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)',
               color: targetingState.isTargeting ? '#999999' : '#fff',
@@ -882,7 +823,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
               cursor: targetingState.isTargeting ? 'not-allowed' : 'pointer',
               fontSize: 14,
               fontWeight: 600,
-              boxShadow: targetingState.isTargeting 
+              boxShadow: targetingState.isTargeting
                 ? '0 4px 12px rgba(102, 102, 102, 0.2)'
                 : '0 4px 12px rgba(82, 196, 26, 0.4)',
               transition: 'all 0.2s ease',
@@ -906,7 +847,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
         )}
       </div>
 
-      {/* Targeting Panel */}
+      {/* Unified Targeting Panel */}
       {targetingState.isTargeting && targetingState.selector && (
         <div style={{
           position: 'fixed',
@@ -914,21 +855,27 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
           top: '50%',
           transform: 'translateY(-50%)',
           width: 320,
-          background: 'linear-gradient(135deg, #001122 0%, #002244 100%)',
-          border: '2px solid #00ffff',
+          background: targetingState.context?.type === 'attack' 
+            ? 'linear-gradient(135deg, #220011 0%, #440022 100%)'
+            : 'linear-gradient(135deg, #001122 0%, #002244 100%)',
+          border: targetingState.context?.type === 'attack' 
+            ? '2px solid #ff4444'
+            : '2px solid #00ffff',
           borderRadius: 12,
           padding: 24,
           textAlign: 'center',
           color: '#fff',
           zIndex: 1000,
-          boxShadow: '0 8px 32px rgba(0, 255, 255, 0.3)'
+          boxShadow: targetingState.context?.type === 'attack' 
+            ? '0 8px 32px rgba(255, 68, 68, 0.3)'
+            : '0 8px 32px rgba(0, 255, 255, 0.3)'
         }}>
           <h3 style={{ 
             margin: '0 0 16px 0', 
-            color: '#00ffff',
+            color: targetingState.context?.type === 'attack' ? '#ff4444' : '#00ffff',
             fontSize: 18
           }}>
-            🎯 Target Selection
+            {targetingState.context?.type === 'attack' ? '⚔️ Attack Enemy Target' : '🎯 Target Selection'}
           </h3>
           
           <p style={{ 
@@ -936,26 +883,42 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
             fontSize: 14,
             lineHeight: 1.4
           }}>
-            {targetingState.selector.description}
+            {targetingState.context?.type === 'attack' && targetingState.context.attackerCard
+              ? `Choose a target for ${targetingState.context.attackerCard.name}`
+              : targetingState.selector.description
+            }
           </p>
+
+          {targetingState.context?.type === 'attack' && targetingState.context.attackerCard?.attackTargeting?.description && (
+            <p style={{ 
+              margin: '0 0 16px 0', 
+              fontSize: 12,
+              color: '#ffaa00',
+              fontStyle: 'italic'
+            }}>
+              {targetingState.context.attackerCard.attackTargeting.description}
+            </p>
+          )}
           
-          <div style={{
-            margin: '0 0 20px 0',
-            fontSize: 12,
-            color: '#00ff00'
-          }}>
-            Selected: {targetingState.selectedTargets.length} / {targetingState.selector.targetCount}
-            {targetingState.selector.targetCount > 1 && targetingState.selectedTargets.length > 0 && (
-              <div style={{ fontSize: 10, color: '#ffff00', marginTop: 4 }}>
-                Click Confirm to cast with {targetingState.selectedTargets.length} target(s)
-              </div>
-            )}
-          </div>
+          {targetingState.context?.type === 'spell' && (
+            <div style={{
+              margin: '0 0 20px 0',
+              fontSize: 12,
+              color: '#00ff00'
+            }}>
+              Selected: {targetingState.selectedTargets.length} / {targetingState.selector.targetCount}
+              {targetingState.selector.targetCount > 1 && targetingState.selectedTargets.length > 0 && (
+                <div style={{ fontSize: 10, color: '#ffff00', marginTop: 4 }}>
+                  Click Confirm to cast with {targetingState.selectedTargets.length} target(s)
+                </div>
+              )}
+            </div>
+          )}
           
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-            {targetingState.selectedTargets.length > 0 && (
+            {targetingState.context?.type === 'spell' && targetingState.selectedTargets.length > 0 && (
               <button 
-                onClick={() => confirmTargetSelection()}
+                onClick={() => confirmSelection()}
                 style={{
                   background: 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)',
                   color: '#fff',
@@ -972,7 +935,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
             )}
             
             <button 
-              onClick={cancelTargetSelection}
+              onClick={cancelTargeting}
               style={{
                 background: 'linear-gradient(135deg, #ff4d4f 0%, #d32f2f 100%)',
                 color: '#fff',
@@ -984,7 +947,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
                 fontWeight: 600
               }}
             >
-              ❌ Cancel
+              ❌ {targetingState.context?.type === 'attack' ? 'Cancel Attack' : 'Cancel'}
             </button>
           </div>
         </div>

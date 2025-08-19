@@ -24,7 +24,7 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
         targetCount: 1,
         targetType: 'any',
         canTargetSelf: false,
-        canTargetAllies: true,
+        autoTarget: false, // Multi-type targeting needs manual selection
         description: 'Choose a target to deal 3 damage'
       });
       
@@ -82,7 +82,7 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
         targetCount: 1,
         targetType: 'player',
         canTargetSelf: false,
-        canTargetAllies: false,
+        autoTarget: true,
         description: 'Choose an opponent to hack for 1 damage'
       });
       
@@ -168,7 +168,7 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
         targetCount: 1,
         targetType: 'creature',
         canTargetSelf: true,
-        canTargetAllies: true,
+        autoTarget: false, // Destruction spell needs manual selection
         description: 'Choose a creature to destroy'
       });
       
@@ -207,7 +207,7 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
         targetCount: 1,
         targetType: 'any',
         canTargetSelf: false,
-        canTargetAllies: true,
+        autoTarget: false, // Multi-type targeting needs manual selection
         description: 'Choose a target to deal 5 damage'
       });
       
@@ -248,7 +248,7 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
         targetCount: 3,
         targetType: 'any',
         canTargetSelf: false,
-        canTargetAllies: true,
+        autoTarget: false, // Multi-target spell needs manual selection
         description: 'Choose up to 3 targets for Chain Lightning (2 damage each)'
       });
       
@@ -274,17 +274,25 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     name: 'Mass Heal',
     cost: 3,
     type: 'spell',
-    description: 'Restore 3 health to yourself and all allies.',
+    description: 'Restore 3 health to yourself and all your creatures.',
     spellEffect: functionToString(async (api) => {
-      const allPlayers = api.getAllPlayers();
       let healed = 0;
       
-      allPlayers.forEach((playerId: any) => {
-        api.healPlayer(playerId, 3);
-        healed++;
+      // Heal the caster
+      api.healPlayer(api.casterId, 3);
+      healed++;
+      
+      // Heal all own creatures
+      const ownCreatures = api.getCreaturesForPlayer(api.casterId);
+      ownCreatures.forEach((creature: any) => {
+        const creatureCard = api.doc.cardLibrary[creature.cardId];
+        if (creatureCard && creatureCard.type === 'creature') {
+          api.healCreature(api.casterId, creature.instanceId, 3);
+          healed++;
+        }
       });
       
-      api.log(`Mass Heal restores 3 health to ${healed} player(s)`);
+      api.log(`Mass Heal restores 3 health to ${healed} target(s)`);
       return true;
     })
   },
@@ -299,7 +307,7 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
         targetCount: 1,
         targetType: 'creature',
         canTargetSelf: true,
-        canTargetAllies: true,
+        autoTarget: false, // Mind control needs manual selection
         description: 'Choose a creature to mind control (damages creature and owner)'
       });
       
@@ -358,7 +366,7 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
         targetCount: 1,
         targetType: 'creature',
         canTargetSelf: true,
-        canTargetAllies: true,
+        autoTarget: false, // Targeted spell needs manual selection
         description: 'Choose a creature for Targeted Strike'
       });
       
@@ -400,7 +408,7 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
         targetCount: 2,
         targetType: 'any',
         canTargetSelf: false,
-        canTargetAllies: true,
+        autoTarget: false, // Multi-target spell needs manual selection
         description: 'Choose 2 targets for Twin Missiles (2 damage each)'
       });
       
@@ -447,6 +455,100 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
       api.log(`Overcharge damages ${damagedCount} target(s) for 1 damage each`);
       return true;
     })
+  },
+  'card_024': {
+    id: 'card_024',
+    name: 'Anti-Artifact Hunter',
+    cost: 3,
+    attack: 2,
+    health: 3,
+    type: 'creature',
+    description: 'Can only attack artifacts. +1 damage vs artifacts.',
+    attackTargeting: {
+      canTargetPlayers: false,
+      canTargetCreatures: false,
+      canTargetArtifacts: true,
+      description: 'Can only target artifacts'
+    }
+  },
+  'card_025': {
+    id: 'card_025',
+    name: 'Defensive Turret',
+    cost: 2,
+    attack: 1,
+    health: 4,
+    type: 'creature',
+    description: 'Can only attack creatures, not players.',
+    attackTargeting: {
+      canTargetPlayers: false,
+      canTargetCreatures: true,
+      canTargetArtifacts: true,
+      description: 'Cannot target players directly'
+    }
+  },
+  'card_026': {
+    id: 'card_026',
+    name: 'Assassin Drone',
+    cost: 4,
+    attack: 3,
+    health: 2,
+    type: 'creature',
+    description: 'Fast unit that can attack anything.',
+    attackTargeting: {
+      canTargetPlayers: true,
+      canTargetCreatures: true,
+      canTargetArtifacts: true,
+      description: 'Can target any valid target'
+    }
+  },
+  'card_027': {
+    id: 'card_027',
+    name: 'Siege Breaker',
+    cost: 5,
+    attack: 4,
+    health: 3,
+    type: 'creature',
+    description: 'Specialized in destroying defensive structures.',
+    attackTargeting: {
+      canTargetPlayers: true,
+      canTargetCreatures: false,
+      canTargetArtifacts: true,
+      description: 'Can target players and artifacts only'
+    }
+  },
+  'card_028': {
+    id: 'card_028',
+    name: 'Artifact Repair',
+    cost: 2,
+    type: 'spell',
+    description: 'Restore all your artifacts to full health.',
+    spellEffect: functionToString(async (api) => {
+      let repaired = 0;
+      
+      // Repair all own artifacts
+      const ownCreatures = api.getCreaturesForPlayer(api.casterId);
+      ownCreatures.forEach((creature: any) => {
+        const creatureCard = api.doc.cardLibrary[creature.cardId];
+        if (creatureCard && creatureCard.type === 'artifact') {
+          // Find the battlefield card to check current health
+          const battlefield = api.doc.playerBattlefields.find((b: any) => b.playerId === api.casterId);
+          const battlefieldCard = battlefield?.cards.find((c: any) => c.instanceId === creature.instanceId);
+          
+          if (battlefieldCard && battlefieldCard.currentHealth < (creatureCard.health || 1)) {
+            const healAmount = (creatureCard.health || 1) - battlefieldCard.currentHealth;
+            api.healCreature(api.casterId, creature.instanceId, healAmount);
+            repaired++;
+          }
+        }
+      });
+      
+      if (repaired > 0) {
+        api.log(`Artifact Repair restored ${repaired} artifact(s) to full health`);
+      } else {
+        api.log('Artifact Repair found no damaged artifacts to repair');
+      }
+      return true;
+    })
   }
 };
 
@@ -479,6 +581,11 @@ export const createStandardDeck = (): string[] => {
     'card_021': 3, // Cleansing Light
     'card_022': 2, // Twin Missiles
     'card_023': 3, // Overcharge (common)
+    'card_024': 2, // Anti-Artifact Hunter
+    'card_025': 3, // Defensive Turret
+    'card_026': 2, // Assassin Drone
+    'card_027': 1, // Siege Breaker (rare)
+    'card_028': 2, // Artifact Repair (uncommon)
   };
   
   // Add cards to deck based on copy counts

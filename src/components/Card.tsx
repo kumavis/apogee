@@ -216,7 +216,7 @@ const Card: React.FC<CardProps> = ({
               textAlign: 'center',
               boxShadow: '0 0 4px #ff0080'
             }}>
-              ⚡{card.attack}
+              🗡️{card.attack}
             </div>
           )}
           {/* Health (for both creatures and artifacts) */}

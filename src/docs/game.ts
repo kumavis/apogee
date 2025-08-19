@@ -13,6 +13,13 @@ export type GameCard = {
   type: CardType;
   description: string;
   spellEffect?: string; // Code string for spell effects
+  attackTargeting?: {
+    canTargetPlayers?: boolean;
+    canTargetCreatures?: boolean;
+    canTargetArtifacts?: boolean;
+    restrictedTypes?: ('creature' | 'artifact')[];
+    description?: string;
+  };
 };
 
 export type PlayerHand = {
@@ -546,11 +553,128 @@ export const attackPlayerWithCreature = (doc: GameDoc, attackerId: AutomergeUrl,
     action: 'attack',
     targetId: targetPlayerId,
     amount: damage,
-    description: `${creatureName} attacked for ${damage} damage`
+    description: `${creatureName} attacked player for ${damage} damage`
   });
 
   const success = dealDamage(doc, targetPlayerId, damage);
   return success;
+};
+
+// New function for creature vs creature/artifact combat with mutual damage
+export const attackCreatureWithCreature = (
+  doc: GameDoc, 
+  attackerId: AutomergeUrl, 
+  attackerInstanceId: string, 
+  targetPlayerId: AutomergeUrl, 
+  targetInstanceId: string
+): boolean => {
+  // Find the attacker
+  const attackerBattlefield = doc.playerBattlefields.find(b => b.playerId === attackerId);
+  const attackerCard = attackerBattlefield?.cards.find(c => c.instanceId === attackerInstanceId);
+  const attackerGameCard = attackerCard ? doc.cardLibrary[attackerCard.cardId] : null;
+  
+  if (!attackerCard || !attackerGameCard || !attackerGameCard.attack) {
+    console.error(`attackCreatureWithCreature: Invalid attacker ${attackerInstanceId}`);
+    return false;
+  }
+
+  // Find the target
+  const targetBattlefield = doc.playerBattlefields.find(b => b.playerId === targetPlayerId);
+  const targetCard = targetBattlefield?.cards.find(c => c.instanceId === targetInstanceId);
+  const targetGameCard = targetCard ? doc.cardLibrary[targetCard.cardId] : null;
+  
+  if (!targetCard || !targetGameCard) {
+    console.error(`attackCreatureWithCreature: Invalid target ${targetInstanceId}`);
+    return false;
+  }
+
+  // Mark attacker as sapped
+  if (!sapCreature(doc, attackerId, attackerInstanceId)) {
+    console.error(`attackCreatureWithCreature: Failed to sap attacker ${attackerInstanceId}`);
+    return false;
+  }
+
+  const attackerName = attackerGameCard.name;
+  const targetName = targetGameCard.name;
+  const attackerDamage = attackerGameCard.attack;
+  const targetDamage = targetGameCard.attack || 0; // Artifacts have 0 attack
+
+  // Add combat log
+  if (targetGameCard.type === 'creature' && targetDamage > 0) {
+    // Mutual combat
+    addGameLogEntry(doc, {
+      playerId: attackerId,
+      action: 'attack',
+      targetId: targetPlayerId,
+      amount: attackerDamage,
+      description: `${attackerName} and ${targetName} fight! ${attackerName} deals ${attackerDamage}, ${targetName} deals ${targetDamage} damage`
+    });
+  } else {
+    // One-sided attack (against artifact or 0-attack creature)
+    addGameLogEntry(doc, {
+      playerId: attackerId,
+      action: 'attack',
+      targetId: targetPlayerId,
+      amount: attackerDamage,
+      description: `${attackerName} attacked ${targetName} for ${attackerDamage} damage`
+    });
+  }
+
+  // Deal damage to target first
+  dealDamageToCreature(doc, targetPlayerId, targetInstanceId, attackerDamage);
+
+  // If target is a creature with attack power, deal damage back to attacker
+  if (targetGameCard.type === 'creature' && targetDamage > 0) {
+    // Check if attacker still exists (might have been destroyed by other effects)
+    const stillExistsAttacker = doc.playerBattlefields
+      .find(b => b.playerId === attackerId)?.cards
+      .find(c => c.instanceId === attackerInstanceId);
+    
+    if (stillExistsAttacker) {
+      dealDamageToCreature(doc, attackerId, attackerInstanceId, targetDamage);
+    }
+  }
+
+  return true;
+};
+
+// Check if a creature can target a specific type
+export const canCreatureTarget = (
+  creatureCard: GameCard, 
+  targetType: 'player' | 'creature' | 'artifact',
+  targetCardType?: 'creature' | 'artifact'
+): boolean => {
+  // If no targeting restrictions, can attack anything
+  if (!creatureCard.attackTargeting) {
+    return true;
+  }
+
+  const targeting = creatureCard.attackTargeting;
+
+  switch (targetType) {
+    case 'player':
+      return targeting.canTargetPlayers !== false;
+    
+    case 'creature':
+    case 'artifact':
+      // Check if can target creatures/artifacts in general
+      if (targetType === 'creature' && targeting.canTargetCreatures === false) {
+        return false;
+      }
+      if (targetType === 'artifact' && targeting.canTargetArtifacts === false) {
+        return false;
+      }
+      
+      // Check specific type restrictions
+      if (targeting.restrictedTypes && targetCardType) {
+        return targeting.restrictedTypes.includes(targetCardType);
+      }
+      
+      return true;
+    
+    default:
+      return false;
+  }
 };
 
 // Keep old function for backwards compatibility

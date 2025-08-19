@@ -1,24 +1,16 @@
 import { AutomergeUrl } from '@automerge/react';
 import { GameDoc, dealDamage, addGameLogEntry, removeCreatureFromBattlefield, dealDamageToCreature } from '../docs/game';
+import { Target, TargetSelector } from './unifiedTargeting';
 
-// Types for spell targeting and effects
-export type SpellTarget = {
-  type: 'player' | 'creature' | 'any';
-  playerId: AutomergeUrl;
-  instanceId?: string; // For creatures on battlefield
-};
+// Legacy types for backwards compatibility
+export type SpellTarget = Target;
+export type SpellTargetSelector = TargetSelector;
 
-export type SpellTargetSelector = {
-  targetCount: number;
-  targetType: 'player' | 'creature' | 'any';
-  canTargetSelf?: boolean;
-  canTargetAllies?: boolean;
-  description: string;
-};
+
 
 // Operations that spells can perform
 export type SpellOperation = {
-  type: 'damage_player' | 'damage_creature' | 'heal_player' | 'destroy_creature' | 'log';
+  type: 'damage_player' | 'damage_creature' | 'heal_player' | 'heal_creature' | 'destroy_creature' | 'log';
   playerId: AutomergeUrl;
   instanceId?: string;
   amount?: number;
@@ -31,7 +23,7 @@ export type SpellEffectAPI = {
   doc: GameDoc;
   casterId: AutomergeUrl;
   
-  // Targeting functions (async)
+  // Targeting functions (async) - unified targeting
   selectTargets: (selector: SpellTargetSelector) => Promise<SpellTarget[]>;
   
   // Operation collection (instead of immediate execution)
@@ -41,6 +33,7 @@ export type SpellEffectAPI = {
   dealDamageToPlayer: (playerId: AutomergeUrl, damage: number) => void;
   dealDamageToCreature: (playerId: AutomergeUrl, instanceId: string, damage: number) => void;
   healPlayer: (playerId: AutomergeUrl, amount: number) => void;
+  healCreature: (playerId: AutomergeUrl, instanceId: string, amount: number) => void;
   
   // Creature manipulation (queues operations)
   destroyCreature: (playerId: AutomergeUrl, instanceId: string) => void;
@@ -85,12 +78,18 @@ export const createSpellEffectAPI = (
 ): SpellEffectAPI => {
   const operations: SpellOperation[] = [];
 
+  // Wrapper to ensure spell selectors have the correct sourcerId
+  const wrappedSelectTargets = async (selector: SpellTargetSelector): Promise<SpellTarget[]> => {
+    const enhancedSelector = { ...selector, sourcerId: casterId };
+    return selectTargetsImpl(enhancedSelector);
+  };
+
   return {
     doc,
     casterId,
     operations,
     
-    selectTargets: selectTargetsImpl,
+    selectTargets: wrappedSelectTargets,
     
     dealDamageToPlayer: (playerId: AutomergeUrl, damage: number): void => {
       operations.push({
@@ -113,6 +112,15 @@ export const createSpellEffectAPI = (
       operations.push({
         type: 'heal_player',
         playerId,
+        amount
+      });
+    },
+    
+    healCreature: (playerId: AutomergeUrl, instanceId: string, amount: number): void => {
+      operations.push({
+        type: 'heal_creature',
+        playerId,
+        instanceId,
         amount
       });
     },
@@ -185,6 +193,38 @@ export const executeSpellOperations = (doc: GameDoc, operations: SpellOperation[
               amount: -op.amount,
               description: `Healed for ${op.amount} health`
             });
+          }
+        }
+        break;
+        
+      case 'heal_creature':
+        if (op.instanceId && op.amount !== undefined) {
+          const battlefieldIndex = doc.playerBattlefields.findIndex(
+            battlefield => battlefield.playerId === op.playerId
+          );
+          
+          if (battlefieldIndex !== -1) {
+            const cardIndex = doc.playerBattlefields[battlefieldIndex].cards.findIndex(
+              card => card.instanceId === op.instanceId
+            );
+            
+            if (cardIndex !== -1) {
+              const battlefieldCard = doc.playerBattlefields[battlefieldIndex].cards[cardIndex];
+              const gameCard = doc.cardLibrary[battlefieldCard.cardId];
+              
+              if (gameCard && gameCard.health) {
+                const maxHealth = gameCard.health;
+                const newHealth = Math.min(maxHealth, battlefieldCard.currentHealth + op.amount);
+                battlefieldCard.currentHealth = newHealth;
+                
+                addGameLogEntry(doc, {
+                  playerId: op.playerId,
+                  action: 'take_damage',
+                  amount: -op.amount,
+                  description: `${gameCard.name} healed for ${op.amount} health`
+                });
+              }
+            }
           }
         }
         break;
