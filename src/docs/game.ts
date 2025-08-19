@@ -1,6 +1,16 @@
 import { AutomergeUrl, DocHandle, Repo } from "@automerge/react";
 import { CARD_LIBRARY } from "../utils/cardLibrary";
-import { executeSpellEffect, createSpellEffectAPI, SpellTargetSelector, SpellTarget } from "../utils/spellEffects";
+import { 
+  executeSpellEffect, 
+  createSpellEffectAPI, 
+  SpellTargetSelector, 
+  SpellTarget, 
+  ArtifactAbility,
+  executeArtifactAbility,
+  createArtifactEffectAPI,
+  executeSpellOperations,
+  ArtifactTrigger
+} from "../utils/spellEffects";
 
 export type CardType = 'creature' | 'spell' | 'artifact';
 
@@ -13,6 +23,7 @@ export type GameCard = {
   type: CardType;
   description: string;
   spellEffect?: string; // Code string for spell effects
+  artifactAbilities?: ArtifactAbility[]; // Array of artifact abilities
   attackTargeting?: {
     canTargetPlayers?: boolean;
     canTargetCreatures?: boolean;
@@ -352,6 +363,13 @@ export const playCardAsync = async (
       return false;
     }
     
+    // Execute play_card artifact abilities for all players
+    for (const p of doc.players) {
+      if (p !== playerId) { // Only trigger for opponents (for cards like Energy Collector)
+        await executeArtifactAbilities(doc, 'play_card', p, selectTargetsImpl);
+      }
+    }
+    
     // Add to game log
     addGameLogEntry(doc, {
       playerId,
@@ -362,6 +380,13 @@ export const playCardAsync = async (
   } else if (card.type === 'spell') {
     // Add to graveyard first
     addCardToGraveyard(doc, cardId);
+    
+    // Execute play_card artifact abilities for all players (spells also trigger this)
+    for (const p of doc.players) {
+      if (p !== playerId) { // Only trigger for opponents (for cards like Energy Collector)
+        await executeArtifactAbilities(doc, 'play_card', p, selectTargetsImpl);
+      }
+    }
     
     // Execute spell effect if it has one
     if (card.spellEffect && selectTargetsImpl) {
@@ -757,6 +782,54 @@ export const healCreatures = (doc: GameDoc, playerId: AutomergeUrl): boolean => 
   return true;
 };
 
+// Execute artifact abilities for a specific trigger and player
+export const executeArtifactAbilities = async (
+  doc: GameDoc,
+  trigger: ArtifactTrigger,
+  playerId: AutomergeUrl,
+  selectTargetsImpl?: (selector: SpellTargetSelector) => Promise<SpellTarget[]>
+): Promise<void> => {
+  const playerBattlefield = doc.playerBattlefields.find(b => b.playerId === playerId);
+  if (!playerBattlefield) return;
+
+  for (const battlefieldCard of playerBattlefield.cards) {
+    const card = doc.cardLibrary[battlefieldCard.cardId];
+    
+    // Only process artifacts with abilities
+    if (card?.type === 'artifact' && card.artifactAbilities) {
+      // Execute each ability that matches the trigger
+      for (const ability of card.artifactAbilities) {
+        if (ability.trigger === trigger) {
+          try {
+            // Create a no-op target selector if none provided
+            const targetSelector = selectTargetsImpl || (async () => []);
+            
+            // Create the artifact effect API
+            const api = createArtifactEffectAPI(doc, playerId, battlefieldCard.instanceId, targetSelector);
+            
+            // Execute the artifact ability
+            const success = await executeArtifactAbility(ability.effectCode, api);
+            
+            if (success) {
+              // Execute collected operations
+              executeSpellOperations(doc, api.operations);
+              
+              // Add to game log
+              addGameLogEntry(doc, {
+                playerId,
+                action: 'play_card',
+                description: `${card.name}: ${ability.description || 'triggered ability'}`
+              });
+            }
+          } catch (error) {
+            console.error(`executeArtifactAbilities: Error executing artifact ability for ${card.name}:`, error);
+          }
+        }
+      }
+    }
+  }
+};
+
 export const endPlayerTurn = (doc: GameDoc, playerId: AutomergeUrl): void => {
   // Add to game log FIRST, before any next player actions
   addGameLogEntry(doc, {
@@ -765,8 +838,14 @@ export const endPlayerTurn = (doc: GameDoc, playerId: AutomergeUrl): void => {
     description: 'Ended turn'
   });
 
+  // Execute end-of-turn artifact abilities for current player
+  executeArtifactAbilities(doc, 'end_turn', playerId);
+
   const nextPlayerIndex = advanceToNextPlayer(doc);
   const nextPlayerId = doc.players[nextPlayerIndex];
+  
+  // Execute start-of-turn artifact abilities for next player BEFORE drawing
+  executeArtifactAbilities(doc, 'start_turn', nextPlayerId);
   
   // Draw a card for the next player (start of their turn)
   drawCard(doc, nextPlayerId);

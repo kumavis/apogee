@@ -54,14 +54,14 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     type: 'creature',
     description: 'An automated defense unit.'
   },
-  'card_004': {
-    id: 'card_004',
-    name: 'Nano Enhancer',
-    cost: 2,
-    health: 3,
-    type: 'artifact',
-    description: 'Equipped unit gains +2/+1.'
-  },
+  // 'card_004': {
+  //   id: 'card_004',
+  //   name: 'Nano Enhancer',
+  //   cost: 2,
+  //   health: 3,
+  //   type: 'artifact',
+  //   description: 'All your creatures gain +1/+1 while this is in play.'
+  // },
   'card_005': {
     id: 'card_005',
     name: 'Quantum Destroyer',
@@ -120,7 +120,16 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     cost: 1,
     health: 2,
     type: 'artifact',
-    description: 'Draw an additional card each turn.'
+    description: 'Draw an additional card each turn.',
+    artifactAbilities: [{
+      trigger: 'start_turn',
+      effectCode: functionToString(async (api) => {
+        api.drawCard();
+        api.log('Neural Interface draws an additional card');
+        return true;
+      }),
+      description: 'Draw an additional card'
+    }]
   },
   'card_010': {
     id: 'card_010',
@@ -128,7 +137,16 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     cost: 4,
     health: 5,
     type: 'artifact',
-    description: 'Gain +1 energy per turn.'
+    description: 'Gain +1 energy per turn.',
+    artifactAbilities: [{
+      trigger: 'start_turn',
+      effectCode: functionToString(async (api) => {
+        api.gainEnergy(1);
+        api.log('Fusion Core grants +1 energy');
+        return true;
+      }),
+      description: 'Gain +1 energy'
+    }]
   },
   'card_011': {
     id: 'card_011',
@@ -549,6 +567,116 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
       }
       return true;
     })
+  },
+  'card_029': {
+    id: 'card_029',
+    name: 'Energy Collector',
+    cost: 3,
+    health: 4,
+    type: 'artifact',
+    description: 'Whenever an opponent plays a card, gain 1 energy.',
+    artifactAbilities: [{
+      trigger: 'play_card',
+      effectCode: functionToString(async (api) => {
+        // This will be triggered when ANY player plays a card
+        // We need to check if it's an opponent's card
+        const ownCreatures = api.getOwnCreatures();
+        if (ownCreatures.length > 0) { // Simple check that we're still alive
+          api.gainEnergy(1);
+          api.log('Energy Collector gains energy from opponent card play');
+        }
+        return true;
+      }),
+      description: 'Gain 1 energy when opponent plays a card'
+    }]
+  },
+  'card_030': {
+    id: 'card_030',
+    name: 'Shield Generator',
+    cost: 2,
+    health: 3,
+    type: 'artifact',
+    description: 'At the end of your turn, heal all your creatures for 1.',
+    artifactAbilities: [{
+      trigger: 'end_turn',
+      effectCode: functionToString(async (api) => {
+        const creatures = api.getOwnCreatures();
+        let healedCount = 0;
+        
+        creatures.forEach((creature: {instanceId: string, cardId: string}) => {
+          api.healCreature(api.ownerId, creature.instanceId, 1);
+          healedCount++;
+        });
+        
+        if (healedCount > 0) {
+          api.log(`Shield Generator healed ${healedCount} creature(s)`);
+        }
+        return true;
+      }),
+      description: 'Heal all your creatures for 1'
+    }]
+  },
+  'card_031': {
+    id: 'card_031',
+    name: 'Lightning Rod',
+    cost: 4,
+    health: 2,
+    type: 'artifact',
+    description: 'At the start of your turn, deal 1 damage to a random enemy.',
+    artifactAbilities: [{
+      trigger: 'start_turn',
+      effectCode: functionToString(async (api) => {
+        const allPlayers = api.getAllPlayers();
+        const enemies = allPlayers.filter((p: any) => p !== api.ownerId);
+        
+        if (enemies.length > 0) {
+          // Pick a random enemy
+          const randomEnemy = enemies[Math.floor(Math.random() * enemies.length)];
+          api.dealDamageToPlayer(randomEnemy, 1);
+          api.log('Lightning Rod strikes a random enemy');
+        }
+        return true;
+      }),
+      description: 'Deal 1 damage to random enemy'
+    }]
+  },
+  'card_032': {
+    id: 'card_032',
+    name: 'Quantum Processor',
+    cost: 5,
+    health: 4,
+    type: 'artifact',
+    description: 'At start of turn: draw a card and gain 1 energy. At end of turn: heal all your creatures for 1.',
+    artifactAbilities: [
+      {
+        trigger: 'start_turn',
+        effectCode: functionToString(async (api) => {
+          api.drawCard();
+          api.gainEnergy(1);
+          api.log('Quantum Processor draws a card and grants energy');
+          return true;
+        }),
+        description: 'Draw a card and gain 1 energy'
+      },
+      {
+        trigger: 'end_turn',
+        effectCode: functionToString(async (api) => {
+          const creatures = api.getOwnCreatures();
+          let healedCount = 0;
+          
+          creatures.forEach((creature: {instanceId: string, cardId: string}) => {
+            api.healCreature(api.ownerId, creature.instanceId, 1);
+            healedCount++;
+          });
+          
+          if (healedCount > 0) {
+            api.log(`Quantum Processor healed ${healedCount} creature(s)`);
+          }
+          return true;
+        }),
+        description: 'Heal all your creatures for 1'
+      }
+    ]
   }
 };
 
@@ -586,6 +714,10 @@ export const createStandardDeck = (): string[] => {
     'card_026': 2, // Assassin Drone
     'card_027': 1, // Siege Breaker (rare)
     'card_028': 2, // Artifact Repair (uncommon)
+    'card_029': 2, // Energy Collector
+    'card_030': 2, // Shield Generator
+    'card_031': 1, // Lightning Rod (rare)
+    'card_032': 1, // Quantum Processor (rare - powerful dual ability)
   };
   
   // Add cards to deck based on copy counts

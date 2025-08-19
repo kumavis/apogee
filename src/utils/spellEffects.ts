@@ -1,10 +1,20 @@
 import { AutomergeUrl } from '@automerge/react';
-import { GameDoc, dealDamage, addGameLogEntry, removeCreatureFromBattlefield, dealDamageToCreature } from '../docs/game';
+import { GameDoc, dealDamage, addGameLogEntry, removeCreatureFromBattlefield, dealDamageToCreature, drawCard } from '../docs/game';
 import { Target, TargetSelector } from './unifiedTargeting';
 
 // Legacy types for backwards compatibility
 export type SpellTarget = Target;
 export type SpellTargetSelector = TargetSelector;
+
+// Artifact ability trigger types
+export type ArtifactTrigger = 'start_turn' | 'end_turn' | 'play_card' | 'take_damage' | 'deal_damage';
+
+// Artifact ability definition
+export type ArtifactAbility = {
+  trigger: ArtifactTrigger;
+  effectCode: string; // Same code format as spells
+  description?: string;
+};
 
 
 
@@ -64,6 +74,58 @@ export const executeSpellEffect = async (
   } catch (error) {
     console.error('Error executing spell effect:', error);
     api.log(`Spell effect failed: ${error}`);
+    return false;
+  }
+};
+
+// API object that gets passed to artifact ability functions
+export type ArtifactEffectAPI = {
+  // Document manipulation (read-only)
+  doc: GameDoc;
+  ownerId: AutomergeUrl; // The player who owns this artifact
+  instanceId: string; // The specific artifact instance
+  
+  // Targeting functions (async) - unified targeting
+  selectTargets: (selector: SpellTargetSelector) => Promise<SpellTarget[]>;
+  
+  // Operation collection (instead of immediate execution)
+  operations: SpellOperation[];
+  
+  // Damage and healing (queues operations)
+  dealDamageToPlayer: (playerId: AutomergeUrl, damage: number) => void;
+  dealDamageToCreature: (playerId: AutomergeUrl, instanceId: string, damage: number) => void;
+  healPlayer: (playerId: AutomergeUrl, amount: number) => void;
+  healCreature: (playerId: AutomergeUrl, instanceId: string, amount: number) => void;
+  
+  // Creature manipulation (queues operations)
+  destroyCreature: (playerId: AutomergeUrl, instanceId: string) => void;
+  
+  // Utility functions
+  log: (description: string) => void;
+  getAllPlayers: () => AutomergeUrl[];
+  getCreaturesForPlayer: (playerId: AutomergeUrl) => Array<{instanceId: string, cardId: string}>;
+  
+  // Artifact-specific functions
+  getOwnCreatures: () => Array<{instanceId: string, cardId: string}>;
+  drawCard: () => void;
+  gainEnergy: (amount: number) => void;
+};
+
+// Function to execute artifact ability code with API
+export const executeArtifactAbility = async (
+  effectCode: string,
+  api: ArtifactEffectAPI
+): Promise<boolean> => {
+  try {
+    // Create the function from the string
+    const effectFunction = new Function('api', `return (${effectCode})(api);`);
+    
+    // Execute the effect function with the API
+    const result = await effectFunction(api);
+    return result !== false; // Consider undefined/null as success
+  } catch (error) {
+    console.error('Error executing artifact ability:', error);
+    api.log(`Artifact ability failed: ${error}`);
     return false;
   }
 };
@@ -160,6 +222,133 @@ export const createSpellEffectAPI = (
   };
 };
 
+// Implementation of API functions that will be used in artifact abilities
+export const createArtifactEffectAPI = (
+  doc: GameDoc,
+  ownerId: AutomergeUrl,
+  instanceId: string,
+  selectTargetsImpl: (selector: SpellTargetSelector) => Promise<SpellTarget[]>
+): ArtifactEffectAPI => {
+  const operations: SpellOperation[] = [];
+
+  // Wrapper to ensure artifact selectors have the correct sourcerId
+  const wrappedSelectTargets = async (selector: SpellTargetSelector): Promise<SpellTarget[]> => {
+    const enhancedSelector = { ...selector, sourcerId: ownerId };
+    return selectTargetsImpl(enhancedSelector);
+  };
+
+  return {
+    doc,
+    ownerId,
+    instanceId,
+    operations,
+    
+    selectTargets: wrappedSelectTargets,
+    
+    dealDamageToPlayer: (playerId: AutomergeUrl, damage: number): void => {
+      operations.push({
+        type: 'damage_player',
+        playerId,
+        amount: damage
+      });
+    },
+    
+    dealDamageToCreature: (playerId: AutomergeUrl, instanceId: string, damage: number): void => {
+      operations.push({
+        type: 'damage_creature',
+        playerId,
+        instanceId,
+        amount: damage
+      });
+    },
+    
+    healPlayer: (playerId: AutomergeUrl, amount: number): void => {
+      operations.push({
+        type: 'heal_player',
+        playerId,
+        amount
+      });
+    },
+    
+    healCreature: (playerId: AutomergeUrl, instanceId: string, amount: number): void => {
+      operations.push({
+        type: 'heal_creature',
+        playerId,
+        instanceId,
+        amount
+      });
+    },
+    
+    destroyCreature: (playerId: AutomergeUrl, instanceId: string): void => {
+      operations.push({
+        type: 'destroy_creature',
+        playerId,
+        instanceId
+      });
+    },
+    
+    log: (description: string): void => {
+      operations.push({
+        type: 'log',
+        playerId: ownerId,
+        description
+      });
+    },
+    
+    getAllPlayers: (): AutomergeUrl[] => {
+      return [...doc.players];
+    },
+    
+    getCreaturesForPlayer: (playerId: AutomergeUrl): Array<{instanceId: string, cardId: string}> => {
+      const battlefield = doc.playerBattlefields.find(
+        battlefield => battlefield.playerId === playerId
+      );
+      
+      if (!battlefield) return [];
+      
+      return battlefield.cards.map(card => ({
+        instanceId: card.instanceId,
+        cardId: card.cardId
+      }));
+    },
+    
+    getOwnCreatures: (): Array<{instanceId: string, cardId: string}> => {
+      const battlefield = doc.playerBattlefields.find(
+        battlefield => battlefield.playerId === ownerId
+      );
+      
+      if (!battlefield) return [];
+      
+      return battlefield.cards
+        .filter(card => {
+          const gameCard = doc.cardLibrary[card.cardId];
+          return gameCard && gameCard.type === 'creature';
+        })
+        .map(card => ({
+          instanceId: card.instanceId,
+          cardId: card.cardId
+        }));
+    },
+    
+    drawCard: (): void => {
+      operations.push({
+        type: 'log', // We'll handle draw card as a special operation
+        playerId: ownerId,
+        description: 'ARTIFACT_DRAW_CARD' // Special marker for draw card operation
+      });
+    },
+    
+    gainEnergy: (amount: number): void => {
+      operations.push({
+        type: 'log', // We'll handle energy gain as a special operation
+        playerId: ownerId,
+        amount,
+        description: `ARTIFACT_GAIN_ENERGY:${amount}` // Special marker for energy gain
+      });
+    }
+  };
+};
+
 // Execute collected spell operations on the game document
 export const executeSpellOperations = (doc: GameDoc, operations: SpellOperation[]): void => {
   for (const op of operations) {
@@ -237,11 +426,35 @@ export const executeSpellOperations = (doc: GameDoc, operations: SpellOperation[
         
       case 'log':
         if (op.description) {
-          addGameLogEntry(doc, {
-            playerId: op.playerId,
-            action: 'play_card',
-            description: op.description
-          });
+          // Handle special artifact operations
+          if (op.description === 'ARTIFACT_DRAW_CARD') {
+            drawCard(doc, op.playerId);
+          } else if (op.description.startsWith('ARTIFACT_GAIN_ENERGY:')) {
+            const amount = parseInt(op.description.split(':')[1], 10);
+            if (!isNaN(amount)) {
+              const playerStateIndex = doc.playerStates.findIndex(
+                state => state.playerId === op.playerId
+              );
+              
+              if (playerStateIndex !== -1) {
+                const playerState = doc.playerStates[playerStateIndex];
+                playerState.energy = Math.min(playerState.maxEnergy, playerState.energy + amount);
+                
+                addGameLogEntry(doc, {
+                  playerId: op.playerId,
+                  action: 'play_card',
+                  description: `Artifact granted ${amount} energy`
+                });
+              }
+            }
+          } else {
+            // Regular log entry
+            addGameLogEntry(doc, {
+              playerId: op.playerId,
+              action: 'play_card',
+              description: op.description
+            });
+          }
         }
         break;
     }
