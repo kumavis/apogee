@@ -1,14 +1,23 @@
-import React from 'react';
-import { AutomergeUrl, useDocument } from '@automerge/react';
+import React, { useState, useMemo } from 'react';
+import { AutomergeUrl, useDocument, useDocuments } from '@automerge/react';
 import { GameDoc } from '../docs/game';
+import { ContactDoc } from '../docs/contact';
 import { getRelativeTime } from '../utils/timeUtils';
+
+// Helper component to get player name
+const PlayerName: React.FC<{ playerId: AutomergeUrl }> = ({ playerId }) => {
+  const [contactDoc] = useDocument<ContactDoc>(playerId, { suspense: false });
+  return <span>{contactDoc?.name || 'Player'}</span>;
+};
 
 type GameListEntryProps = {
   gameUrl: AutomergeUrl;
   onClick: (gameUrl: AutomergeUrl) => void;
+  selfId: AutomergeUrl;
 };
 
-const GameListEntry: React.FC<GameListEntryProps> = ({ gameUrl, onClick }) => {
+const GameListEntry: React.FC<GameListEntryProps> = ({ gameUrl, onClick, selfId }) => {
+  const [isHovered, setIsHovered] = useState(false);
   const [gameDoc] = useDocument<GameDoc>(gameUrl, {
     suspense: false,
   });
@@ -34,40 +43,78 @@ const GameListEntry: React.FC<GameListEntryProps> = ({ gameUrl, onClick }) => {
   
   // Get status display info
   const getStatusInfo = (status: string) => {
+    if (status === 'playing' && gameDoc.players && gameDoc.players.length > 0) {
+      // For playing games, show current player instead of "Playing"
+      const currentPlayerId = gameDoc.players[gameDoc.currentPlayerIndex];
+      const isMyTurn = currentPlayerId === selfId;
+      
+      if (isMyTurn) {
+        return {
+          content: 'Your turn',
+          color: '#00ff00',
+          emoji: '🎯'
+        };
+      } else {
+        return {
+          content: <><PlayerName playerId={currentPlayerId} />'s turn</>,
+          color: '#ffaa00',
+          emoji: '⏳'
+        };
+      }
+    }
+    
     switch (status) {
       case 'waiting':
-        return { text: 'Waiting', color: '#ffa940', emoji: '⏳' };
+        return { content: 'Waiting to start', color: '#ffa940', emoji: '⏳' };
       case 'playing':
-        return { text: 'Playing', color: '#52c41a', emoji: '🎮' };
+        return { content: 'Playing', color: '#52c41a', emoji: '🎮' }; // Fallback
       case 'finished':
-        return { text: 'Finished', color: '#ff4d4f', emoji: '🏁' };
+        return { content: 'Finished', color: '#ff4d4f', emoji: '🏁' };
       default:
-        return { text: 'Unknown', color: '#d9d9d9', emoji: '❓' };
+        return { content: 'Unknown', color: '#d9d9d9', emoji: '❓' };
     }
   };
   
   const statusInfo = getStatusInfo(gameDoc.status);
+  
+  // Check if it's the player's turn for highlighting
+  const isMyTurn = gameDoc.status === 'playing' && 
+    gameDoc.players && 
+    gameDoc.players[gameDoc.currentPlayerIndex] === selfId;
 
+  // Calculate dynamic styles based on state
+  const getBackgroundColor = () => {
+    return isHovered ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.2)';
+  };
+
+  const getBorderColor = () => {
+    if (isMyTurn) {
+      return isHovered ? 'rgb(218, 178, 255)' : 'rgba(196, 136, 255, 0.8)';
+    }
+    return isHovered ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.2)';
+  };
+
+  const getBorderWidth = () => {
+    return isMyTurn ? '2px' : '1px';
+  };
   return (
     <div 
       onClick={() => onClick(gameUrl)}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       style={{
         padding: 16,
-        border: '1px solid rgba(255,255,255,0.2)',
+        border: `${getBorderWidth()} solid ${getBorderColor()}`,
         borderRadius: 8,
-        background: 'rgba(0,0,0,0.2)',
+        background: getBackgroundColor(),
         marginBottom: 8,
         cursor: 'pointer',
         transition: 'all 0.2s ease',
-        color: '#fff'
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'rgba(0,0,0,0.2)';
-        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)';
+        color: '#fff',
+        boxShadow: isMyTurn 
+          ? '0 0 20px rgba(147, 51, 234, 0.4), 0 0 40px rgba(147, 51, 234, 0.2)' 
+          : 'none',
+        position: 'relative' as const
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -93,7 +140,7 @@ const GameListEntry: React.FC<GameListEntryProps> = ({ gameUrl, onClick }) => {
             border: `1px solid ${statusInfo.color}40`
           }}>
             <span>{statusInfo.emoji}</span>
-            <span>{statusInfo.text}</span>
+            <span>{statusInfo.content}</span>
           </div>
           <div style={{ fontSize: 12, opacity: 0.8 }}>
             {playerCount} player{playerCount !== 1 ? 's' : ''}
@@ -107,9 +154,27 @@ const GameListEntry: React.FC<GameListEntryProps> = ({ gameUrl, onClick }) => {
 type GamesListProps = {
   gameUrls: AutomergeUrl[];
   onGameSelect: (gameUrl: AutomergeUrl) => void;
+  selfId: AutomergeUrl;
 };
 
-const GamesList: React.FC<GamesListProps> = ({ gameUrls, onGameSelect }) => {
+const GamesList: React.FC<GamesListProps> = ({ gameUrls, onGameSelect, selfId }) => {
+  // Use useDocuments to get all game documents at once
+  const [gameDocsMap] = useDocuments<GameDoc>(gameUrls);
+  
+  // Get loaded games and sort them by creation date (newest first)
+  const loadedGameUrls = useMemo(() => {
+    return gameUrls
+      .filter(url => gameDocsMap.get(url)) // Only include loaded games
+      .sort((a, b) => {
+        const gameA = gameDocsMap.get(a)!;
+        const gameB = gameDocsMap.get(b)!;
+        return (gameB.createdAt || 0) - (gameA.createdAt || 0);
+      });
+  }, [gameUrls, gameDocsMap]);
+
+  // Check if there are still games loading
+  const hasLoadingGames = gameUrls.length > loadedGameUrls.length;
+
   if (gameUrls.length === 0) {
     return (
       <div style={{
@@ -137,14 +202,47 @@ const GamesList: React.FC<GamesListProps> = ({ gameUrls, onGameSelect }) => {
         Current Games ({gameUrls.length})
       </h3>
       <div>
-        {gameUrls.map((gameUrl) => (
+        {/* Render only loaded games */}
+        {loadedGameUrls.map((gameUrl) => (
           <GameListEntry
             key={gameUrl}
             gameUrl={gameUrl}
             onClick={onGameSelect}
+            selfId={selfId}
           />
         ))}
+        
+        {/* Show loading spinner if there are still games loading */}
+        {hasLoadingGames && (
+          <div style={{
+            padding: 16,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            color: '#999',
+            fontSize: 12
+          }}>
+            <div style={{
+              width: 16,
+              height: 16,
+              border: '2px solid rgba(255,255,255,0.2)',
+              borderTop: '2px solid #00ffff',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite'
+            }} />
+            Loading games...
+          </div>
+        )}
       </div>
+      
+      {/* Add CSS animation for spinner */}
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };

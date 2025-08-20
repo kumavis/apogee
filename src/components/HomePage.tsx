@@ -70,6 +70,7 @@ const HomePage: React.FC<HomePageProps> = ({ rootDoc, addGame }) => {
               <GamesList 
                 gameUrls={rootDoc.games}
                 onGameSelect={handleGameSelect}
+                selfId={rootDoc.selfId}
               />
             </ErrorBoundary>
           </div>
