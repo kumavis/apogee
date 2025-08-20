@@ -103,7 +103,25 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     attack: 5,
     health: 5,
     type: 'creature',
-    description: 'Protects all allied units.'
+    description: 'At end of turn: Heal all your creatures for 1.',
+    triggeredAbilities: [{
+      trigger: 'end_turn',
+      effectCode: functionToString(async (api) => {
+        const creatures = api.getOwnCreatures();
+        let healedCount = 0;
+        
+        creatures.forEach((creature: {instanceId: string, cardId: string}) => {
+          api.healCreature(api.ownerId, creature.instanceId, 1);
+          healedCount++;
+        });
+        
+        if (healedCount > 0) {
+          api.log(`Bio-Mech Guardian protected ${healedCount} creature(s)`);
+        }
+        return true;
+      }),
+      description: 'Heal all your creatures for 1'
+    }]
   },
   'card_008': {
     id: 'card_008',
@@ -112,7 +130,24 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     attack: 1,
     health: 4,
     type: 'creature',
-    description: 'Deflects incoming attacks.'
+    description: 'When damaged: Heal 1 health at end of turn.',
+    triggeredAbilities: [{
+      trigger: 'end_turn',
+      effectCode: functionToString(async (api) => {
+        // Check if this creature is damaged and heal it
+        const battlefield = api.doc.playerBattlefields.find((b: any) => b.playerId === api.ownerId);
+        const battlefieldCard = battlefield?.cards.find((c: any) => c.instanceId === api.instanceId);
+        const creatureCard = api.doc.cardLibrary[battlefieldCard?.cardId || ''];
+        
+        if (battlefieldCard && creatureCard && battlefieldCard.currentHealth < (creatureCard.health || 1)) {
+          api.healCreature(api.ownerId, api.instanceId, 1);
+          api.log('Energy Shield regenerated 1 health');
+        }
+        
+        return true;
+      }),
+      description: 'Regenerate 1 health if damaged'
+    }]
   },
   'card_009': {
     id: 'card_009',
@@ -121,7 +156,7 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     health: 2,
     type: 'artifact',
     description: 'Draw an additional card each turn.',
-    artifactAbilities: [{
+    triggeredAbilities: [{
       trigger: 'start_turn',
       effectCode: functionToString(async (api) => {
         api.drawCard();
@@ -138,7 +173,7 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     health: 5,
     type: 'artifact',
     description: 'Gain +1 energy per turn.',
-    artifactAbilities: [{
+    triggeredAbilities: [{
       trigger: 'start_turn',
       effectCode: functionToString(async (api) => {
         api.gainEnergy(1);
@@ -211,7 +246,34 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     attack: 1,
     health: 3,
     type: 'creature',
-    description: 'Restore 2 health to target unit.'
+    description: 'At start of turn: Heal a damaged creature for 2.',
+    triggeredAbilities: [{
+      trigger: 'start_turn',
+      effectCode: functionToString(async (api) => {
+        const creatures = api.getOwnCreatures();
+        
+        // Find damaged creatures (excluding itself)
+        for (const creature of creatures) {
+          if (creature.instanceId !== api.instanceId) {
+            const creatureCard = api.doc.cardLibrary[creature.cardId];
+            if (creatureCard && creatureCard.type === 'creature') {
+              // Find the battlefield card to check current health
+              const battlefield = api.doc.playerBattlefields.find((b: any) => b.playerId === api.ownerId);
+              const battlefieldCard = battlefield?.cards.find((c: any) => c.instanceId === creature.instanceId);
+              
+              if (battlefieldCard && battlefieldCard.currentHealth < (creatureCard.health || 1)) {
+                api.healCreature(api.ownerId, creature.instanceId, 2);
+                api.log(`Repair Drone healed ${creatureCard.name} for 2`);
+                return true;
+              }
+            }
+          }
+        }
+        
+        return true; // Return true even if no healing was done
+      }),
+      description: 'Heal a damaged creature for 2'
+    }]
   },
   'card_014': {
     id: 'card_014',
@@ -575,7 +637,7 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     health: 4,
     type: 'artifact',
     description: 'Whenever an opponent plays a card, gain 1 energy.',
-    artifactAbilities: [{
+    triggeredAbilities: [{
       trigger: 'play_card',
       effectCode: functionToString(async (api) => {
         // This will be triggered when ANY player plays a card
@@ -597,7 +659,7 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     health: 3,
     type: 'artifact',
     description: 'At the end of your turn, heal all your creatures for 1.',
-    artifactAbilities: [{
+    triggeredAbilities: [{
       trigger: 'end_turn',
       effectCode: functionToString(async (api) => {
         const creatures = api.getOwnCreatures();
@@ -623,7 +685,7 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     health: 2,
     type: 'artifact',
     description: 'At the start of your turn, deal 1 damage to a random enemy.',
-    artifactAbilities: [{
+    triggeredAbilities: [{
       trigger: 'start_turn',
       effectCode: functionToString(async (api) => {
         const allPlayers = api.getAllPlayers();
@@ -647,7 +709,7 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     health: 4,
     type: 'artifact',
     description: 'At start of turn: draw a card and gain 1 energy. At end of turn: heal all your creatures for 1.',
-    artifactAbilities: [
+    triggeredAbilities: [
       {
         trigger: 'start_turn',
         effectCode: functionToString(async (api) => {
@@ -677,6 +739,141 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
         description: 'Heal all your creatures for 1'
       }
     ]
+  },
+  'card_033': {
+    id: 'card_033',
+    name: 'Cyber Medic',
+    cost: 3,
+    attack: 2,
+    health: 3,
+    type: 'creature',
+    description: 'When another creature takes damage: Heal it for 1.',
+    triggeredAbilities: [{
+      trigger: 'take_damage', // This will trigger when any creature takes damage
+      effectCode: functionToString(async (api) => {
+        // For now, implement as start of turn healing for simplicity
+        const creatures = api.getOwnCreatures();
+        let healedCount = 0;
+        
+        creatures.forEach((creature: {instanceId: string, cardId: string}) => {
+          if (creature.instanceId !== api.instanceId) {
+            const creatureCard = api.doc.cardLibrary[creature.cardId];
+            if (creatureCard && creatureCard.type === 'creature') {
+              const battlefield = api.doc.playerBattlefields.find((b: any) => b.playerId === api.ownerId);
+              const battlefieldCard = battlefield?.cards.find((c: any) => c.instanceId === creature.instanceId);
+              
+              if (battlefieldCard && battlefieldCard.currentHealth < (creatureCard.health || 1)) {
+                api.healCreature(api.ownerId, creature.instanceId, 1);
+                healedCount++;
+              }
+            }
+          }
+        });
+        
+        if (healedCount > 0) {
+          api.log(`Cyber Medic healed ${healedCount} damaged creature(s)`);
+        }
+        return true;
+      }),
+      description: 'Heal damaged creatures'
+    }]
+  },
+  'card_034': {
+    id: 'card_034',
+    name: 'Energy Vampire',
+    cost: 4,
+    attack: 3,
+    health: 2,
+    type: 'creature',
+    description: 'When an opponent plays a card: Gain 1 energy.',
+    triggeredAbilities: [{
+      trigger: 'play_card',
+      effectCode: functionToString(async (api) => {
+        // This triggers when any card is played, gain energy if it's opponent's card
+        const allPlayers = api.getAllPlayers();
+        const enemies = allPlayers.filter((p: any) => p !== api.ownerId);
+        
+        if (enemies.length > 0) {
+          api.gainEnergy(1);
+          api.log('Energy Vampire siphons energy from opponent card play');
+        }
+        return true;
+      }),
+      description: 'Gain 1 energy when opponent plays cards'
+    }]
+  },
+  'card_035': {
+    id: 'card_035',
+    name: 'Nano Swarm',
+    cost: 2,
+    attack: 1,
+    health: 2,
+    type: 'creature',
+    description: 'At start of turn: Deal 1 damage to a random enemy.',
+    triggeredAbilities: [{
+      trigger: 'start_turn',
+      effectCode: functionToString(async (api) => {
+        const allPlayers = api.getAllPlayers();
+        const enemies = allPlayers.filter((p: any) => p !== api.ownerId);
+        
+        if (enemies.length > 0) {
+          // Pick a random enemy
+          const randomEnemy = enemies[Math.floor(Math.random() * enemies.length)];
+          api.dealDamageToPlayer(randomEnemy, 1);
+          api.log('Nano Swarm stings a random enemy');
+        }
+        return true;
+      }),
+      description: 'Deal 1 damage to random enemy'
+    }]
+  },
+  'card_036': {
+    id: 'card_036',
+    name: 'Shield Drone',
+    cost: 1,
+    attack: 0,
+    health: 3,
+    type: 'creature',
+    description: 'At end of turn: Give all your creatures +0/+1 health permanently.',
+    triggeredAbilities: [{
+      trigger: 'end_turn',
+      effectCode: functionToString(async (api) => {
+        // For now, just heal all creatures for 1 since we can't modify base stats easily
+        const creatures = api.getOwnCreatures();
+        let healedCount = 0;
+        
+        creatures.forEach((creature: {instanceId: string, cardId: string}) => {
+          if (creature.instanceId !== api.instanceId) {
+            api.healCreature(api.ownerId, creature.instanceId, 1);
+            healedCount++;
+          }
+        });
+        
+        if (healedCount > 0) {
+          api.log(`Shield Drone reinforced ${healedCount} creature(s)`);
+        }
+        return true;
+      }),
+      description: 'Reinforce other creatures (+0/+1 effect)'
+    }]
+  },
+  'card_037': {
+    id: 'card_037',
+    name: 'Data Miner',
+    cost: 2,
+    attack: 1,
+    health: 2,
+    type: 'creature',
+    description: 'At start of turn: Draw a card.',
+    triggeredAbilities: [{
+      trigger: 'start_turn',
+      effectCode: functionToString(async (api) => {
+        api.drawCard();
+        api.log('Data Miner excavated information (draw card)');
+        return true;
+      }),
+      description: 'Draw a card'
+    }]
   }
 };
 
@@ -718,6 +915,11 @@ export const createStandardDeck = (): string[] => {
     'card_030': 2, // Shield Generator
     'card_031': 1, // Lightning Rod (rare)
     'card_032': 1, // Quantum Processor (rare - powerful dual ability)
+    'card_033': 2, // Cyber Medic
+    'card_034': 2, // Energy Vampire
+    'card_035': 3, // Nano Swarm (common)
+    'card_036': 2, // Shield Drone
+    'card_037': 2, // Data Miner
   };
   
   // Validate that all cards in cardCopies exist in CARD_LIBRARY

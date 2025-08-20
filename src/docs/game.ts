@@ -23,7 +23,7 @@ export type GameCard = {
   type: CardType;
   description: string;
   spellEffect?: string; // Code string for spell effects
-  artifactAbilities?: ArtifactAbility[]; // Array of artifact abilities
+  triggeredAbilities?: ArtifactAbility[]; // Array of triggered abilities (for creatures and artifacts)
   attackTargeting?: {
     canTargetPlayers?: boolean;
     canTargetCreatures?: boolean;
@@ -363,10 +363,10 @@ export const playCardAsync = async (
       return false;
     }
     
-    // Execute play_card artifact abilities for all players
+    // Execute play_card abilities for all players (artifacts and creatures)
     for (const p of doc.players) {
       if (p !== playerId) { // Only trigger for opponents (for cards like Energy Collector)
-        await executeArtifactAbilities(doc, 'play_card', p, selectTargetsImpl);
+        await executeTriggeredAbilities(doc, 'play_card', p, selectTargetsImpl);
       }
     }
     
@@ -381,10 +381,10 @@ export const playCardAsync = async (
     // Add to graveyard first
     addCardToGraveyard(doc, cardId);
     
-    // Execute play_card artifact abilities for all players (spells also trigger this)
+    // Execute play_card abilities for all players (spells also trigger this)
     for (const p of doc.players) {
       if (p !== playerId) { // Only trigger for opponents (for cards like Energy Collector)
-        await executeArtifactAbilities(doc, 'play_card', p, selectTargetsImpl);
+        await executeTriggeredAbilities(doc, 'play_card', p, selectTargetsImpl);
       }
     }
     
@@ -782,8 +782,8 @@ export const healCreatures = (doc: GameDoc, playerId: AutomergeUrl): boolean => 
   return true;
 };
 
-// Execute artifact abilities for a specific trigger and player
-export const executeArtifactAbilities = async (
+// Execute abilities for a specific trigger and player (both artifacts and creatures)
+export const executeTriggeredAbilities = async (
   doc: GameDoc,
   trigger: ArtifactTrigger,
   playerId: AutomergeUrl,
@@ -795,19 +795,21 @@ export const executeArtifactAbilities = async (
   for (const battlefieldCard of playerBattlefield.cards) {
     const card = doc.cardLibrary[battlefieldCard.cardId];
     
-    // Only process artifacts with abilities
-    if (card?.type === 'artifact' && card.artifactAbilities) {
+    // Process both artifacts and creatures with abilities
+    if (card?.triggeredAbilities) {
+      const abilitiesToExecute = card.triggeredAbilities;
+      
       // Execute each ability that matches the trigger
-      for (const ability of card.artifactAbilities) {
+      for (const ability of abilitiesToExecute) {
         if (ability.trigger === trigger) {
           try {
             // Create a no-op target selector if none provided
             const targetSelector = selectTargetsImpl || (async () => []);
             
-            // Create the artifact effect API
+            // Create the effect API (same API works for both artifacts and creatures)
             const api = createArtifactEffectAPI(doc, playerId, battlefieldCard.instanceId, targetSelector);
             
-            // Execute the artifact ability
+            // Execute the ability
             const success = await executeArtifactAbility(ability.effectCode, api);
             
             if (success) {
@@ -822,13 +824,15 @@ export const executeArtifactAbilities = async (
               });
             }
           } catch (error) {
-            console.error(`executeArtifactAbilities: Error executing artifact ability for ${card.name}:`, error);
+            console.error(`executeTriggeredAbilities: Error executing ability for ${card.name}:`, error);
           }
         }
       }
     }
   }
 };
+
+
 
 export const endPlayerTurn = (doc: GameDoc, playerId: AutomergeUrl): void => {
   // Add to game log FIRST, before any next player actions
@@ -838,14 +842,14 @@ export const endPlayerTurn = (doc: GameDoc, playerId: AutomergeUrl): void => {
     description: 'Ended turn'
   });
 
-  // Execute end-of-turn artifact abilities for current player
-  executeArtifactAbilities(doc, 'end_turn', playerId);
+  // Execute end-of-turn abilities for current player
+  executeTriggeredAbilities(doc, 'end_turn', playerId);
 
   const nextPlayerIndex = advanceToNextPlayer(doc);
   const nextPlayerId = doc.players[nextPlayerIndex];
   
-  // Execute start-of-turn artifact abilities for next player BEFORE drawing
-  executeArtifactAbilities(doc, 'start_turn', nextPlayerId);
+  // Execute start-of-turn abilities for next player BEFORE drawing
+  executeTriggeredAbilities(doc, 'start_turn', nextPlayerId);
   
   // Draw a card for the next player (start of their turn)
   drawCard(doc, nextPlayerId);
