@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { AutomergeUrl, useDocument, useRepo } from '@automerge/react';
 import { RootDocument } from '../docs/rootDoc';
 import { CardDefinition, createCardDefinition } from '../docs/cardDefinition';
-import { useGameNavigation } from '../hooks/useGameNavigation';
+import { useGameNavigation, makeCardViewUrl } from '../hooks/useGameNavigation';
 import { CARD_LIBRARY } from '../utils/cardLibrary';
 import { GameCard, CardType } from '../docs/game';
 import Card from './Card';
@@ -24,7 +24,7 @@ type NewCardForm = {
 };
 
 const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary }) => {
-  const { navigateToHome } = useGameNavigation();
+  const { navigateToHome, navigateToCardView } = useGameNavigation();
   const repo = useRepo();
   const [showNewCardForm, setShowNewCardForm] = useState(false);
   const [editingCard, setEditingCard] = useState<{ 
@@ -248,6 +248,10 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary }) 
       type: 'creature',
       description: ''
     });
+  };
+
+  const handleViewCard = (cardUrl: AutomergeUrl) => {
+    navigateToCardView(cardUrl);
   };
 
   return (
@@ -949,31 +953,67 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary }) 
                         {editingCard ? '💾 Save Changes' : '🎨 Create Card'}
                       </button>
                       {editingCard && (
-                        <button
-                          onClick={handleCloneCustomCard}
-                          style={{
-                            background: 'linear-gradient(135deg, #00aaff 0%, #0088cc 100%)',
-                            color: '#fff',
-                            border: 'none',
-                            padding: '16px 32px',
-                            borderRadius: 8,
-                            cursor: 'pointer',
-                            fontSize: 16,
-                            fontWeight: 700,
-                            transition: 'all 0.2s ease',
-                            boxShadow: '0 4px 12px rgba(0,170,255,0.3)'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.transform = 'translateY(-2px)';
-                            e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,170,255,0.4)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.transform = 'translateY(0px)';
-                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,170,255,0.3)';
-                          }}
-                        >
-                          📋 Clone Card
-                        </button>
+                        <>
+                          <button
+                            onClick={handleCloneCustomCard}
+                            style={{
+                              background: 'linear-gradient(135deg, #00aaff 0%, #0088cc 100%)',
+                              color: '#fff',
+                              border: 'none',
+                              padding: '16px 32px',
+                              borderRadius: 8,
+                              cursor: 'pointer',
+                              fontSize: 16,
+                              fontWeight: 700,
+                              transition: 'all 0.2s ease',
+                              boxShadow: '0 4px 12px rgba(0,170,255,0.3)'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.transform = 'translateY(-2px)';
+                              e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,170,255,0.4)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.transform = 'translateY(0px)';
+                              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,170,255,0.3)';
+                            }}
+                          >
+                            📋 Clone Card
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (editingCard?.cardUrl) {
+                                const cardUrl = makeCardViewUrl(editingCard.cardUrl);
+                                navigator.clipboard.writeText(cardUrl).then(() => {
+                                  console.log('Card URL copied to clipboard:', cardUrl);
+                                }).catch(err => {
+                                  console.error('Failed to copy card URL:', err);
+                                });
+                              }
+                            }}
+                            style={{
+                              background: 'linear-gradient(135deg, #00ffff 0%, #0088ff 100%)',
+                              color: '#000',
+                              border: 'none',
+                              padding: '16px 32px',
+                              borderRadius: 8,
+                              cursor: 'pointer',
+                              fontSize: 16,
+                              fontWeight: 700,
+                              transition: 'all 0.2s ease',
+                              boxShadow: '0 4px 12px rgba(0,255,255,0.3)'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.transform = 'translateY(-2px)';
+                              e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,255,255,0.4)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.transform = 'translateY(0px)';
+                              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,255,255,0.3)';
+                            }}
+                          >
+                            🔗 Copy URL
+                          </button>
+                        </>
                       )}
                     </>
                   )}
@@ -1035,8 +1075,9 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary }) 
           ) : (
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-              gap: 16
+              gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 140px))',
+              gap: 16,
+              justifyContent: 'center'
             }}>
               {rootDoc.cardLibrary.map((cardUrl) => (
                 <LoadingCardDisplay 
@@ -1063,8 +1104,9 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary }) 
           </h2>
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-            gap: 16
+            gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 140px))',
+            gap: 16,
+            justifyContent: 'center'
           }}>
             {hardcodedCards.map((card) => (
               <div 
@@ -1072,7 +1114,8 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary }) 
                 style={{ 
                   opacity: 0.8,
                   cursor: 'pointer',
-                  transition: 'all 0.2s ease'
+                  transition: 'all 0.2s ease',
+                  position: 'relative'
                 }}
                 onClick={() => handleCardSelect(card, true)}
                 onMouseEnter={(e) => {
@@ -1131,11 +1174,12 @@ const LoadingCardDisplay: React.FC<{
 
   return (
     <div 
-      style={{ 
+      style={{
         cursor: 'pointer',
-        transition: 'all 0.2s ease'
+        transition: 'all 0.2s ease',
+        position: 'relative'
       }}
-                      onClick={() => onCardSelect(cardDef, false, cardUrl)}
+      onClick={() => onCardSelect(cardDef, false, cardUrl)}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = 'scale(1.05)';
       }}

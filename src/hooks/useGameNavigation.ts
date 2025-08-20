@@ -21,10 +21,19 @@ export const useGameNavigation = () => {
     navigate('/library');
   }, [navigate]);
 
+  const navigateToCardView = useCallback((cardId: AutomergeUrl) => {
+    navigate(`/card/${cardId}`);
+  }, [navigate]);
+
   return {
     navigateToGame,
     navigateToHome,
     navigateToSettings,
     navigateToCardLibrary,
+    navigateToCardView,
   };
+};
+
+export const makeCardViewUrl = (cardId: AutomergeUrl) => {
+  return `${window.location.origin}/#/card/${cardId}`;
 };

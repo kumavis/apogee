@@ -6,6 +6,7 @@ import HomePage from './components/HomePage';
 import GameView from './components/GameView';
 import Settings from './components/Settings';
 import CardLibrary from './components/CardLibrary';
+import CardView from './components/CardView';
 import { RootDocument } from './docs/rootDoc';
 import { useCallback } from 'react';
 
@@ -46,6 +47,7 @@ function App({ rootDocUrl }: { rootDocUrl: AutomergeUrl }) {
           <Route path="/game/:gameDocUrl" element={<GameView rootDoc={rootDoc} addGame={addGame} />} />
           <Route path="/settings" element={<Settings rootDocUrl={rootDocUrl} selfId={rootDoc.selfId} />} />
           <Route path="/library" element={<CardLibrary rootDoc={rootDoc} addCardToLibrary={addCardToLibrary} />} />
+          <Route path="/card/:cardId" element={<CardView rootDoc={rootDoc} addCardToLibrary={addCardToLibrary} />} />
         </Routes>
       </ErrorBoundary>
     </div>
