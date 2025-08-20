@@ -25,12 +25,22 @@ export const useGameNavigation = () => {
     navigate(`/card/${cardId}`);
   }, [navigate]);
 
+  const navigateToDeckLibrary = useCallback(() => {
+    navigate('/decks');
+  }, [navigate]);
+
+  const navigateToDeckView = useCallback((deckId: AutomergeUrl) => {
+    navigate(`/deck/${deckId}`);
+  }, [navigate]);
+
   return {
     navigateToGame,
     navigateToHome,
     navigateToSettings,
     navigateToCardLibrary,
     navigateToCardView,
+    navigateToDeckLibrary,
+    navigateToDeckView,
   };
 };
 

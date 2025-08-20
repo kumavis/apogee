@@ -7,6 +7,7 @@ export type RootDocument = {
   selfId: AutomergeUrl;
   games: AutomergeUrl[];
   cardLibrary: AutomergeUrl[]; // Array of custom card definition URLs
+  decks: AutomergeUrl[]; // Array of deck URLs
 };
 
 const createRootDoc = (repo: Repo): DocHandle<RootDocument> => {
@@ -16,6 +17,7 @@ const createRootDoc = (repo: Repo): DocHandle<RootDocument> => {
     selfId: contact.url,
     games: [],
     cardLibrary: [],
+    decks: [],
   });
 
   return root;

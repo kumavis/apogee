@@ -7,6 +7,8 @@ import GameView from './components/GameView';
 import Settings from './components/Settings';
 import CardLibrary from './components/CardLibrary';
 import CardView from './components/CardView';
+import DeckLibrary from './components/DeckLibrary';
+import DeckView from './components/DeckView';
 import { RootDocument } from './docs/rootDoc';
 import { useCallback } from 'react';
 
@@ -39,6 +41,15 @@ function App({ rootDocUrl }: { rootDocUrl: AutomergeUrl }) {
     });
   }, [changeRootDoc]);
 
+  const addDeckToCollection = useCallback((deckUrl: AutomergeUrl) => {
+    changeRootDoc((doc) => {
+      // Only add if the deck is not already in the collection
+      if (!doc.decks.includes(deckUrl)) {
+        doc.decks.push(deckUrl);
+      }
+    });
+  }, [changeRootDoc]);
+
   return (
     <div className="App">
       <ErrorBoundary>
@@ -48,6 +59,8 @@ function App({ rootDocUrl }: { rootDocUrl: AutomergeUrl }) {
           <Route path="/settings" element={<Settings rootDocUrl={rootDocUrl} selfId={rootDoc.selfId} />} />
           <Route path="/library" element={<CardLibrary rootDoc={rootDoc} addCardToLibrary={addCardToLibrary} />} />
           <Route path="/card/:cardId" element={<CardView rootDoc={rootDoc} addCardToLibrary={addCardToLibrary} />} />
+          <Route path="/decks" element={<DeckLibrary rootDoc={rootDoc} addDeckToCollection={addDeckToCollection} />} />
+          <Route path="/deck/:deckId" element={<DeckView rootDoc={rootDoc} addDeckToCollection={addDeckToCollection} />} />
         </Routes>
       </ErrorBoundary>
     </div>

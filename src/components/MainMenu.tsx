@@ -6,7 +6,7 @@ type MainMenuProps = {
 };
 
 const MainMenu: React.FC<MainMenuProps> = ({ onNewGame }) => {
-  const { navigateToSettings, navigateToCardLibrary } = useGameNavigation();
+  const { navigateToSettings, navigateToCardLibrary, navigateToDeckLibrary } = useGameNavigation();
   
   // Array of potential game names
   const gameNames = [
@@ -141,6 +141,30 @@ const MainMenu: React.FC<MainMenuProps> = ({ onNewGame }) => {
           }}
         >
           📚 Card Library
+        </button>
+        <button
+          onClick={navigateToDeckLibrary}
+          style={{
+            background: 'rgba(255,255,255,0.1)',
+            color: '#fff',
+            border: '1px solid rgba(255,255,255,0.2)',
+            padding: '10px 20px',
+            borderRadius: 8,
+            cursor: 'pointer',
+            fontSize: 14,
+            fontWeight: 600,
+            transition: 'all 0.2s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.2)';
+            e.currentTarget.style.transform = 'translateY(-1px)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+            e.currentTarget.style.transform = 'translateY(0px)';
+          }}
+        >
+          🃏 Deck Library
         </button>
         <button
           onClick={navigateToSettings}
