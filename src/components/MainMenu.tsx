@@ -23,9 +23,13 @@ const MainMenu: React.FC<MainMenuProps> = ({ onNewGame }) => {
   
   // Get current name and handler to cycle to next
   const currentGameName = gameNames[currentNameIndex];
+  // Set the title of the page to the current game name
+  document.title = currentGameName;
+
   const handleTitleClick = () => {
     setCurrentNameIndex((prevIndex) => (prevIndex + 1) % gameNames.length);
   };
+
   return (
     <div style={{
       maxWidth: 800,
