@@ -21,6 +21,10 @@ type CardProps = {
   faceDown?: boolean;
   onClick?: () => void;
   style?: React.CSSProperties;
+  // Optional glossy overlay controls
+  showGloss?: boolean;
+  glossAngleDeg?: number; // direction of the highlight sweep
+  glossOpacity?: number;  // 0..1 strength of the highlight
 };
 
 const Card: React.FC<CardProps> = ({ 
@@ -28,7 +32,10 @@ const Card: React.FC<CardProps> = ({
   size = 'medium', 
   faceDown = false, 
   onClick,
-  style = {} 
+  style = {},
+  showGloss = false,
+  glossAngleDeg = 0,
+  glossOpacity = 0.35
 }) => {
   const sizeMap = {
     small: { width: 80, height: 112 },
@@ -124,6 +131,22 @@ const Card: React.FC<CardProps> = ({
         }
       }}
     >
+      {showGloss && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            // borderRadius: 8,
+            // transform: 'translateZ(1px)',
+            zIndex: 2,
+            pointerEvents: 'none',
+            background: `linear-gradient(${glossAngleDeg}deg, rgba(255,255,255,${Math.max(0, Math.min(1, glossOpacity))}) 0%, rgba(255,255,255,0) 80%)`
+          }}
+        />
+      )}
       {/* Cost */}
       <div style={{
         position: 'absolute',

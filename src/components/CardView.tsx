@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useDocument } from '@automerge/react';
 import { AutomergeUrl } from '@automerge/react';
@@ -21,6 +21,8 @@ const CardView: React.FC<CardViewProps> = ({ rootDoc, addCardToLibrary }) => {
   
   const cardRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const [glossAngleDeg, setGlossAngleDeg] = useState<number>(0);
+  const [glossOpacity, setGlossOpacity] = useState<number>(0.25);
   
   // Find the custom card in the library
   const isInLibrary = useMemo(() => {
@@ -50,10 +52,22 @@ const CardView: React.FC<CardViewProps> = ({ rootDoc, addCardToLibrary }) => {
       card.style.transform = `rotateY(${rx}deg) rotateX(${ry}deg)`;
     }
 
+    function light(x: number, y: number) {
+      if (!cardRef.current) return;
+      const card = cardRef.current;
+      const cardRect = card.getBoundingClientRect();
+      const angle = (Math.atan2(y, x) * 180) / Math.PI - 90;
+      const normalizedY = (y + cardRect.height / 2) / cardRect.height; // 0..1
+      const opacity = Math.max(0, Math.min(0.6, normalizedY * 0.6));
+      setGlossAngleDeg(angle);
+      setGlossOpacity(opacity);
+    }
+
     function updateCard() {
       if (!inProgress) return;
       
       tilt(lastMouseX, lastMouseY);
+      light(lastMouseX, lastMouseY);
       inProgress = false;
     }
 
@@ -171,6 +185,9 @@ const CardView: React.FC<CardViewProps> = ({ rootDoc, addCardToLibrary }) => {
           <Card 
             card={cardDoc}
             size="large"
+            showGloss={true}
+            glossAngleDeg={glossAngleDeg}
+            glossOpacity={glossOpacity}
             style={{
               transform: 'scale(2.5)',
               filter: 'drop-shadow(0 0 20px rgba(0,0,0,0.5))'
