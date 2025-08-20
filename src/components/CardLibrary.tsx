@@ -1314,18 +1314,15 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary }) 
 const MonacoCodeEditor: React.FC<{
   value: string;
   onChange: (value: string) => void;
-  placeholder?: string;
   disabled?: boolean;
-  height?: string;
   language?: string;
   resizable?: boolean;
   defaultHeight?: string;
   collapsible?: boolean;
   title?: string;
-}> = ({ value, onChange, placeholder, disabled = false, height = '200px', language = 'javascript', resizable = true, defaultHeight = '200px', collapsible = false, title = 'Code Editor' }) => {
+}> = ({ value, onChange, disabled = false, language = 'javascript', resizable = true, defaultHeight = '200px', collapsible = false, title = 'Code Editor' }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [currentHeight, setCurrentHeight] = useState(defaultHeight);
-  const [isResizing, setIsResizing] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const handleEditorChange = (value: string | undefined) => {
@@ -1368,7 +1365,6 @@ const MonacoCodeEditor: React.FC<{
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!resizable || disabled) return;
     
-    setIsResizing(true);
     const startY = e.clientY;
     const startHeight = parseInt(currentHeight);
     
@@ -1379,7 +1375,6 @@ const MonacoCodeEditor: React.FC<{
     };
     
     const handleMouseUp = () => {
-      setIsResizing(false);
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
