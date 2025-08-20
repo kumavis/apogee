@@ -6,6 +6,8 @@ import { useGameNavigation, makeCardViewUrl } from '../hooks/useGameNavigation';
 import { CARD_LIBRARY } from '../utils/cardLibrary';
 import { GameCard, CardType } from '../docs/game';
 import Card from './Card';
+import { ArtifactAbility, ArtifactTrigger } from '../utils/spellEffects';
+import Editor from '@monaco-editor/react';
 
 type CardLibraryProps = {
   rootDoc: RootDocument;
@@ -20,11 +22,11 @@ type NewCardForm = {
   type: CardType;
   description: string;
   spellEffect?: string;
-  triggeredAbilities?: string; // JSON string of abilities
+  triggeredAbilities: ArtifactAbility[]; // Array of ability objects instead of JSON string
 };
 
 const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary }) => {
-  const { navigateToHome, navigateToCardView } = useGameNavigation();
+  const { navigateToHome } = useGameNavigation();
   const repo = useRepo();
   const [showNewCardForm, setShowNewCardForm] = useState(false);
   const [editingCard, setEditingCard] = useState<{ 
@@ -36,7 +38,8 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary }) 
     name: '',
     cost: 1,
     type: 'creature',
-    description: ''
+    description: '',
+    triggeredAbilities: []
   });
 
   // Get hardcoded cards as read-only GameCard objects
@@ -50,17 +53,6 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary }) 
 
     // Generate a unique ID for the card
     const cardId = `custom_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-    // Parse triggered abilities if provided
-    let triggeredAbilities = undefined;
-    if (newCardData.triggeredAbilities?.trim()) {
-      try {
-        triggeredAbilities = JSON.parse(newCardData.triggeredAbilities.trim());
-      } catch (e) {
-        alert('Invalid JSON format for triggered abilities. Please check your syntax.');
-        return;
-      }
-    }
 
     // Create the card definition document
     const cardData: any = {
@@ -82,8 +74,8 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary }) 
       cardData.spellEffect = newCardData.spellEffect.trim();
     }
 
-    if (triggeredAbilities) {
-      cardData.triggeredAbilities = triggeredAbilities;
+    if (newCardData.triggeredAbilities.length > 0) {
+      cardData.triggeredAbilities = newCardData.triggeredAbilities;
     }
 
     const cardDefHandle = createCardDefinition(repo, cardData);
@@ -103,80 +95,112 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary }) 
       return;
     }
 
-    // Update existing custom card
-    const cardDef = editingCard.card as CardDefinition;
-    
-    // Parse triggered abilities if provided
-    let triggeredAbilities = undefined;
-    if (newCardData.triggeredAbilities?.trim()) {
-      try {
-        triggeredAbilities = JSON.parse(newCardData.triggeredAbilities.trim());
-      } catch (e) {
-        alert('Invalid JSON format for triggered abilities. Please check your syntax.');
-        return;
-      }
-    }
+    console.log('Starting card update for:', editingCard.cardUrl);
+    console.log('Update data:', {
+      name: newCardData.name.trim(),
+      cost: newCardData.cost,
+      type: newCardData.type,
+      description: newCardData.description.trim(),
+      attack: newCardData.attack,
+      health: newCardData.health,
+      spellEffect: newCardData.spellEffect,
+      triggeredAbilitiesCount: newCardData.triggeredAbilities.length
+    });
 
-    // Update the card definition document using the repo
-    try {
-      if (!editingCard.cardUrl) {
-        alert('Unable to find card URL for updating. Please try again.');
-        return;
+    // Update the document using the correct Automerge pattern
+    if (editingCard.cardUrl) {
+      try {
+        const cardHandle = repo.find(editingCard.cardUrl);
+        if (cardHandle) {
+          cardHandle.then((handle) => {
+            if (handle) {
+              console.log('Got card handle, updating document...');
+              handle.change((doc: any) => {
+                try {
+                  console.log('Current document state:', {
+                    name: doc.name,
+                    cost: doc.cost,
+                    type: doc.type,
+                    hasAttack: 'attack' in doc,
+                    hasHealth: 'health' in doc,
+                    hasSpellEffect: 'spellEffect' in doc,
+                    hasTriggeredAbilities: 'triggeredAbilities' in doc
+                  });
+                  
+                  // Update basic properties - ensure we're setting primitive values
+                  doc.name = String(newCardData.name.trim());
+                  doc.cost = Number(newCardData.cost);
+                  doc.type = String(newCardData.type);
+                  doc.description = String(newCardData.description.trim());
+                  
+                  // Handle creature-specific properties
+                  if (newCardData.type === 'creature') {
+                    doc.attack = Number(newCardData.attack || 1);
+                    doc.health = Number(newCardData.health || 1);
+                  } else {
+                    // Remove attack/health for non-creatures
+                    delete doc.attack;
+                    delete doc.health;
+                  }
+                  
+                  // Handle spell effect
+                  if (newCardData.spellEffect?.trim()) {
+                    doc.spellEffect = String(newCardData.spellEffect.trim());
+                  } else {
+                    delete doc.spellEffect;
+                  }
+                  
+                  // Handle triggered abilities - ensure we create completely new objects
+                  if (newCardData.triggeredAbilities.length > 0) {
+                    // Create a completely new array with new objects to avoid any reference issues
+                    const cleanAbilities = newCardData.triggeredAbilities.map(ability => {
+                      // Ensure we're creating plain objects, not Automerge references
+                      return {
+                        trigger: String(ability.trigger),
+                        effectCode: String(ability.effectCode),
+                        description: String(ability.description || '')
+                      };
+                    });
+                    doc.triggeredAbilities = cleanAbilities;
+                  } else {
+                    delete doc.triggeredAbilities;
+                  }
+                  
+                  console.log('Document updated successfully');
+                } catch (updateError) {
+                  console.error('Error during document update:', updateError);
+                  console.error('Update error details:', {
+                    error: updateError,
+                    errorType: typeof updateError,
+                    errorMessage: updateError instanceof Error ? updateError.message : 'Unknown error type',
+                    errorStack: updateError instanceof Error ? updateError.stack : 'No stack trace'
+                  });
+                  throw updateError; // Re-throw to be caught by outer catch
+                }
+              });
+              
+              console.log('Card update completed successfully');
+              // Reset form on successful update
+              handleCancelEdit();
+            } else {
+              throw new Error('Card handle not found');
+            }
+          }).catch((error) => {
+            console.error('Error updating card:', error);
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            alert(`Error updating card: ${errorMessage}`);
+          });
+        } else {
+          throw new Error('Card handle not found');
+        }
+      } catch (error) {
+        console.error('Error in handleUpdateCard:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        alert(`Error updating card: ${errorMessage}`);
       }
-      
-      // Get the document handle and update it
-      const cardHandle = repo.find(editingCard.cardUrl);
-      if (cardHandle) {
-        // Wait for the handle to resolve and then update
-        cardHandle.then((handle) => {
-          if (handle) {
-            handle.change((doc: any) => {
-              doc.name = newCardData.name.trim();
-              doc.cost = newCardData.cost;
-              doc.type = newCardData.type;
-              doc.description = newCardData.description.trim();
-              
-              // Update creature stats
-              if (newCardData.type === 'creature') {
-                doc.attack = newCardData.attack || 1;
-                doc.health = newCardData.health || 1;
-              } else {
-                // Remove attack/health for non-creatures
-                delete doc.attack;
-                delete doc.health;
-              }
-              
-              // Update spell effect
-              if (newCardData.spellEffect?.trim()) {
-                doc.spellEffect = newCardData.spellEffect.trim();
-              } else {
-                delete doc.spellEffect;
-              }
-              
-              // Update triggered abilities
-              if (triggeredAbilities) {
-                doc.triggeredAbilities = triggeredAbilities;
-              } else {
-                delete doc.triggeredAbilities;
-              }
-            });
-            
-            // Reset form and close
-            handleCancelEdit();
-          } else {
-            alert('Unable to find card document for updating. Please try again.');
-          }
-        }).catch((error) => {
-          console.error('Error updating card:', error);
-          alert('Error updating card. Please try again.');
-        });
-      } else {
-        alert('Unable to find card document for updating. Please try again.');
-      }
-    } catch (error) {
-      console.error('Error updating card:', error);
-      alert('Error updating card. Please try again.');
-      return;
+    } else {
+      console.error('No card URL available for update');
+      alert('Error: No card URL available for update');
     }
   };
 
@@ -190,18 +214,31 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary }) 
     }));
   };
 
-  const handleCardSelect = (card: CardDefinition | GameCard, isBuiltin: boolean, cardUrl?: AutomergeUrl) => {
+  const handleEditCard = (card: CardDefinition | GameCard, isBuiltin: boolean, cardUrl?: AutomergeUrl) => {
     setEditingCard({ card, isBuiltin, cardUrl });
+    
+    // Convert triggered abilities from the card to the form format
+    // Ensure we create completely new objects to avoid Automerge reference issues
+    let triggeredAbilities: ArtifactAbility[] = [];
+    if (card.triggeredAbilities) {
+      triggeredAbilities = card.triggeredAbilities.map(ability => ({
+        trigger: ability.trigger,
+        effectCode: ability.effectCode,
+        description: ability.description || ''
+      }));
+    }
+    
     setNewCardData({
-      name: card.name,
-      cost: card.cost,
-      attack: card.attack,
-      health: card.health,
-      type: card.type,
-      description: card.description,
-      spellEffect: card.spellEffect,
-      triggeredAbilities: card.triggeredAbilities ? JSON.stringify(card.triggeredAbilities, null, 2) : undefined
+      name: String(card.name || ''),
+      cost: Number(card.cost || 1),
+      attack: card.attack !== undefined ? Number(card.attack) : undefined,
+      health: card.health !== undefined ? Number(card.health) : undefined,
+      type: (card.type || 'creature') as CardType,
+      description: String(card.description || ''),
+      spellEffect: card.spellEffect ? String(card.spellEffect) : '',
+      triggeredAbilities: triggeredAbilities
     });
+    
     setShowNewCardForm(true);
   };
 
@@ -246,12 +283,40 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary }) 
       name: '',
       cost: 1,
       type: 'creature',
-      description: ''
+      description: '',
+      triggeredAbilities: []
     });
   };
 
-  const handleViewCard = (cardUrl: AutomergeUrl) => {
-    navigateToCardView(cardUrl);
+  // Helper functions for triggered abilities
+  const addTriggeredAbility = () => {
+    setNewCardData(prev => ({
+      ...prev,
+      triggeredAbilities: [
+        ...prev.triggeredAbilities,
+        {
+          trigger: 'start_turn',
+          effectCode: '',
+          description: ''
+        }
+      ]
+    }));
+  };
+
+  const updateTriggeredAbility = (index: number, field: keyof ArtifactAbility, value: string) => {
+    setNewCardData(prev => ({
+      ...prev,
+      triggeredAbilities: prev.triggeredAbilities.map((ability, i) => 
+        i === index ? { ...ability, [field]: value } : ability
+      )
+    }));
+  };
+
+  const removeTriggeredAbility = (index: number) => {
+    setNewCardData(prev => ({
+      ...prev,
+      triggeredAbilities: prev.triggeredAbilities.filter((_, i) => i !== index)
+    }));
   };
 
   return (
@@ -406,11 +471,7 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary }) 
                   spellEffect: newCardData.spellEffect,
                   triggeredAbilities: newCardData.triggeredAbilities ? 
                     (() => {
-                      try {
-                        return JSON.parse(newCardData.triggeredAbilities);
-                      } catch {
-                        return undefined;
-                      }
+                                              return newCardData.triggeredAbilities;
                     })() : undefined
                 }} />
               </div>
@@ -745,7 +806,7 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary }) 
                   </div>
                 )}
 
-                {/* Triggered Abilities for Creatures and Artifacts */}
+                {/* Triggered Abilities Section */}
                 {(newCardData.type === 'creature' || newCardData.type === 'artifact') && (
                   <div style={{ 
                     padding: 16,
@@ -754,67 +815,202 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary }) 
                     borderRadius: 8,
                     marginBottom: 16
                   }}>
-                    <label style={{ 
-                      display: 'block', 
-                      marginBottom: 6, 
-                      fontSize: 14, 
-                      opacity: 0.9,
-                      color: '#bb88ff',
-                      fontWeight: 600
+                    <div style={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center',
+                      marginBottom: 16
                     }}>
-                      🔮 Triggered Abilities (Advanced - JSON Array)
-                    </label>
-                    <textarea
-                      value={newCardData.triggeredAbilities || ''}
-                      onChange={(e) => {
-                        const target = e.target;
-                        const start = target.selectionStart;
-                        const end = target.selectionEnd;
-                        const value = target.value;
-                        
-                        setNewCardData(prev => ({ ...prev, triggeredAbilities: value }));
-                        
-                        // Preserve cursor position after state update
-                        setTimeout(() => {
-                          target.setSelectionRange(start, end);
-                        }, 0);
-                      }}
-                      disabled={editingCard?.isBuiltin}
-                      style={{
-                        width: '100%',
-                        padding: '12px 16px',
-                        borderRadius: 8,
-                        border: '2px solid rgba(128,0,128,0.3)',
-                        background: editingCard?.isBuiltin ? 'rgba(100,100,100,0.6)' : 'rgba(0,0,0,0.6)',
-                        color: editingCard?.isBuiltin ? '#999' : '#fff',
-                        fontSize: 12,
-                        fontFamily: 'Monaco, Consolas, "Courier New", monospace',
-                        minHeight: 120,
-                        resize: 'vertical' as const,
-                        outline: 'none',
-                        lineHeight: 1.4,
-                        cursor: editingCard?.isBuiltin ? 'not-allowed' : 'text'
-                      }}
-                      placeholder={`// Leave empty for no abilities
-// Example format:
-[
-  {
-    "trigger": "onPlay",
-    "effect": "api.drawCards(1)",
-    "description": "Draw a card when played"
-  }
-]`}
-                      onFocus={(e) => {
-                        if (!editingCard?.isBuiltin) {
-                          e.target.style.borderColor = 'rgba(128,0,128,0.6)';
-                        }
-                      }}
-                      onBlur={(e) => {
-                        if (!editingCard?.isBuiltin) {
-                          e.target.style.borderColor = 'rgba(128,0,128,0.3)';
-                        }
-                      }}
-                    />
+                      <label style={{ 
+                        fontSize: 14, 
+                        opacity: 0.9,
+                        color: '#bb88ff',
+                        fontWeight: 600
+                      }}>
+                        🔮 Triggered Abilities
+                      </label>
+                      <button
+                        type="button"
+                        onClick={addTriggeredAbility}
+                        disabled={editingCard?.isBuiltin}
+                        style={{
+                          padding: '6px 12px',
+                          background: 'rgba(128,0,128,0.3)',
+                          border: '1px solid rgba(128,0,128,0.5)',
+                          borderRadius: 6,
+                          color: '#bb88ff',
+                          cursor: editingCard?.isBuiltin ? 'not-allowed' : 'pointer',
+                          fontSize: 12,
+                          fontWeight: 600
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!editingCard?.isBuiltin) {
+                            e.currentTarget.style.background = 'rgba(128,0,128,0.4)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!editingCard?.isBuiltin) {
+                            e.currentTarget.style.background = 'rgba(128,0,128,0.3)';
+                          }
+                        }}
+                      >
+                        ➕ Add Ability
+                      </button>
+                    </div>
+
+                    {newCardData.triggeredAbilities.length === 0 ? (
+                      <div style={{
+                        padding: '20px',
+                        textAlign: 'center',
+                        color: '#bb88ff',
+                        opacity: 0.7,
+                        fontSize: 14,
+                        fontStyle: 'italic'
+                      }}>
+                        No triggered abilities defined. Click "Add Ability" to create one.
+                      </div>
+                    ) : (
+                      newCardData.triggeredAbilities.map((ability, index) => (
+                        <div key={index} style={{
+                          padding: 16,
+                          background: 'rgba(128,0,128,0.1)',
+                          border: '1px solid rgba(128,0,128,0.2)',
+                          borderRadius: 8,
+                          marginBottom: 12,
+                          position: 'relative'
+                        }}>
+                          {/* Delete button */}
+                          <button
+                            type="button"
+                            onClick={() => removeTriggeredAbility(index)}
+                            disabled={editingCard?.isBuiltin}
+                            style={{
+                              position: 'absolute',
+                              top: 8,
+                              right: 8,
+                              width: 24,
+                              height: 24,
+                              background: 'rgba(255,0,0,0.2)',
+                              border: '1px solid rgba(255,0,0,0.4)',
+                              borderRadius: '50%',
+                              color: '#ff6666',
+                              cursor: editingCard?.isBuiltin ? 'not-allowed' : 'pointer',
+                              fontSize: 12,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center'
+                            }}
+                            onMouseEnter={(e) => {
+                              if (!editingCard?.isBuiltin) {
+                                e.currentTarget.style.background = 'rgba(255,0,0,0.3)';
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              if (!editingCard?.isBuiltin) {
+                                e.currentTarget.style.background = 'rgba(255,0,0,0.2)';
+                              }
+                            }}
+                          >
+                            ✕
+                          </button>
+
+                          {/* Trigger selection */}
+                          <div style={{ marginBottom: 12 }}>
+                            <label style={{
+                              display: 'block',
+                              marginBottom: 4,
+                              fontSize: 12,
+                              color: '#bb88ff',
+                              fontWeight: 600
+                            }}>
+                              Trigger:
+                            </label>
+                            <select
+                              value={ability.trigger}
+                              onChange={(e) => updateTriggeredAbility(index, 'trigger', e.target.value as ArtifactTrigger)}
+                              disabled={editingCard?.isBuiltin}
+                              style={{
+                                width: '100%',
+                                padding: '8px 12px',
+                                borderRadius: 6,
+                                border: '1px solid rgba(128,0,128,0.3)',
+                                background: editingCard?.isBuiltin ? 'rgba(100,100,100,0.6)' : 'rgba(0,0,0,0.6)',
+                                color: editingCard?.isBuiltin ? '#999' : '#fff',
+                                fontSize: 12,
+                                outline: 'none'
+                              }}
+                            >
+                              <option value="start_turn">Start of Turn</option>
+                              <option value="end_turn">End of Turn</option>
+                              <option value="play_card">When Card is Played</option>
+                              <option value="take_damage">When Takes Damage</option>
+                              <option value="deal_damage">When Deals Damage</option>
+                            </select>
+                          </div>
+
+                          {/* Description */}
+                          <div style={{ marginBottom: 12 }}>
+                            <label style={{
+                              display: 'block',
+                              marginBottom: 4,
+                              fontSize: 12,
+                              color: '#bb88ff',
+                              fontWeight: 600
+                            }}>
+                              Description:
+                            </label>
+                            <input
+                              type="text"
+                              value={ability.description || ''}
+                              onChange={(e) => updateTriggeredAbility(index, 'description', e.target.value)}
+                              disabled={editingCard?.isBuiltin}
+                              placeholder="e.g., Heal all your creatures for 1"
+                              style={{
+                                width: '100%',
+                                padding: '8px 12px',
+                                borderRadius: 6,
+                                border: '1px solid rgba(128,0,128,0.3)',
+                                background: editingCard?.isBuiltin ? 'rgba(100,100,100,0.6)' : 'rgba(0,0,0,0.6)',
+                                color: editingCard?.isBuiltin ? '#999' : '#fff',
+                                fontSize: 12,
+                                outline: 'none'
+                              }}
+                            />
+                          </div>
+
+                                                    {/* Effect Code */}
+                          <div>
+                            <label style={{
+                              display: 'block',
+                              marginBottom: 4,
+                              fontSize: 12,
+                              color: '#bb88ff',
+                              fontWeight: 600
+                            }}>
+                              Effect Code:
+                            </label>
+                            <div style={{
+                              fontSize: 11,
+                              color: '#bb88ff',
+                              opacity: 0.7,
+                              marginBottom: 8,
+                              fontStyle: 'italic'
+                            }}>
+                              Available API methods: api.healCreature(playerId, instanceId, amount), api.dealDamageToPlayer(playerId, amount), api.log(message)
+                            </div>
+                            <MonacoCodeEditor
+                              value={ability.effectCode}
+                              onChange={(value) => updateTriggeredAbility(index, 'effectCode', value)}
+                              disabled={editingCard?.isBuiltin}
+                              defaultHeight="250px"
+                              resizable={true}
+                              collapsible={true}
+                              title={`Ability ${index + 1} Effect Code`}
+                            />
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 )}
 
@@ -827,7 +1023,7 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary }) 
                     borderRadius: 8,
                     marginBottom: 16
                   }}>
-                    <label style={{ 
+                                        <label style={{ 
                       display: 'block', 
                       marginBottom: 6, 
                       fontSize: 14, 
@@ -837,49 +1033,26 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary }) 
                     }}>
                       ⚡ Spell Effect Code (Advanced)
                     </label>
-                    <textarea
-                      value={newCardData.spellEffect || ''}
-                      onChange={(e) => {
-                        const target = e.target;
-                        const start = target.selectionStart;
-                        const end = target.selectionEnd;
-                        const value = target.value;
-                        
-                        setNewCardData(prev => ({ ...prev, spellEffect: value }));
-                        
-                        // Preserve cursor position after state update
-                        setTimeout(() => {
-                          target.setSelectionRange(start, end);
-                        }, 0);
-                      }}
-                      disabled={editingCard?.isBuiltin}
-                      style={{
-                        width: '100%',
-                        padding: '12px 16px',
-                        borderRadius: 8,
-                        border: '2px solid rgba(255,255,0,0.3)',
-                        background: editingCard?.isBuiltin ? 'rgba(100,100,100,0.6)' : 'rgba(0,0,0,0.6)',
-                        color: editingCard?.isBuiltin ? '#999' : '#fff',
-                        fontSize: 12,
-                        fontFamily: 'Monaco, Consolas, "Courier New", monospace',
-                        minHeight: 100,
-                        resize: 'vertical' as const,
-                        outline: 'none',
-                        lineHeight: 1.4,
-                        cursor: editingCard?.isBuiltin ? 'not-allowed' : 'text'
-                      }}
-                      placeholder="// Leave empty for basic spells&#10;// Example:&#10;// api.dealDamageToPlayer(targetPlayerId,3);"
-                      onFocus={(e) => {
-                        if (!editingCard?.isBuiltin) {
-                          e.target.style.borderColor = 'rgba(255,255,0,0.6)';
-                        }
-                      }}
-                      onBlur={(e) => {
-                        if (!editingCard?.isBuiltin) {
-                          e.target.style.borderColor = 'rgba(255,255,0,0.3)';
-                        }
-                      }}
-                    />
+                    <div style={{
+                      fontSize: 12,
+                      color: '#ffff66',
+                      opacity: 0.8,
+                      marginBottom: 12,
+                      fontStyle: 'italic'
+                    }}>
+                      Leave empty for basic spells. Example: api.dealDamageToPlayer(targetPlayerId, 3);
+                    </div>
+                                        <MonacoCodeEditor
+                       value={newCardData.spellEffect || ''}
+                       defaultHeight="400px"
+                       onChange={(value) => {
+                         setNewCardData(prev => ({ ...prev, spellEffect: value }));
+                       }}
+                       disabled={editingCard?.isBuiltin}
+                       resizable={true}
+                       collapsible={true}
+                       title="Spell Effect Code"
+                     />
                   </div>
                 )}
 
@@ -1083,7 +1256,7 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary }) 
                 <LoadingCardDisplay 
                   key={cardUrl} 
                   cardUrl={cardUrl} 
-                  onCardSelect={handleCardSelect}
+                  onCardSelect={handleEditCard}
                 />
               ))}
             </div>
@@ -1117,7 +1290,7 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary }) 
                   transition: 'all 0.2s ease',
                   position: 'relative'
                 }}
-                onClick={() => handleCardSelect(card, true)}
+                onClick={() => handleEditCard(card, true)}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.opacity = '1';
                   e.currentTarget.style.transform = 'scale(1.05)';
@@ -1133,6 +1306,257 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary }) 
           </div>
         </div>
       </div>
+    </div>
+  );
+};
+
+// Monaco Code Editor Component
+const MonacoCodeEditor: React.FC<{
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  height?: string;
+  language?: string;
+  resizable?: boolean;
+  defaultHeight?: string;
+  collapsible?: boolean;
+  title?: string;
+}> = ({ value, onChange, placeholder, disabled = false, height = '200px', language = 'javascript', resizable = true, defaultHeight = '200px', collapsible = false, title = 'Code Editor' }) => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentHeight, setCurrentHeight] = useState(defaultHeight);
+  const [isResizing, setIsResizing] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  const handleEditorChange = (value: string | undefined) => {
+    onChange(value || '');
+  };
+
+  const handleEditorDidMount = () => {
+    setIsLoading(false);
+  };
+
+  const handleEditorWillMount = (monaco: any) => {
+    // Register custom theme
+    monaco.editor.defineTheme('apogee-dark', {
+      base: 'vs-dark' as const,
+      inherit: true,
+      rules: [
+        { token: 'keyword', foreground: '#ff6b6b', fontStyle: 'bold' },
+        { token: 'string', foreground: '#51cf66' },
+        { token: 'number', foreground: '#74c0fc' },
+        { token: 'comment', foreground: '#868e96', fontStyle: 'italic' },
+        { token: 'function', foreground: '#fcc419' },
+        { token: 'property', foreground: '#ae8fff' },
+        { token: 'operator', foreground: '#ffd43b' },
+        { token: 'type', foreground: '#20c997' }
+      ],
+      colors: {
+        'editor.background': '#1a1a1a',
+        'editor.foreground': '#ffffff',
+        'editor.lineHighlightBackground': '#2a2a2a',
+        'editor.selectionBackground': '#3a3a3a',
+        'editor.inactiveSelectionBackground': '#2a2a2a',
+        'editorCursor.foreground': '#bb88ff',
+        'editorWhitespace.foreground': '#404040',
+        'editorIndentGuide.background': '#404040',
+        'editorIndentGuide.activeBackground': '#606060'
+      }
+    });
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (!resizable || disabled) return;
+    
+    setIsResizing(true);
+    const startY = e.clientY;
+    const startHeight = parseInt(currentHeight);
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaY = e.clientY - startY;
+      const newHeight = Math.max(100, startHeight + deltaY); // Minimum height of 100px
+      setCurrentHeight(`${newHeight}px`);
+    };
+    
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+
+  const toggleCollapse = () => {
+    setIsCollapsed(!isCollapsed);
+  };
+
+  if (isCollapsed) {
+    return (
+      <div style={{
+        border: '1px solid rgba(128,0,128,0.3)',
+        borderRadius: 6,
+        background: 'rgba(128,0,128,0.1)',
+        padding: '8px 12px',
+        cursor: 'pointer'
+      }} onClick={toggleCollapse}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          color: '#bb88ff',
+          fontSize: 12
+        }}>
+          <span>📝 {title} (Click to expand)</span>
+          <span>▶️</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      border: '1px solid rgba(128,0,128,0.3)',
+      borderRadius: 6,
+      overflow: 'hidden',
+      opacity: disabled ? 0.6 : 1,
+      position: 'relative'
+    }}>
+      {/* Header with collapse button */}
+      {collapsible && (
+        <div style={{
+          background: 'rgba(128,0,128,0.2)',
+          padding: '4px 8px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          borderBottom: '1px solid rgba(128,0,128,0.3)'
+        }}>
+          <span style={{
+            color: '#bb88ff',
+            fontSize: 11,
+            fontWeight: 600
+          }}>
+            📝 {title}
+          </span>
+          <button
+            onClick={toggleCollapse}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#bb88ff',
+              cursor: 'pointer',
+              fontSize: 12,
+              padding: '2px 6px',
+              borderRadius: 3
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(128,0,128,0.3)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'none';
+            }}
+          >
+            🔽
+          </button>
+        </div>
+      )}
+
+      {isLoading && (
+        <div style={{
+          position: 'absolute',
+          top: collapsible ? 32 : 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.8)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#bb88ff',
+          fontSize: 12,
+          zIndex: 10
+        }}>
+          Loading code editor...
+        </div>
+      )}
+      <Editor
+        height={currentHeight}
+        language={language}
+        value={value}
+        onChange={handleEditorChange}
+        onMount={handleEditorDidMount}
+        beforeMount={handleEditorWillMount}
+        options={{
+          readOnly: disabled,
+          minimap: { enabled: false },
+          scrollBeyondLastLine: false,
+          fontSize: 12,
+          fontFamily: 'Monaco, Consolas, "Courier New", monospace',
+          lineNumbers: 'on',
+          roundedSelection: false,
+          scrollbar: {
+            vertical: 'visible',
+            horizontal: 'visible'
+          },
+          automaticLayout: true,
+          wordWrap: 'on',
+          suggestOnTriggerCharacters: true,
+          quickSuggestions: true,
+          parameterHints: {
+            enabled: true
+          },
+          hover: {
+            enabled: true
+          },
+          folding: true,
+          foldingStrategy: 'indentation',
+          showFoldingControls: 'always',
+          renderLineHighlight: 'all',
+          selectOnLineNumbers: true,
+          contextmenu: true,
+          mouseWheelZoom: true,
+          smoothScrolling: true,
+          cursorBlinking: 'smooth',
+          cursorSmoothCaretAnimation: 'on'
+        }}
+        theme="apogee-dark"
+      />
+      
+      {/* Resize handle */}
+      {resizable && !disabled && (
+        <div
+          onMouseDown={handleMouseDown}
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: '6px',
+            background: 'rgba(128,0,128,0.3)',
+            cursor: 'ns-resize',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 5,
+            transition: 'background-color 0.2s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(128,0,128,0.5)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(128,0,128,0.3)';
+          }}
+        >
+          <div style={{
+            width: '30px',
+            height: '2px',
+            background: 'rgba(128,0,128,0.6)',
+            borderRadius: '1px'
+          }} />
+        </div>
+      )}
     </div>
   );
 };

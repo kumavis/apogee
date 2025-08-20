@@ -109,19 +109,29 @@ export type ArtifactEffectAPI = {
   getOwnCreatures: () => Array<{instanceId: string, cardId: string}>;
   drawCard: () => void;
   gainEnergy: (amount: number) => void;
+  
+  // Trigger-specific context
+  triggerContext?: {
+    damageTarget?: {
+      playerId: AutomergeUrl;
+      instanceId?: string; // undefined if targeting player
+    };
+    damageAmount?: number;
+  };
 };
 
 // Function to execute artifact ability code with API
 export const executeArtifactAbility = async (
   effectCode: string,
-  api: ArtifactEffectAPI
+  api: ArtifactEffectAPI,
+  context?: any
 ): Promise<boolean> => {
   try {
     // Create the function from the string
-    const effectFunction = new Function('api', `return (${effectCode})(api);`);
+    const effectFunction = new Function('api', 'context', `return (${effectCode})(api, context);`);
     
-    // Execute the effect function with the API
-    const result = await effectFunction(api);
+    // Execute the effect function with the API and context
+    const result = await effectFunction(api, context);
     return result !== false; // Consider undefined/null as success
   } catch (error) {
     console.error('Error executing artifact ability:', error);
@@ -227,7 +237,8 @@ export const createArtifactEffectAPI = (
   doc: GameDoc,
   ownerId: AutomergeUrl,
   instanceId: string,
-  selectTargetsImpl: (selector: SpellTargetSelector) => Promise<SpellTarget[]>
+  selectTargetsImpl: (selector: SpellTargetSelector) => Promise<SpellTarget[]>,
+  triggerContext?: ArtifactEffectAPI['triggerContext']
 ): ArtifactEffectAPI => {
   const operations: SpellOperation[] = [];
 
@@ -242,6 +253,7 @@ export const createArtifactEffectAPI = (
     ownerId,
     instanceId,
     operations,
+    triggerContext,
     
     selectTargets: wrappedSelectTargets,
     

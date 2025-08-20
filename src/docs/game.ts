@@ -14,6 +14,7 @@ import {
 
 export type CardType = 'creature' | 'spell' | 'artifact';
 
+// In-game card type (After game starts)
 export type GameCard = {
   id: string;
   name: string;
@@ -546,6 +547,9 @@ export const dealDamage = (doc: GameDoc, targetPlayerId: AutomergeUrl, damage: n
     description: `Took ${damage} damage`
   });
   
+  // Trigger take_damage abilities for the target player
+  executeTriggeredAbilities(doc, 'take_damage', targetPlayerId);
+  
   // Check for game end
   if (playerState.health <= 0) {
     doc.status = 'finished';
@@ -582,6 +586,15 @@ export const attackPlayerWithCreature = (doc: GameDoc, attackerId: AutomergeUrl,
   });
 
   const success = dealDamage(doc, targetPlayerId, damage);
+  
+  // Trigger deal_damage abilities for the attacking creature
+  if (success) {
+    executeTriggeredAbilitiesForCreature(doc, 'deal_damage', attackerId, instanceId, undefined, {
+      damageTarget: { playerId: targetPlayerId },
+      damageAmount: damage
+    });
+  }
+  
   return success;
 };
 
@@ -648,6 +661,12 @@ export const attackCreatureWithCreature = (
   // Deal damage to target first
   dealDamageToCreature(doc, targetPlayerId, targetInstanceId, attackerDamage);
 
+  // Trigger deal_damage abilities for the attacking creature
+  executeTriggeredAbilitiesForCreature(doc, 'deal_damage', attackerId, attackerInstanceId, undefined, {
+    damageTarget: { playerId: targetPlayerId, instanceId: targetInstanceId },
+    damageAmount: attackerDamage
+  });
+
   // If target is a creature with attack power, deal damage back to attacker
   if (targetGameCard.type === 'creature' && targetDamage > 0) {
     // Check if attacker still exists (might have been destroyed by other effects)
@@ -657,6 +676,12 @@ export const attackCreatureWithCreature = (
     
     if (stillExistsAttacker) {
       dealDamageToCreature(doc, attackerId, attackerInstanceId, targetDamage);
+      
+              // Trigger deal_damage abilities for the target creature (now attacking back)
+        executeTriggeredAbilitiesForCreature(doc, 'deal_damage', targetPlayerId, targetInstanceId, undefined, {
+          damageTarget: { playerId: attackerId, instanceId: attackerInstanceId },
+          damageAmount: targetDamage
+        });
     }
   }
 
@@ -809,7 +834,7 @@ export const executeTriggeredAbilities = async (
             // Create the effect API (same API works for both artifacts and creatures)
             const api = createArtifactEffectAPI(doc, playerId, battlefieldCard.instanceId, targetSelector);
             
-            // Execute the ability
+            // Execute the ability with context
             const success = await executeArtifactAbility(ability.effectCode, api);
             
             if (success) {
@@ -827,6 +852,55 @@ export const executeTriggeredAbilities = async (
             console.error(`executeTriggeredAbilities: Error executing ability for ${card.name}:`, error);
           }
         }
+      }
+    }
+  }
+};
+
+// Execute abilities for a specific trigger and specific creature instance
+export const executeTriggeredAbilitiesForCreature = async (
+  doc: GameDoc,
+  trigger: ArtifactTrigger,
+  playerId: AutomergeUrl,
+  instanceId: string,
+  selectTargetsImpl?: (selector: SpellTargetSelector) => Promise<SpellTarget[]>,
+  triggerContext?: { damageTarget?: { playerId: AutomergeUrl; instanceId?: string }; damageAmount?: number }
+): Promise<void> => {
+  const playerBattlefield = doc.playerBattlefields.find(b => b.playerId === playerId);
+  if (!playerBattlefield) return;
+
+  const battlefieldCard = playerBattlefield.cards.find(card => card.instanceId === instanceId);
+  if (!battlefieldCard) return;
+
+  const card = doc.cardLibrary[battlefieldCard.cardId];
+  if (!card?.triggeredAbilities) return;
+
+  // Execute each ability that matches the trigger
+  for (const ability of card.triggeredAbilities) {
+    if (ability.trigger === trigger) {
+      try {
+        // Create a no-op target selector if none provided
+        const targetSelector = selectTargetsImpl || (async () => []);
+        
+        // Create the effect API (same API works for both artifacts and creatures)
+        const api = createArtifactEffectAPI(doc, playerId, instanceId, targetSelector, triggerContext);
+        
+        // Execute the ability with context
+        const success = await executeArtifactAbility(ability.effectCode, api, triggerContext);
+        
+        if (success) {
+          // Execute collected operations
+          executeSpellOperations(doc, api.operations);
+          
+          // Add to game log
+          addGameLogEntry(doc, {
+            playerId,
+            action: 'play_card',
+            description: `${card.name}: ${ability.description || 'triggered ability'}`
+          });
+        }
+      } catch (error) {
+        console.error(`executeTriggeredAbilitiesForCreature: Error executing ability for ${card.name}:`, error);
       }
     }
   }

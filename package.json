@@ -21,6 +21,7 @@
   "license": "ISC",
   "dependencies": {
     "@automerge/react": "^2.2.0",
+    "@monaco-editor/react": "^4.7.0",
     "@types/node": "^24.2.1",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",

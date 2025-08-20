@@ -1241,6 +1241,36 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
         description: 'Deal 2 damage to all enemies and heal owner'
       }
     ]
+  },
+  
+  'card_048': {
+    id: 'card_048',
+    name: 'Void Assassin',
+    cost: 4,
+    attack: 1,
+    health: 3,
+    type: 'creature',
+    description: 'When this creature deals damage, destroy the target.',
+    triggeredAbilities: [{
+      trigger: 'deal_damage',
+      effectCode: functionToString(async (api, context) => {
+        // Use the context to get information about the damage target
+        if (context?.damageTarget) {
+          const { playerId, instanceId } = context.damageTarget;
+          
+          if (instanceId) {
+            // If targeting a creature, destroy it directly
+            api.destroyCreature(playerId, instanceId);
+            api.log(`Void Assassin's ability destroys the targeted creature`);
+            return true;
+          }
+        }
+        
+        api.log('Void Assassin ability triggered but no valid target found');
+        return false;
+      }),
+      description: 'Destroy target creature when dealing damage'
+    }]
   }
 };
 
@@ -1296,6 +1326,7 @@ export const createStandardDeck = (): string[] => {
     'card_045': 1, // Mind Dominator (legendary)
     'card_046': 1, // Reality Shatter (legendary)
     'card_047': 1, // Apocalypse Engine (legendary)
+    'card_048': 10, // Void Assassin (rare)
   };
   
   // Validate that all cards in cardCopies exist in CARD_LIBRARY
