@@ -1,7 +1,8 @@
 import React from 'react';
-import { AutomergeUrl } from '@automerge/react';
-import { GameDoc } from '../docs/game';
+import { AutomergeUrl, useDocument } from '@automerge/react';
+import { GameDoc, setGameDeckSelection, getGameDeckSelection } from '../docs/game';
 import { RootDocument } from '../docs/rootDoc';
+import { Deck } from '../docs/deck';
 import { getFormattedTime } from '../utils/timeUtils';
 import { useGameNavigation } from '../hooks/useGameNavigation';
 import Contact from './Contact';
@@ -14,6 +15,7 @@ type GameLobbyProps = {
   onJoinGame: () => void;
   onStartGame: () => void;
   onSpectateGame: () => void;
+  changeGameDoc: (updater: (doc: GameDoc) => void) => void;
 };
 
 const GameLobby: React.FC<GameLobbyProps> = ({
@@ -23,11 +25,22 @@ const GameLobby: React.FC<GameLobbyProps> = ({
   onJoinGame,
   onStartGame,
   onSpectateGame,
+  changeGameDoc,
 }) => {
-  const { navigateToHome } = useGameNavigation();
+  const { navigateToHome, navigateToDeckView } = useGameNavigation();
 
   const handleBackToMenu = () => {
     navigateToHome();
+  };
+
+  const handleDeckSelection = (deckUrl: AutomergeUrl | null) => {
+    changeGameDoc((doc) => {
+      setGameDeckSelection(doc, deckUrl);
+    });
+  };
+
+  const handleViewDeck = (deckUrl: AutomergeUrl) => {
+    navigateToDeckView(deckUrl);
   };
 
   // Get formatted time information
@@ -274,6 +287,23 @@ const GameLobby: React.FC<GameLobbyProps> = ({
         )}
       </div>
 
+      {/* Deck Selection */}
+      {gameDoc.status === 'waiting' && (
+        isPlayerInGame ? (
+          <DeckSelectionSection 
+            gameDoc={gameDoc}
+            rootDoc={rootDoc}
+            onDeckSelection={handleDeckSelection}
+            onViewDeck={handleViewDeck}
+          />
+        ) : (
+          <DeckDisplaySection 
+            gameDoc={gameDoc}
+            onViewDeck={handleViewDeck}
+          />
+        )
+      )}
+
       {/* Game Rules Info */}
       <div style={{
         background: 'rgba(0,0,0,0.2)',
@@ -294,6 +324,326 @@ const GameLobby: React.FC<GameLobbyProps> = ({
         }}>
           {hasMinPlayers ? 'The game is ready to begin!' : 'Waiting for more players to join...'}
         </div>
+      </div>
+    </div>
+  );
+};
+
+// Component for deck selection
+const DeckSelectionSection: React.FC<{
+  gameDoc: GameDoc;
+  rootDoc: RootDocument;
+  onDeckSelection: (deckUrl: AutomergeUrl | null) => void;
+  onViewDeck: (deckUrl: AutomergeUrl) => void;
+}> = ({ gameDoc, rootDoc, onDeckSelection, onViewDeck }) => {
+  const currentSelection = getGameDeckSelection(gameDoc);
+
+  return (
+    <div style={{
+      background: 'rgba(0,0,0,0.3)',
+      borderRadius: 12,
+      padding: 24,
+      border: '1px solid rgba(255,255,255,0.1)',
+      marginBottom: 24
+    }}>
+      <h3 style={{
+        margin: '0 0 20px 0',
+        fontSize: 20,
+        color: '#00ffff',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8
+      }}>
+        🃏 Choose Game Deck
+      </h3>
+
+      {/* Current Selection */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 14, color: '#ccc', marginBottom: 8 }}>
+          Current Selection:
+        </div>
+        {currentSelection ? (
+          <DeckDisplayCard deckUrl={currentSelection} onView={onViewDeck} isSelected={true} />
+        ) : (
+          <div style={{
+            padding: 16,
+            background: 'rgba(255, 255, 0, 0.1)',
+            border: '1px solid rgba(255, 255, 0, 0.3)',
+            borderRadius: 8,
+            color: '#ffff99',
+            fontSize: 14,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8
+          }}>
+            ⚠️ Default Basic Deck (Standard cards will be used)
+          </div>
+        )}
+      </div>
+
+      {/* Deck Library */}
+      <div>
+        <div style={{ fontSize: 14, color: '#ccc', marginBottom: 12 }}>
+          Your Deck Library ({rootDoc.decks.length}):
+        </div>
+        
+        {rootDoc.decks.length === 0 ? (
+          <div style={{
+            padding: 20,
+            textAlign: 'center',
+            color: '#999',
+            fontSize: 14,
+            border: '1px dashed rgba(255,255,255,0.2)',
+            borderRadius: 8
+          }}>
+            No decks in your library. Create some decks to choose from!
+          </div>
+        ) : (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+            gap: 12,
+            maxHeight: 300,
+            overflowY: 'auto'
+          }}>
+            {/* Default Deck Option */}
+            <div 
+              onClick={() => onDeckSelection(null)}
+              style={{
+                padding: 12,
+                background: currentSelection === null ? 'rgba(0, 255, 255, 0.2)' : 'rgba(0,0,0,0.2)',
+                border: currentSelection === null ? '2px solid #00ffff' : '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 8,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <div style={{ fontWeight: 600, marginBottom: 4, color: '#ffff99' }}>
+                🎯 Default Basic Deck
+              </div>
+              <div style={{ fontSize: 12, color: '#ccc', marginBottom: 8 }}>
+                Balanced starter deck with standard cards
+              </div>
+              <div style={{ fontSize: 11, color: '#999' }}>
+                ~100 cards • Recommended for new players
+              </div>
+            </div>
+
+            {/* User's Decks */}
+            {rootDoc.decks.map((deckUrl) => (
+              <DeckSelectionCard
+                key={deckUrl}
+                deckUrl={deckUrl}
+                isSelected={currentSelection === deckUrl}
+                onSelect={() => onDeckSelection(deckUrl)}
+                onView={() => onViewDeck(deckUrl)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Component to display a deck card in selection
+const DeckSelectionCard: React.FC<{
+  deckUrl: AutomergeUrl;
+  isSelected: boolean;
+  onSelect: () => void;
+  onView: () => void;
+}> = ({ deckUrl, isSelected, onSelect, onView }) => {
+  const [deck] = useDocument<Deck>(deckUrl, { suspense: false });
+
+  if (!deck) {
+    return (
+      <div style={{
+        padding: 12,
+        background: 'rgba(0,0,0,0.2)',
+        border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: 8,
+        color: '#999'
+      }}>
+        Loading deck...
+      </div>
+    );
+  }
+
+  const totalCards = deck.cards.reduce((total, card) => total + card.quantity, 0);
+
+  return (
+    <div 
+      onClick={onSelect}
+      style={{
+        padding: 12,
+        background: isSelected ? 'rgba(0, 255, 255, 0.2)' : 'rgba(0,0,0,0.2)',
+        border: isSelected ? '2px solid #00ffff' : '1px solid rgba(255,255,255,0.1)',
+        borderRadius: 8,
+        cursor: 'pointer',
+        transition: 'all 0.2s ease'
+      }}
+    >
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>
+        {deck.name}
+      </div>
+      <div style={{ fontSize: 12, color: '#ccc', marginBottom: 8 }}>
+        {deck.description}
+      </div>
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        fontSize: 11,
+        color: '#999'
+      }}>
+        <span>{totalCards} cards • {deck.cards.length} unique</span>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onView();
+          }}
+          style={{
+            background: 'rgba(255, 255, 255, 0.1)',
+            color: '#fff',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            borderRadius: 4,
+            padding: '4px 8px',
+            cursor: 'pointer',
+            fontSize: 11
+          }}
+        >
+          View
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Component to display current deck selection
+const DeckDisplayCard: React.FC<{
+  deckUrl: AutomergeUrl;
+  onView: (deckUrl: AutomergeUrl) => void;
+  isSelected: boolean;
+}> = ({ deckUrl, onView, isSelected }) => {
+  const [deck] = useDocument<Deck>(deckUrl, { suspense: false });
+
+  if (!deck) {
+    return (
+      <div style={{
+        padding: 16,
+        background: 'rgba(0,0,0,0.2)',
+        border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: 8,
+        color: '#999'
+      }}>
+        Loading deck...
+      </div>
+    );
+  }
+
+  const totalCards = deck.cards.reduce((total, card) => total + card.quantity, 0);
+
+  return (
+    <div style={{
+      padding: 16,
+      background: isSelected ? 'rgba(0, 255, 0, 0.1)' : 'rgba(0,0,0,0.2)',
+      border: isSelected ? '2px solid #00ff00' : '1px solid rgba(255,255,255,0.1)',
+      borderRadius: 8,
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center'
+    }}>
+      <div>
+        <div style={{ fontWeight: 600, marginBottom: 4, color: '#00ff00' }}>
+          ✓ {deck.name}
+        </div>
+        <div style={{ fontSize: 12, color: '#ccc', marginBottom: 4 }}>
+          {deck.description}
+        </div>
+        <div style={{ fontSize: 11, color: '#999' }}>
+          {totalCards} cards • {deck.cards.length} unique
+        </div>
+      </div>
+      <button
+        onClick={() => onView(deckUrl)}
+        style={{
+          background: 'rgba(255, 255, 255, 0.1)',
+          color: '#fff',
+          border: '1px solid rgba(255, 255, 255, 0.2)',
+          borderRadius: 6,
+          padding: '8px 12px',
+          cursor: 'pointer',
+          fontSize: 12
+        }}
+      >
+        View Deck
+      </button>
+    </div>
+  );
+};
+
+// Read-only component to display deck selection for non-joined players
+const DeckDisplaySection: React.FC<{
+  gameDoc: GameDoc;
+  onViewDeck: (deckUrl: AutomergeUrl) => void;
+}> = ({ gameDoc, onViewDeck }) => {
+  const currentSelection = getGameDeckSelection(gameDoc);
+
+  return (
+    <div style={{
+      background: 'rgba(0,0,0,0.3)',
+      borderRadius: 12,
+      padding: 24,
+      border: '1px solid rgba(255,255,255,0.1)',
+      marginBottom: 20
+    }}>
+      <h3 style={{
+        margin: '0 0 16px 0',
+        fontSize: 18,
+        fontWeight: 600,
+        color: '#00ffff',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8
+      }}>
+        🃏 Selected Game Deck
+      </h3>
+
+      {/* Current Selection Display */}
+      <div>
+        <div style={{ fontSize: 14, color: '#ccc', marginBottom: 8 }}>
+          Current Selection:
+        </div>
+        {currentSelection ? (
+          <DeckDisplayCard deckUrl={currentSelection} onView={onViewDeck} isSelected={true} />
+        ) : (
+          <div style={{
+            padding: 16,
+            background: 'rgba(255, 255, 0, 0.1)',
+            border: '1px solid rgba(255, 255, 0, 0.3)',
+            borderRadius: 8,
+            color: '#ffff99',
+            fontSize: 14,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8
+          }}>
+            ⚠️ Default Basic Deck (Standard cards will be used)
+          </div>
+        )}
+      </div>
+
+      {/* Info message */}
+      <div style={{
+        marginTop: 16,
+        padding: 12,
+        background: 'rgba(255, 255, 255, 0.05)',
+        borderRadius: 6,
+        fontSize: 12,
+        color: '#999',
+        fontStyle: 'italic'
+      }}>
+        💡 Join the game to change the deck selection
       </div>
     </div>
   );

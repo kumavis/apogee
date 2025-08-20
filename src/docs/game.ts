@@ -1,5 +1,7 @@
 import { AutomergeUrl, DocHandle, Repo } from "@automerge/react";
 import { CARD_LIBRARY } from "../utils/cardLibrary";
+import { Deck } from "./deck";
+import { CardDefinition } from "./cardDefinition";
 import { 
   executeSpellEffect, 
   createSpellEffectAPI, 
@@ -74,6 +76,9 @@ export type GameDoc = {
   createdAt: number;
   players: AutomergeUrl[];
   status: 'waiting' | 'playing' | 'finished';
+  
+  // Deck selection (only during waiting phase) - single deck for the game
+  selectedDeckUrl: AutomergeUrl | null; // URL of the selected deck, null means use default
   
   // Game state
   deck: string[]; // Array of card IDs in deck
@@ -198,6 +203,84 @@ export const addGameLogEntry = (doc: GameDoc, entry: Omit<GameLogEntry, 'id' | '
     ...entry
   };
   doc.gameLog.push(logEntry);
+};
+
+export const setGameDeckSelection = (doc: GameDoc, deckUrl: AutomergeUrl | null): void => {
+  doc.selectedDeckUrl = deckUrl;
+};
+
+export const getGameDeckSelection = (doc: GameDoc): AutomergeUrl | null => {
+  return doc.selectedDeckUrl;
+};
+
+export const snapshotDeckToGame = async (deckUrl: AutomergeUrl, repo: Repo): Promise<string[]> => {
+  const deckHandle = await repo.find<Deck>(deckUrl);
+  if (!deckHandle) {
+    throw new Error(`snapshotDeckToGame: Deck not found for URL: ${deckUrl}`);
+  }
+  
+  const deckDoc = deckHandle.doc();
+  const deckCards: string[] = [];
+  
+  // Expand each deck card according to its quantity
+  for (const deckCard of deckDoc.cards) {
+    for (let i = 0; i < deckCard.quantity; i++) {
+      // Convert card URL to a card ID format for the game
+      deckCards.push(`deck_card_${String(deckCard.cardUrl)}_${i}`);
+    }
+  }
+  
+  return deckCards;
+};
+
+export const snapshotCustomCardLibrary = async (deckUrl: AutomergeUrl, repo: Repo): Promise<{ [cardId: string]: GameCard }> => {
+  const deckHandle = await repo.find<Deck>(deckUrl);
+  if (!deckHandle) {
+    throw new Error(`snapshotCustomCardLibrary: Deck not found for URL: ${deckUrl}`);
+  }
+  
+  const deckDoc = deckHandle.doc();
+  
+  const cardLibrary: { [cardId: string]: GameCard } = {};
+  
+  // Load each unique card from the deck
+  await Promise.all(deckDoc.cards.map(async (deckCard) => {
+    try {
+      const cardHandle = await repo.find<CardDefinition>(deckCard.cardUrl);
+      const cardDef = cardHandle.doc();
+
+      // Create game card entries for each instance
+      for (let i = 0; i < deckCard.quantity; i++) {
+        const gameCardId = `deck_card_${deckCard.cardUrl}_${i}`;
+        const gameCard: GameCard = {
+          id: gameCardId,
+          name: cardDef.name,
+          cost: cardDef.cost,
+          type: cardDef.type,
+          description: cardDef.description
+        };
+        
+        // Only add optional properties if they are defined
+        if (cardDef.attack !== undefined) {
+          gameCard.attack = cardDef.attack;
+        }
+        if (cardDef.health !== undefined) {
+          gameCard.health = cardDef.health;
+        }
+        if (cardDef.spellEffect !== undefined) {
+          gameCard.spellEffect = cardDef.spellEffect;
+        }
+        if (cardDef.triggeredAbilities !== undefined) {
+          gameCard.triggeredAbilities = cardDef.triggeredAbilities;
+        }
+        cardLibrary[gameCardId] = gameCard;
+      }
+    } catch (error) {
+      console.error(`Failed to load card ${deckCard.cardUrl}:`, error);
+    }
+  }));
+  
+  return cardLibrary;
 };
 
 // Helper function to remove creature from battlefield and add to graveyard
@@ -1023,6 +1106,7 @@ export const create = (repo: Repo, initialState?: Partial<GameDoc>): DocHandle<G
     createdAt: Date.now(),
     players: [],
     status: 'waiting' as const,
+    selectedDeckUrl: null, // Default to null (will use basic deck)
     deck: [],
     playerHands: [],
     playerBattlefields: [],

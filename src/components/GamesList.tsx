@@ -1,13 +1,29 @@
 import React, { useState, useMemo } from 'react';
 import { AutomergeUrl, useDocument, useDocuments } from '@automerge/react';
-import { GameDoc } from '../docs/game';
+import { GameDoc, getGameDeckSelection } from '../docs/game';
 import { ContactDoc } from '../docs/contact';
+import { Deck } from '../docs/deck';
 import { getRelativeTime } from '../utils/timeUtils';
 
 // Helper component to get player name
 const PlayerName: React.FC<{ playerId: AutomergeUrl }> = ({ playerId }) => {
   const [contactDoc] = useDocument<ContactDoc>(playerId, { suspense: false });
   return <span>{contactDoc?.name || 'Player'}</span>;
+};
+
+// Helper component to get deck name
+const DeckName: React.FC<{ deckUrl: AutomergeUrl | null }> = ({ deckUrl }) => {
+  const [deck] = useDocument<Deck>(deckUrl || '' as AutomergeUrl, { suspense: false });
+  
+  if (!deckUrl) {
+    return <span>Default Deck</span>;
+  }
+  
+  if (!deck) {
+    return <span>Loading...</span>;
+  }
+  
+  return <span>{deck.name}</span>;
 };
 
 type GameListEntryProps = {
@@ -40,6 +56,9 @@ const GameListEntry: React.FC<GameListEntryProps> = ({ gameUrl, onClick, selfId 
   // Get relative time for display
   const relativeTime = getRelativeTime(gameDoc.createdAt);
   const playerCount = gameDoc.players?.length || 0;
+  
+  // Get selected deck information
+  const selectedDeckUrl = getGameDeckSelection(gameDoc);
   
   // Get status display info
   const getStatusInfo = (status: string) => {
@@ -144,6 +163,9 @@ const GameListEntry: React.FC<GameListEntryProps> = ({ gameUrl, onClick, selfId 
           </div>
           <div style={{ fontSize: 12, opacity: 0.8 }}>
             {playerCount} player{playerCount !== 1 ? 's' : ''}
+          </div>
+          <div style={{ fontSize: 11, opacity: 0.6, fontStyle: 'italic' }}>
+            🃏 <DeckName deckUrl={selectedDeckUrl} />
           </div>
         </div>
       </div>

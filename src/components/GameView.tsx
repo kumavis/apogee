@@ -1,9 +1,9 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
 import { AutomergeUrl, useDocument, useRepo } from '@automerge/react';
-import { GameDoc, initializeGame, createRematchGame } from '../docs/game';
+import { GameDoc, GameCard, initializeGame, createRematchGame, snapshotDeckToGame, snapshotCustomCardLibrary, getGameDeckSelection } from '../docs/game';
 import { RootDocument } from '../docs/rootDoc';
-import { createStandardDeck, shuffleDeck } from '../utils/cardLibrary';
+import { createStandardDeck, shuffleDeck, CARD_LIBRARY } from '../utils/cardLibrary';
 import { useGameNavigation } from '../hooks/useGameNavigation';
 import GameLobby from './GameLobby';
 import TCGGameBoard from './TCGGameBoard';
@@ -39,21 +39,46 @@ const GameView: React.FC<GameViewProps> = ({ rootDoc, addGame }) => {
     }
   };
 
-  const handleStartGame = () => {
+  const handleStartGame = async () => {
     if (!changeGameDoc || !gameDoc) {
       console.error('handleStartGame: Cannot start game - missing changeGameDoc or gameDoc');
       return;
     }
     
-    // Initialize the game state
-    changeGameDoc((doc) => {
-      // Create and shuffle the deck
-      const standardDeck = createStandardDeck();
-      const shuffledDeck = shuffleDeck(standardDeck);
+    try {
+      // Get the single deck selection for the game
+      const selectedDeckUrl = getGameDeckSelection(gameDoc);
+      let deckForGame: string[];
+
+      let customCardLibrary: { [cardId: string]: GameCard };
       
-      // Initialize the game
-      initializeGame(doc, shuffledDeck);
-    });
+      if (selectedDeckUrl !== null) {
+        // Snapshot custom deck
+        const [deckCards, deckCardLibrary] = await Promise.all([
+          snapshotDeckToGame(selectedDeckUrl, repo),
+          snapshotCustomCardLibrary(selectedDeckUrl, repo)
+        ]);
+        deckForGame = deckCards;
+        customCardLibrary = deckCardLibrary;
+      } else {
+        // Use default deck
+        deckForGame = createStandardDeck();
+        customCardLibrary = { ...CARD_LIBRARY };
+      }
+      
+      const shuffledDeck = shuffleDeck(deckForGame);
+      // Initialize the game state with the deck and custom cards
+      changeGameDoc((doc) => {
+        // Update card library with custom cards
+        doc.cardLibrary = customCardLibrary;
+        
+        // Initialize the game with the shuffled deck
+        initializeGame(doc, shuffledDeck);
+      });
+    } catch (error) {
+      console.error('Error starting game with custom decks:', error);
+      alert('Failed to start game. Some deck cards may not be available. Please try again.');
+    }
   };
 
   const handleSpectateGame = () => {
@@ -138,6 +163,7 @@ const GameView: React.FC<GameViewProps> = ({ rootDoc, addGame }) => {
       onJoinGame={handleJoinGame}
       onStartGame={handleStartGame}
       onSpectateGame={handleSpectateGame}
+      changeGameDoc={changeGameDoc}
     />
   );
 };
