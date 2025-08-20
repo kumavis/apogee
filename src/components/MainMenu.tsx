@@ -1,11 +1,12 @@
 import React from 'react';
+import { useGameNavigation } from '../hooks/useGameNavigation';
 
 type MainMenuProps = {
   onNewGame: () => void;
-  onDeleteRootDoc: () => void;
 };
 
-const MainMenu: React.FC<MainMenuProps> = ({ onNewGame, onDeleteRootDoc }) => {
+const MainMenu: React.FC<MainMenuProps> = ({ onNewGame }) => {
+  const { navigateToSettings } = useGameNavigation();
   return (
     <div style={{
       maxWidth: 800,
@@ -35,9 +36,9 @@ const MainMenu: React.FC<MainMenuProps> = ({ onNewGame, onDeleteRootDoc }) => {
           Apogee Games
         </h1>
         <button
-          onClick={onDeleteRootDoc}
+          onClick={navigateToSettings}
           style={{
-            background: 'rgba(255, 77, 79, 0.8)',
+            background: 'rgba(102, 126, 234, 0.8)',
             color: '#fff',
             border: 'none',
             padding: '8px 16px',
@@ -49,15 +50,15 @@ const MainMenu: React.FC<MainMenuProps> = ({ onNewGame, onDeleteRootDoc }) => {
             transition: 'all 0.2s ease'
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(255, 77, 79, 1)';
+            e.currentTarget.style.background = 'rgba(102, 126, 234, 1)';
             e.currentTarget.style.transform = 'translateY(-1px)';
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'rgba(255, 77, 79, 0.8)';
+            e.currentTarget.style.background = 'rgba(102, 126, 234, 0.8)';
             e.currentTarget.style.transform = 'translateY(0px)';
           }}
         >
-          Reset All Data
+          ⚙️ Settings
         </button>
       </div>
 

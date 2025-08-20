@@ -13,8 +13,13 @@ export const useGameNavigation = () => {
     navigate('/');
   }, [navigate]);
 
+  const navigateToSettings = useCallback(() => {
+    navigate('/settings');
+  }, [navigate]);
+
   return {
     navigateToGame,
     navigateToHome,
+    navigateToSettings,
   };
 };

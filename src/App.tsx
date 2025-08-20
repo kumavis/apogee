@@ -4,6 +4,7 @@ import { AutomergeUrl, useDocument } from '@automerge/react';
 import ErrorBoundary from './components/ErrorBoundary';
 import HomePage from './components/HomePage';
 import GameView from './components/GameView';
+import Settings from './components/Settings';
 import { RootDocument } from './docs/rootDoc';
 import { useCallback } from 'react';
 
@@ -32,6 +33,7 @@ function App({ rootDocUrl }: { rootDocUrl: AutomergeUrl }) {
         <Routes>
           <Route path="/" element={<HomePage rootDoc={rootDoc} addGame={addGame} />} />
           <Route path="/game/:gameDocUrl" element={<GameView rootDoc={rootDoc} addGame={addGame} />} />
+          <Route path="/settings" element={<Settings rootDocUrl={rootDocUrl} selfId={rootDoc.selfId} />} />
         </Routes>
       </ErrorBoundary>
     </div>

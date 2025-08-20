@@ -1,6 +1,6 @@
 import React from 'react';
 import { AutomergeUrl, useRepo } from '@automerge/react';
-import { deleteRootDoc as removeRootDocFromStorage, RootDocument } from '../docs/rootDoc';
+import { RootDocument } from '../docs/rootDoc';
 import { create as createGame } from '../docs/game';
 import { useGameNavigation } from '../hooks/useGameNavigation';
 import MainMenu from './MainMenu';
@@ -14,11 +14,6 @@ type HomePageProps = {
 const HomePage: React.FC<HomePageProps> = ({ rootDoc, addGame }) => {
   const repo = useRepo();
   const { navigateToGame } = useGameNavigation();
-
-  const handleDeleteRootDoc = () => {
-    removeRootDocFromStorage();
-    window.location.reload();
-  };
 
   const handleNewGame = () => {
     // Create a new game document
@@ -43,7 +38,6 @@ const HomePage: React.FC<HomePageProps> = ({ rootDoc, addGame }) => {
         <>
           <MainMenu 
             onNewGame={handleNewGame}
-            onDeleteRootDoc={handleDeleteRootDoc}
           />
           <div style={{ maxWidth: 800, margin: '0 auto', padding: '0 24px' }}>
             <GamesList 
