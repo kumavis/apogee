@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useGameNavigation } from '../hooks/useGameNavigation';
 
 type MainMenuProps = {
@@ -7,6 +7,25 @@ type MainMenuProps = {
 
 const MainMenu: React.FC<MainMenuProps> = ({ onNewGame }) => {
   const { navigateToSettings } = useGameNavigation();
+  
+  // Array of potential game names
+  const gameNames = [
+    'Card Game, The Playable',
+    'FarceStone',
+    'Tragic: Nerd Gathering',
+    'Gagic the Mathering',
+    'Making the Game-thering',
+    '1KCE'
+  ];
+  
+  // State to track current name index
+  const [currentNameIndex, setCurrentNameIndex] = useState(0);
+  
+  // Get current name and handler to cycle to next
+  const currentGameName = gameNames[currentNameIndex];
+  const handleTitleClick = () => {
+    setCurrentNameIndex((prevIndex) => (prevIndex + 1) % gameNames.length);
+  };
   return (
     <div style={{
       maxWidth: 800,
@@ -16,24 +35,42 @@ const MainMenu: React.FC<MainMenuProps> = ({ onNewGame }) => {
       borderRadius: 12,
       padding: 24,
       color: '#fff',
-      boxShadow: '0 8px 30px rgba(0,0,0,0.25)'
+      boxShadow: '0 8px 30px rgba(0,0,0,0.25)',
+      position: 'relative' as const
     }}>
       <div style={{ 
         display: 'flex', 
+        flexDirection: 'column',
         alignItems: 'center', 
-        justifyContent: 'space-between', 
-        marginBottom: 24 
+        marginBottom: 32 
       }}>
-        <h1 style={{ 
-          fontSize: 24, 
-          margin: 0, 
-          fontWeight: 600,
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text'
-        }}>
-          Apogee Games
+        <h1 
+          onClick={handleTitleClick}
+          style={{ 
+            fontSize: 48, 
+            margin: '0 0 24px 0', 
+            fontWeight: 700,
+            textAlign: 'center',
+            background: 'linear-gradient(135deg, #00ffff 0%, #00ff00 50%, #ff4444 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+            textShadow: '0 0 20px rgba(0, 255, 255, 0.3)',
+            letterSpacing: '1px',
+            cursor: 'pointer',
+            transition: 'all 0.3s ease',
+            userSelect: 'none' as const
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.05)';
+            e.currentTarget.style.textShadow = '0 0 30px rgba(0, 255, 255, 0.5)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.textShadow = '0 0 20px rgba(0, 255, 255, 0.3)';
+          }}
+        >
+          {currentGameName}
         </h1>
         <button
           onClick={navigateToSettings}
@@ -47,7 +84,11 @@ const MainMenu: React.FC<MainMenuProps> = ({ onNewGame }) => {
             fontSize: 12,
             fontWeight: 600,
             boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
-            transition: 'all 0.2s ease'
+            transition: 'all 0.2s ease',
+            alignSelf: 'flex-end',
+            position: 'absolute' as const,
+            top: '24px',
+            right: '24px'
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = 'rgba(102, 126, 234, 1)';
