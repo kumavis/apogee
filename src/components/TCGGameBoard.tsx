@@ -372,9 +372,28 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
           <div style={{ 
             fontSize: 12, 
             color: isCurrentPlayer ? '#00ff00' : '#ffaa00',
-            fontWeight: 600
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6
           }}>
-            {isCurrentPlayer ? '🎯 Your Turn' : '⏳ Waiting...'}
+            {isCurrentPlayer ? (
+              <>🎯 Your Turn</>
+            ) : (
+              <>
+                ⏳ 
+                <Contact 
+                  contactUrl={gameDoc.players[gameDoc.currentPlayerIndex]} 
+                  style={{
+                    background: 'rgba(255, 170, 0, 0.2)',
+                    borderColor: 'rgba(255, 170, 0, 0.4)',
+                    fontSize: 11,
+                    padding: '2px 6px'
+                  }}
+                />
+                's turn
+              </>
+            )}
           </div>
         </div>
       </div>
