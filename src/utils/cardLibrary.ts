@@ -17,7 +17,7 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     name: 'Plasma Burst',
     cost: 3,
     type: 'spell',
-    description: 'Deal 3 energy damage to any target.',
+    description: 'Deal 3 damage to any target.',
     spellEffect: functionToString(async (api) => {
       // Select any target (player or creature)
       const targets = await api.selectTargets({
@@ -54,14 +54,7 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     type: 'creature',
     description: 'An automated defense unit.'
   },
-  // 'card_004': {
-  //   id: 'card_004',
-  //   name: 'Nano Enhancer',
-  //   cost: 2,
-  //   health: 3,
-  //   type: 'artifact',
-  //   description: 'All your creatures gain +1/+1 while this is in play.'
-  // },
+
   'card_005': {
     id: 'card_005',
     name: 'Quantum Destroyer',
@@ -315,7 +308,38 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     attack: 1,
     health: 1,
     type: 'creature',
-    description: 'Cannot be blocked.'
+    description: 'When this attacks a player: Deal 1 damage to a random enemy creature.',
+    triggeredAbilities: [{
+      trigger: 'end_turn', // Triggers after attacking (attacks happen during turn)
+      effectCode: functionToString(async (api) => {
+        // Check if this creature attacked this turn by checking if it's sapped
+        const battlefield = api.doc.playerBattlefields.find((b: any) => b.playerId === api.ownerId);
+        const battlefieldCard = battlefield?.cards.find((c: any) => c.instanceId === api.instanceId);
+        
+        if (battlefieldCard && battlefieldCard.sapped) {
+          // Find all enemy creatures
+          const allPlayers = api.getAllPlayers();
+          const enemies = allPlayers.filter((p: any) => p !== api.ownerId);
+          const enemyCreatures = [];
+          
+          for (const enemyId of enemies) {
+            const creatures = api.getCreaturesForPlayer(enemyId);
+            for (const creature of creatures) {
+              enemyCreatures.push({ playerId: enemyId, instanceId: creature.instanceId });
+            }
+          }
+          
+          if (enemyCreatures.length > 0) {
+            const randomTarget = enemyCreatures[Math.floor(Math.random() * enemyCreatures.length)];
+            api.dealDamageToCreature(randomTarget.playerId, randomTarget.instanceId, 1);
+            api.log('Stealth Infiltrator strikes from the shadows');
+          }
+        }
+        
+        return true;
+      }),
+      description: 'Strike a random enemy creature after attacking'
+    }]
   },
   'card_016': {
     id: 'card_016',
@@ -378,8 +402,8 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
   },
   'card_018': {
     id: 'card_018',
-    name: 'Mind Control',
-    cost: 6,
+    name: 'Neural Disruption',
+    cost: 3,
     type: 'spell',
     description: 'Deal 1 damage to target creature and 1 damage to its owner.',
     spellEffect: functionToString(async (api) => {
@@ -388,11 +412,11 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
         targetType: 'creature',
         canTargetSelf: true,
         autoTarget: false, // Mind control needs manual selection
-        description: 'Choose a creature to mind control (damages creature and owner)'
+        description: 'Choose a creature for neural disruption'
       });
       
       if (targets.length === 0) {
-        api.log('No target selected for Mind Control');
+        api.log('No target selected for Neural Disruption');
         return false;
       }
       
@@ -402,7 +426,7 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
         api.dealDamageToCreature(target.playerId, target.instanceId, 1);
         // Damage the owner
         api.dealDamageToPlayer(target.playerId, 1);
-        api.log(`Mind Control damages creature and its owner`);
+        api.log(`Neural Disruption damages creature and its owner`);
       }
       
       return true;
@@ -540,10 +564,10 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     id: 'card_024',
     name: 'Anti-Artifact Hunter',
     cost: 3,
-    attack: 2,
-    health: 3,
+    attack: 3,
+    health: 2,
     type: 'creature',
-    description: 'Can only attack artifacts. +1 damage vs artifacts.',
+    description: 'Can only attack artifacts.',
     attackTargeting: {
       canTargetPlayers: false,
       canTargetCreatures: false,
@@ -636,20 +660,15 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     cost: 3,
     health: 4,
     type: 'artifact',
-    description: 'Whenever an opponent plays a card, gain 1 energy.',
+    description: 'At start of turn: Draw a card.',
     triggeredAbilities: [{
-      trigger: 'play_card',
+      trigger: 'start_turn',
       effectCode: functionToString(async (api) => {
-        // This will be triggered when ANY player plays a card
-        // We need to check if it's an opponent's card
-        const ownCreatures = api.getOwnCreatures();
-        if (ownCreatures.length > 0) { // Simple check that we're still alive
-          api.gainEnergy(1);
-          api.log('Energy Collector gains energy from opponent card play');
-        }
+        api.drawCard();
+        api.log('Energy Collector gathered data and drew a card');
         return true;
       }),
-      description: 'Gain 1 energy when opponent plays a card'
+      description: 'Draw a card at start of turn'
     }]
   },
   'card_030': {
@@ -781,25 +800,28 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
   'card_034': {
     id: 'card_034',
     name: 'Energy Vampire',
-    cost: 4,
-    attack: 3,
-    health: 2,
+    cost: 3,
+    attack: 2,
+    health: 3,
     type: 'creature',
-    description: 'When an opponent plays a card: Gain 1 energy.',
+    description: 'When an opponent plays a card: Deal 1 damage to that player.',
     triggeredAbilities: [{
       trigger: 'play_card',
       effectCode: functionToString(async (api) => {
-        // This triggers when any card is played, gain energy if it's opponent's card
+        // Deal damage to all opponents when any card is played
         const allPlayers = api.getAllPlayers();
         const enemies = allPlayers.filter((p: any) => p !== api.ownerId);
         
+        enemies.forEach((enemyId: any) => {
+          api.dealDamageToPlayer(enemyId, 1);
+        });
+        
         if (enemies.length > 0) {
-          api.gainEnergy(1);
-          api.log('Energy Vampire siphons energy from opponent card play');
+          api.log('Energy Vampire drains life force from opponent activity');
         }
         return true;
       }),
-      description: 'Gain 1 energy when opponent plays cards'
+      description: 'Deal 1 damage to opponents when they play cards'
     }]
   },
   'card_035': {
@@ -830,15 +852,14 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
   'card_036': {
     id: 'card_036',
     name: 'Shield Drone',
-    cost: 1,
+    cost: 2,
     attack: 0,
-    health: 3,
+    health: 4,
     type: 'creature',
-    description: 'At end of turn: Give all your creatures +0/+1 health permanently.',
+    description: 'At end of turn: Heal all your other creatures for 1.',
     triggeredAbilities: [{
       trigger: 'end_turn',
       effectCode: functionToString(async (api) => {
-        // For now, just heal all creatures for 1 since we can't modify base stats easily
         const creatures = api.getOwnCreatures();
         let healedCount = 0;
         
@@ -854,7 +875,7 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
         }
         return true;
       }),
-      description: 'Reinforce other creatures (+0/+1 effect)'
+      description: 'Heal other creatures for 1'
     }]
   },
   'card_037': {
@@ -874,6 +895,352 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
       }),
       description: 'Draw a card'
     }]
+  },
+  'card_038': {
+    id: 'card_038',
+    name: 'Berserker Bot',
+    cost: 4,
+    attack: 5,
+    health: 1,
+    type: 'creature',
+    description: 'High-risk, high-reward combat unit.'
+  },
+  'card_039': {
+    id: 'card_039',
+    name: 'Healing Station',
+    cost: 3,
+    health: 5,
+    type: 'artifact',
+    description: 'At start of turn: Restore 2 health to yourself.',
+    triggeredAbilities: [{
+      trigger: 'start_turn',
+      effectCode: functionToString(async (api) => {
+        api.healPlayer(api.ownerId, 2);
+        api.log('Healing Station restored 2 health');
+        return true;
+      }),
+      description: 'Heal owner for 2'
+    }]
+  },
+  'card_040': {
+    id: 'card_040',
+    name: 'Recon Specialist',
+    cost: 1,
+    attack: 1,
+    health: 1,
+    type: 'creature',
+    description: 'When any card is played: Draw a card.',
+    triggeredAbilities: [{
+      trigger: 'play_card',
+      effectCode: functionToString(async (api) => {
+        api.drawCard();
+        api.log('Recon Specialist gathered intelligence');
+        return true;
+      }),
+      description: 'Draw a card when any card is played'
+    }]
+  },
+  'card_041': {
+    id: 'card_041',
+    name: 'Volatile Core',
+    cost: 2,
+    health: 3,
+    type: 'artifact',
+    description: 'When an opponent plays a card: Deal 1 damage to all enemies.',
+    triggeredAbilities: [{
+      trigger: 'play_card',
+      effectCode: functionToString(async (api) => {
+        const allPlayers = api.getAllPlayers();
+        const enemies = allPlayers.filter((p: any) => p !== api.ownerId);
+        let damagedCount = 0;
+        
+        enemies.forEach((enemyId: any) => {
+          api.dealDamageToPlayer(enemyId, 1);
+          damagedCount++;
+          
+          // Also damage all enemy creatures
+          const creatures = api.getCreaturesForPlayer(enemyId);
+          creatures.forEach((creature: any) => {
+            api.dealDamageToCreature(enemyId, creature.instanceId, 1);
+            damagedCount++;
+          });
+        });
+        
+        if (damagedCount > 0) {
+          api.log(`Volatile Core exploded, damaging ${damagedCount} target(s)`);
+        }
+        return true;
+      }),
+      description: 'Damage all enemies when opponents play cards'
+    }]
+  },
+  'card_042': {
+    id: 'card_042',
+    name: 'Resource Recycler',
+    cost: 4,
+    health: 4,
+    type: 'artifact',
+    description: 'At start and end of turn: Gain 1 energy.',
+    triggeredAbilities: [
+      {
+        trigger: 'start_turn',
+        effectCode: functionToString(async (api) => {
+          api.gainEnergy(1);
+          api.log('Resource Recycler generated energy');
+          return true;
+        }),
+        description: 'Gain 1 energy at start of turn'
+      },
+      {
+        trigger: 'end_turn',
+        effectCode: functionToString(async (api) => {
+          api.gainEnergy(1);
+          api.log('Resource Recycler recycled energy');
+          return true;
+        }),
+        description: 'Gain 1 energy at end of turn'
+      }
+    ]
+  },
+  'card_043': {
+    id: 'card_043',
+    name: 'Omega Destroyer',
+    cost: 8,
+    attack: 7,
+    health: 7,
+    type: 'creature',
+    description: 'When played: Deal 3 damage to all enemies. At start of turn: Deal 2 damage to all enemies.',
+    triggeredAbilities: [
+      {
+        trigger: 'play_card',
+        effectCode: functionToString(async (api) => {
+          // Deal damage to all enemies when this card is played
+          const allPlayers = api.getAllPlayers();
+          const enemies = allPlayers.filter((p: any) => p !== api.ownerId);
+          let damagedCount = 0;
+          
+          enemies.forEach((enemyId: any) => {
+            api.dealDamageToPlayer(enemyId, 3);
+            damagedCount++;
+            
+            // Also damage all enemy creatures
+            const creatures = api.getCreaturesForPlayer(enemyId);
+            creatures.forEach((creature: any) => {
+              api.dealDamageToCreature(enemyId, creature.instanceId, 3);
+              damagedCount++;
+            });
+          });
+          
+          if (damagedCount > 0) {
+            api.log(`Omega Destroyer's arrival devastates ${damagedCount} target(s)`);
+          }
+          return true;
+        }),
+        description: 'Deal 3 damage to all enemies when played'
+      },
+      {
+        trigger: 'start_turn',
+        effectCode: functionToString(async (api) => {
+          const allPlayers = api.getAllPlayers();
+          const enemies = allPlayers.filter((p: any) => p !== api.ownerId);
+          let damagedCount = 0;
+          
+          enemies.forEach((enemyId: any) => {
+            api.dealDamageToPlayer(enemyId, 2);
+            damagedCount++;
+            
+            const creatures = api.getCreaturesForPlayer(enemyId);
+            creatures.forEach((creature: any) => {
+              api.dealDamageToCreature(enemyId, creature.instanceId, 2);
+              damagedCount++;
+            });
+          });
+          
+          if (damagedCount > 0) {
+            api.log(`Omega Destroyer continues its rampage against ${damagedCount} target(s)`);
+          }
+          return true;
+        }),
+        description: 'Deal 2 damage to all enemies each turn'
+      }
+    ]
+  },
+  'card_044': {
+    id: 'card_044',
+    name: 'Titan Forge',
+    cost: 7,
+    health: 8,
+    type: 'artifact',
+    description: 'At start of turn: Create a 3/3 Construct creature. At end of turn: Heal all your creatures to full health.',
+    triggeredAbilities: [
+      {
+        trigger: 'start_turn',
+        effectCode: functionToString(async (api) => {
+          // We can't actually create new cards, so instead give massive bonuses
+          api.drawCard();
+          api.drawCard();
+          api.gainEnergy(2);
+          api.log('Titan Forge produces resources and constructs');
+          return true;
+        }),
+        description: 'Generate massive resources'
+      },
+      {
+        trigger: 'end_turn',
+        effectCode: functionToString(async (api) => {
+          const creatures = api.getOwnCreatures();
+          let healedCount = 0;
+          
+          creatures.forEach((creature: {instanceId: string, cardId: string}) => {
+            const creatureCard = api.doc.cardLibrary[creature.cardId];
+            if (creatureCard && creatureCard.type === 'creature') {
+              // Find the battlefield card to check current health
+              const battlefield = api.doc.playerBattlefields.find((b: any) => b.playerId === api.ownerId);
+              const battlefieldCard = battlefield?.cards.find((c: any) => c.instanceId === creature.instanceId);
+              
+              if (battlefieldCard && battlefieldCard.currentHealth < (creatureCard.health || 1)) {
+                const healAmount = (creatureCard.health || 1) - battlefieldCard.currentHealth;
+                api.healCreature(api.ownerId, creature.instanceId, healAmount);
+                healedCount++;
+              }
+            }
+          });
+          
+          if (healedCount > 0) {
+            api.log(`Titan Forge restored ${healedCount} creature(s) to full health`);
+          }
+          return true;
+        }),
+        description: 'Heal all creatures to full health'
+      }
+    ]
+  },
+  'card_045': {
+    id: 'card_045',
+    name: 'Mind Dominator',
+    cost: 9,
+    attack: 4,
+    health: 6,
+    type: 'creature',
+    description: 'When played: Deal 4 damage to all enemy creatures. At end of turn: Heal yourself for 3.',
+    triggeredAbilities: [
+      {
+        trigger: 'play_card',
+        effectCode: functionToString(async (api) => {
+          const allPlayers = api.getAllPlayers();
+          const enemies = allPlayers.filter((p: any) => p !== api.ownerId);
+          let damagedCount = 0;
+          
+          enemies.forEach((enemyId: any) => {
+            const creatures = api.getCreaturesForPlayer(enemyId);
+            creatures.forEach((creature: any) => {
+              api.dealDamageToCreature(enemyId, creature.instanceId, 4);
+              damagedCount++;
+            });
+          });
+          
+          if (damagedCount > 0) {
+            api.log(`Mind Dominator destroys ${damagedCount} enemy creature(s)`);
+          }
+          return true;
+        }),
+        description: 'Deal 4 damage to all enemy creatures when played'
+      },
+      {
+        trigger: 'end_turn',
+        effectCode: functionToString(async (api) => {
+          api.healPlayer(api.ownerId, 3);
+          api.log('Mind Dominator regenerates its master');
+          return true;
+        }),
+        description: 'Heal owner for 3 each turn'
+      }
+    ]
+  },
+  'card_046': {
+    id: 'card_046',
+    name: 'Reality Shatter',
+    cost: 10,
+    type: 'spell',
+    description: 'Destroy all enemy creatures and artifacts. Deal 5 damage to all enemies.',
+    spellEffect: functionToString(async (api) => {
+      const allPlayers = api.getAllPlayers();
+      const enemies = allPlayers.filter((p: any) => p !== api.casterId);
+      let totalDestroyed = 0;
+      
+      // Destroy all enemy creatures and artifacts
+      enemies.forEach((enemyId: any) => {
+        const creatures = api.getCreaturesForPlayer(enemyId);
+        creatures.forEach((creature: any) => {
+          api.destroyCreature(enemyId, creature.instanceId);
+          totalDestroyed++;
+        });
+        
+        // Deal 5 damage to enemy players
+        api.dealDamageToPlayer(enemyId, 5);
+      });
+      
+      api.log(`Reality Shatter destroys ${totalDestroyed} enemy unit(s) and deals 5 damage to all enemies`);
+      return true;
+    })
+  },
+  'card_047': {
+    id: 'card_047',
+    name: 'Apocalypse Engine',
+    cost: 8,
+    health: 10,
+    type: 'artifact',
+    description: 'At start and end of turn: Deal 2 damage to all enemies and heal yourself for 2.',
+    triggeredAbilities: [
+      {
+        trigger: 'start_turn',
+        effectCode: functionToString(async (api) => {
+          const allPlayers = api.getAllPlayers();
+          const enemies = allPlayers.filter((p: any) => p !== api.ownerId);
+          let damagedCount = 0;
+          
+          enemies.forEach((enemyId: any) => {
+            api.dealDamageToPlayer(enemyId, 2);
+            damagedCount++;
+            
+            const creatures = api.getCreaturesForPlayer(enemyId);
+            creatures.forEach((creature: any) => {
+              api.dealDamageToCreature(enemyId, creature.instanceId, 2);
+              damagedCount++;
+            });
+          });
+          
+          api.healPlayer(api.ownerId, 2);
+          api.log(`Apocalypse Engine's dawn phase damages ${damagedCount} enemies and heals owner`);
+          return true;
+        }),
+        description: 'Deal 2 damage to all enemies and heal owner'
+      },
+      {
+        trigger: 'end_turn',
+        effectCode: functionToString(async (api) => {
+          const allPlayers = api.getAllPlayers();
+          const enemies = allPlayers.filter((p: any) => p !== api.ownerId);
+          let damagedCount = 0;
+          
+          enemies.forEach((enemyId: any) => {
+            api.dealDamageToPlayer(enemyId, 2);
+            damagedCount++;
+            
+            const creatures = api.getCreaturesForPlayer(enemyId);
+            creatures.forEach((creature: any) => {
+              api.dealDamageToCreature(enemyId, creature.instanceId, 2);
+              damagedCount++;
+            });
+          });
+          
+          api.healPlayer(api.ownerId, 2);
+          api.log(`Apocalypse Engine's dusk phase damages ${damagedCount} enemies and heals owner`);
+          return true;
+        }),
+        description: 'Deal 2 damage to all enemies and heal owner'
+      }
+    ]
   }
 };
 
@@ -886,7 +1253,6 @@ export const createStandardDeck = (): string[] => {
     'card_001': 3, // Cyber Drone
     'card_002': 2, // Plasma Burst
     'card_003': 2, // Steel Sentinel
-    // 'card_004': 3, // Nano Enhancer
     'card_005': 1, // Quantum Destroyer (rare)
     'card_006': 4, // Data Spike (common)
     'card_007': 1, // Bio-Mech Guardian (rare)
@@ -900,7 +1266,7 @@ export const createStandardDeck = (): string[] => {
     'card_015': 3, // Stealth Infiltrator
     'card_016': 1, // Chain Lightning (rare)
     'card_017': 2, // Mass Heal
-    'card_018': 1, // Mind Control (rare)
+    'card_018': 2, // Neural Disruption
     'card_019': 1, // Electromagnetic Pulse (rare)
     'card_020': 2, // Targeted Strike
     'card_021': 3, // Cleansing Light
@@ -920,6 +1286,16 @@ export const createStandardDeck = (): string[] => {
     'card_035': 3, // Nano Swarm (common)
     'card_036': 2, // Shield Drone
     'card_037': 2, // Data Miner
+    'card_038': 2, // Berserker Bot
+    'card_039': 2, // Healing Station
+    'card_040': 3, // Recon Specialist (common)
+    'card_041': 1, // Volatile Core (rare)
+    'card_042': 1, // Resource Recycler (rare)
+    'card_043': 1, // Omega Destroyer (legendary)
+    'card_044': 1, // Titan Forge (legendary)
+    'card_045': 1, // Mind Dominator (legendary)
+    'card_046': 1, // Reality Shatter (legendary)
+    'card_047': 1, // Apocalypse Engine (legendary)
   };
   
   // Validate that all cards in cardCopies exist in CARD_LIBRARY
