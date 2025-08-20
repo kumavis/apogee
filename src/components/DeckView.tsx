@@ -26,9 +26,13 @@ const DeckView: React.FC<DeckViewProps> = ({ rootDoc, addDeckToCollection }) => 
 
   const [showCloneForm, setShowCloneForm] = useState(false);
   const [cloneName, setCloneName] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [newDescription, setNewDescription] = useState('');
 
   // Get the deck document
-  const [deck] = useDocument<Deck>(deckId as AutomergeUrl, { suspense: false });
+  const [deck, changeDeck] = useDocument<Deck>(deckId as AutomergeUrl, { suspense: false });
 
   if (!deck) {
     return (
@@ -147,6 +151,51 @@ const DeckView: React.FC<DeckViewProps> = ({ rootDoc, addDeckToCollection }) => 
     navigate(`/deck/${newDeckHandle.url}`);
   };
 
+  const handleStartRename = () => {
+    setNewName(deck.name);
+    setIsRenaming(true);
+  };
+
+  const handleCancelRename = () => {
+    setIsRenaming(false);
+    setNewName('');
+  };
+
+  const handleSaveRename = () => {
+    if (!newName.trim()) {
+      alert('Please enter a deck name');
+      return;
+    }
+
+    changeDeck((doc) => {
+      doc.name = newName.trim();
+      doc.updatedAt = new Date().toISOString();
+    });
+
+    setIsRenaming(false);
+    setNewName('');
+  };
+
+  const handleStartEditDescription = () => {
+    setNewDescription(deck.description);
+    setIsEditingDescription(true);
+  };
+
+  const handleCancelEditDescription = () => {
+    setIsEditingDescription(false);
+    setNewDescription('');
+  };
+
+  const handleSaveDescription = () => {
+    changeDeck((doc) => {
+      doc.description = newDescription.trim() || 'A custom deck';
+      doc.updatedAt = new Date().toISOString();
+    });
+
+    setIsEditingDescription(false);
+    setNewDescription('');
+  };
+
   const handleAddToCollection = () => {
     addDeckToCollection(deckId as AutomergeUrl);
   };
@@ -245,17 +294,102 @@ const DeckView: React.FC<DeckViewProps> = ({ rootDoc, addDeckToCollection }) => 
         </div>
 
         <div style={{ textAlign: 'center' }}>
-          <h1 style={{
-            fontSize: 32,
-            margin: '0 0 8px 0',
-            fontWeight: 600,
-            background: 'linear-gradient(135deg, #00ffff 0%, #00ff00 50%, #ff4444 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text'
-          }}>
-            {deck.name}
-          </h1>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 8 }}>
+            {isRenaming ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveRename();
+                    if (e.key === 'Escape') handleCancelRename();
+                  }}
+                  style={{
+                    background: 'rgba(0,0,0,0.4)',
+                    border: '2px solid #00ffff',
+                    borderRadius: 8,
+                    padding: '8px 12px',
+                    color: '#fff',
+                    fontSize: 28,
+                    fontWeight: 600,
+                    textAlign: 'center',
+                    minWidth: 300,
+                    outline: 'none'
+                  }}
+                  autoFocus
+                />
+                <button
+                  onClick={handleSaveRename}
+                  style={{
+                    background: '#00ff00',
+                    color: '#000',
+                    border: 'none',
+                    borderRadius: 6,
+                    padding: '6px 12px',
+                    cursor: 'pointer',
+                    fontSize: 14,
+                    fontWeight: 600
+                  }}
+                >
+                  ✓
+                </button>
+                <button
+                  onClick={handleCancelRename}
+                  style={{
+                    background: '#ff4444',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 6,
+                    padding: '6px 12px',
+                    cursor: 'pointer',
+                    fontSize: 14,
+                    fontWeight: 600
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <>
+                <h1 style={{
+                  fontSize: 32,
+                  margin: 0,
+                  fontWeight: 600,
+                  background: 'linear-gradient(135deg, #00ffff 0%, #00ff00 50%, #ff4444 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text'
+                }}>
+                  {deck.name}
+                </h1>
+                {isOwner && (
+                  <button
+                    onClick={handleStartRename}
+                    style={{
+                      background: 'rgba(255,255,255,0.1)',
+                      color: '#fff',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      borderRadius: 6,
+                      padding: '4px 8px',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.2)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+                    }}
+                    title="Rename deck"
+                  >
+                    ✏️
+                  </button>
+                )}
+              </>
+            )}
+          </div>
           <div style={{
               display: 'flex',
               alignItems: 'center',
@@ -331,13 +465,106 @@ const DeckView: React.FC<DeckViewProps> = ({ rootDoc, addDeckToCollection }) => 
         marginBottom: 24,
         textAlign: 'center'
       }}>
-        <p style={{ margin: 0, color: '#ccc', fontSize: 16, lineHeight: 1.5 }}>
-          {deck.description}
-        </p>
-        {!isOwner && (
-          <p style={{ margin: '8px 0 0 0', color: '#999', fontSize: 14 }}>
-            Created by <DeckAuthorName authorId={deck.createdBy} />
-          </p>
+        {isEditingDescription ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
+            <textarea
+              value={newDescription}
+              onChange={(e) => setNewDescription(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && e.ctrlKey) handleSaveDescription();
+                if (e.key === 'Escape') handleCancelEditDescription();
+              }}
+              style={{
+                background: 'rgba(0,0,0,0.4)',
+                border: '2px solid #00ffff',
+                borderRadius: 8,
+                padding: '12px',
+                color: '#fff',
+                fontSize: 16,
+                lineHeight: 1.5,
+                width: '100%',
+                minHeight: 80,
+                resize: 'vertical',
+                outline: 'none',
+                fontFamily: 'inherit'
+              }}
+              placeholder="Enter deck description..."
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={handleSaveDescription}
+                style={{
+                  background: '#00ff00',
+                  color: '#000',
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '8px 16px',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  fontWeight: 600
+                }}
+              >
+                ✓ Save
+              </button>
+              <button
+                onClick={handleCancelEditDescription}
+                style={{
+                  background: '#ff4444',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '8px 16px',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  fontWeight: 600
+                }}
+              >
+                ✕ Cancel
+              </button>
+            </div>
+            <p style={{ margin: 0, color: '#999', fontSize: 12 }}>
+              Press Ctrl+Enter to save, Escape to cancel
+            </p>
+          </div>
+        ) : (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: 8 }}>
+              <p style={{ margin: 0, color: '#ccc', fontSize: 16, lineHeight: 1.5, flex: 1 }}>
+                {deck.description}
+              </p>
+              {isOwner && (
+                <button
+                  onClick={handleStartEditDescription}
+                  style={{
+                    background: 'rgba(255,255,255,0.1)',
+                    color: '#fff',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    borderRadius: 6,
+                    padding: '4px 8px',
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    transition: 'all 0.2s ease',
+                    flexShrink: 0
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.2)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+                  }}
+                  title="Edit description"
+                >
+                  ✏️
+                </button>
+              )}
+            </div>
+            {!isOwner && (
+              <p style={{ margin: '8px 0 0 0', color: '#999', fontSize: 14 }}>
+                Created by <DeckAuthorName authorId={deck.createdBy} />
+              </p>
+            )}
+          </div>
         )}
       </div>
 

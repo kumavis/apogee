@@ -12,6 +12,7 @@ import Editor from '@monaco-editor/react';
 type CardLibraryProps = {
   rootDoc: RootDocument;
   addCardToLibrary: (cardUrl: AutomergeUrl) => void;
+  removeCardFromLibrary: (cardUrl: AutomergeUrl) => void;
 };
 
 type NewCardForm = {
@@ -25,7 +26,7 @@ type NewCardForm = {
   triggeredAbilities: ArtifactAbility[]; // Array of ability objects instead of JSON string
 };
 
-const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary }) => {
+const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary, removeCardFromLibrary }) => {
   const { navigateToHome } = useGameNavigation();
   const repo = useRepo();
   const [showNewCardForm, setShowNewCardForm] = useState(false);
@@ -1257,6 +1258,7 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary }) 
                   key={cardUrl} 
                   cardUrl={cardUrl} 
                   onCardSelect={handleEditCard}
+                  onRemove={removeCardFromLibrary}
                 />
               ))}
             </div>
@@ -1560,7 +1562,8 @@ const MonacoCodeEditor: React.FC<{
 const LoadingCardDisplay: React.FC<{ 
   cardUrl: AutomergeUrl; 
   onCardSelect: (card: CardDefinition | GameCard, isBuiltin: boolean, cardUrl?: AutomergeUrl) => void;
-}> = ({ cardUrl, onCardSelect }) => {
+  onRemove?: (cardUrl: AutomergeUrl) => void;
+}> = ({ cardUrl, onCardSelect, onRemove }) => {
   const [cardDef] = useDocument<CardDefinition>(cardUrl, { suspense: false });
 
   if (!cardDef) {
@@ -1607,6 +1610,43 @@ const LoadingCardDisplay: React.FC<{
       }}
     >
       <Card card={gameCard} />
+      {onRemove && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            if (window.confirm(`Are you sure you want to remove "${cardDef.name}" from your library?`)) {
+              onRemove(cardUrl);
+            }
+          }}
+          style={{
+            position: 'absolute',
+            top: 4,
+            right: 4,
+            background: '#ff4444',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '50%',
+            width: 24,
+            height: 24,
+            cursor: 'pointer',
+            fontSize: 12,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: 0.8,
+            transition: 'opacity 0.2s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.opacity = '1';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.opacity = '0.8';
+          }}
+          title="Remove from library"
+        >
+          ✕
+        </button>
+      )}
     </div>
   );
 };
