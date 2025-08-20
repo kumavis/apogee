@@ -1,4 +1,5 @@
 import React from 'react';
+import { ArtifactAbility } from '../utils/spellEffects';
 
 export type CardData = {
   id: string;
@@ -9,6 +10,7 @@ export type CardData = {
   type: 'creature' | 'spell' | 'artifact';
   description: string;
   spellEffect?: string;
+  triggeredAbilities?: ArtifactAbility[]; // Array of triggered abilities
   isPlayable?: boolean;
   currentHealth?: number; // For battlefield cards
 };

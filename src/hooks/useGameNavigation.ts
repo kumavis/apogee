@@ -17,9 +17,14 @@ export const useGameNavigation = () => {
     navigate('/settings');
   }, [navigate]);
 
+  const navigateToCardLibrary = useCallback(() => {
+    navigate('/library');
+  }, [navigate]);
+
   return {
     navigateToGame,
     navigateToHome,
     navigateToSettings,
+    navigateToCardLibrary,
   };
 };

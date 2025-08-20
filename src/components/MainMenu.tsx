@@ -6,7 +6,7 @@ type MainMenuProps = {
 };
 
 const MainMenu: React.FC<MainMenuProps> = ({ onNewGame }) => {
-  const { navigateToSettings } = useGameNavigation();
+  const { navigateToSettings, navigateToCardLibrary } = useGameNavigation();
   
   // Array of potential game names
   const gameNames = [
@@ -72,41 +72,13 @@ const MainMenu: React.FC<MainMenuProps> = ({ onNewGame }) => {
         >
           {currentGameName}
         </h1>
-        <button
-          onClick={navigateToSettings}
-          style={{
-            background: 'rgba(102, 126, 234, 0.8)',
-            color: '#fff',
-            border: 'none',
-            padding: '8px 16px',
-            borderRadius: 8,
-            cursor: 'pointer',
-            fontSize: 12,
-            fontWeight: 600,
-            boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
-            transition: 'all 0.2s ease',
-            alignSelf: 'flex-end',
-            position: 'absolute' as const,
-            top: '24px',
-            right: '24px'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(102, 126, 234, 1)';
-            e.currentTarget.style.transform = 'translateY(-1px)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'rgba(102, 126, 234, 0.8)';
-            e.currentTarget.style.transform = 'translateY(0px)';
-          }}
-        >
-          ⚙️ Settings
-        </button>
+
       </div>
 
       <div style={{ 
         display: 'flex', 
         justifyContent: 'center',
-        marginBottom: 32
+        marginBottom: 24
       }}>
         <button
           onClick={onNewGame}
@@ -137,16 +109,61 @@ const MainMenu: React.FC<MainMenuProps> = ({ onNewGame }) => {
       </div>
 
       <div style={{
-        textAlign: 'center',
-        fontSize: 14,
-        opacity: 0.7,
-        lineHeight: 1.5
+        display: 'flex',
+        justifyContent: 'center',
+        gap: 16,
+        marginBottom: 24
       }}>
-        <div>Start a new multiplayer game session</div>
-        <div style={{ fontSize: 12, marginTop: 4 }}>
-          Games are automatically saved and synced across devices
-        </div>
+        <button
+          onClick={navigateToCardLibrary}
+          style={{
+            background: 'rgba(255,255,255,0.1)',
+            color: '#fff',
+            border: '1px solid rgba(255,255,255,0.2)',
+            padding: '10px 20px',
+            borderRadius: 8,
+            cursor: 'pointer',
+            fontSize: 14,
+            fontWeight: 600,
+            transition: 'all 0.2s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.2)';
+            e.currentTarget.style.transform = 'translateY(-1px)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+            e.currentTarget.style.transform = 'translateY(0px)';
+          }}
+        >
+          📚 Card Library
+        </button>
+        <button
+          onClick={navigateToSettings}
+          style={{
+            background: 'rgba(255,255,255,0.1)',
+            color: '#fff',
+            border: '1px solid rgba(255,255,255,0.2)',
+            padding: '10px 20px',
+            borderRadius: 8,
+            cursor: 'pointer',
+            fontSize: 14,
+            fontWeight: 600,
+            transition: 'all 0.2s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.2)';
+            e.currentTarget.style.transform = 'translateY(-1px)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+            e.currentTarget.style.transform = 'translateY(0px)';
+          }}
+        >
+          ⚙️ Settings
+        </button>
       </div>
+
     </div>
   );
 };

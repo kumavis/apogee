@@ -6,6 +6,7 @@ const ROOT_DOC_URL_KEY = "root-doc-url";
 export type RootDocument = {
   selfId: AutomergeUrl;
   games: AutomergeUrl[];
+  cardLibrary: AutomergeUrl[]; // Array of custom card definition URLs
 };
 
 const createRootDoc = (repo: Repo): DocHandle<RootDocument> => {
@@ -14,6 +15,7 @@ const createRootDoc = (repo: Repo): DocHandle<RootDocument> => {
   const root = repo.create<RootDocument>({
     selfId: contact.url,
     games: [],
+    cardLibrary: [],
   });
 
   return root;
