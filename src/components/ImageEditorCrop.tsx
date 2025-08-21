@@ -49,22 +49,35 @@ const ImageEditorCrop: React.FC<ImageEditorCropProps> = ({
   const onImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const { naturalWidth: imgWidth, naturalHeight: imgHeight } = e.currentTarget;
 
-    // Create a centered crop with our target aspect ratio
-    const initialCrop = centerCrop(
-      makeAspectCrop(
-        {
-          unit: '%',
-          width: 90, // Use 90% of the image width initially
-        },
-        aspect,
+    // For existing images (initialImage), start with 100% crop
+    // For new images, create a crop that fits the target aspect ratio
+    if (initialImage && imgSrc === initialImage) {
+      // Start with 100% of the image when editing existing card
+      const fullCrop: Crop = {
+        unit: '%',
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+      };
+      setCrop(fullCrop);
+    } else {
+      // Create a centered crop with our target aspect ratio for new images
+      const initialCrop = centerCrop(
+        makeAspectCrop(
+          {
+            unit: '%',
+            width: 90, // Use 90% of the image width initially
+          },
+          aspect,
+          imgWidth,
+          imgHeight
+        ),
         imgWidth,
         imgHeight
-      ),
-      imgWidth,
-      imgHeight
-    );
-
-    setCrop(initialCrop);
+      );
+      setCrop(initialCrop);
+    }
   };
 
   const generateCroppedImage = useCallback(async () => {
@@ -193,9 +206,6 @@ const ImageEditorCrop: React.FC<ImageEditorCropProps> = ({
     const canvas = drawingCanvasRef.current;
     if (!canvas) return;
 
-    canvas.width = width;
-    canvas.height = height;
-
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -203,12 +213,14 @@ const ImageEditorCrop: React.FC<ImageEditorCropProps> = ({
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, width, height);
 
-    // Switch to draw mode and notify parent
+    // Switch to draw mode and clear other state
     setMode('draw');
     setImgSrc('');
     setCrop(undefined);
     setCompletedCrop(undefined);
+    setDrawCanvasInitialized(true); // Mark as initialized since we just set it up
     
+    // Notify parent of the blank canvas
     generateDrawingImage();
   };
 
@@ -217,6 +229,7 @@ const ImageEditorCrop: React.FC<ImageEditorCropProps> = ({
     setCrop(undefined);
     setCompletedCrop(undefined);
     setMode('crop');
+    setDrawCanvasInitialized(false); // Reset initialization flag
     
     // Clear drawing canvas
     const canvas = drawingCanvasRef.current;
@@ -245,16 +258,18 @@ const ImageEditorCrop: React.FC<ImageEditorCropProps> = ({
     return () => document.removeEventListener('paste', handleGlobalPaste);
   }, [handlePaste]);
 
-  // Load initial image if provided
+  // Load initial image if provided - simple and clean
   React.useEffect(() => {
     if (initialImage && !imgSrc) {
       setImgSrc(initialImage);
     }
   }, [initialImage, imgSrc]);
 
-  // Initialize drawing canvas with initial image
+  // Initialize drawing canvas ONLY when first switching to draw mode
+  const [drawCanvasInitialized, setDrawCanvasInitialized] = React.useState(false);
+  
   React.useEffect(() => {
-    if (initialImage && mode === 'draw') {
+    if (mode === 'draw' && !drawCanvasInitialized) {
       const canvas = drawingCanvasRef.current;
       if (!canvas) return;
 
@@ -264,13 +279,27 @@ const ImageEditorCrop: React.FC<ImageEditorCropProps> = ({
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      const img = new Image();
-      img.onload = () => {
-        ctx.drawImage(img, 0, 0, width, height);
-      };
-      img.src = initialImage;
+      // Create blank white canvas by default
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+
+      // If we have an initial image and we're in draw mode, load it
+      if (initialImage) {
+        const img = new Image();
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0, width, height);
+        };
+        img.src = initialImage;
+      }
+      
+      setDrawCanvasInitialized(true);
     }
-  }, [initialImage, mode, width, height]);
+    
+    // Reset initialization flag when leaving draw mode
+    if (mode !== 'draw') {
+      setDrawCanvasInitialized(false);
+    }
+  }, [mode, width, height, initialImage, drawCanvasInitialized]);
 
   // Generate cropped image when crop changes
   React.useEffect(() => {
@@ -543,11 +572,13 @@ const ImageEditorCrop: React.FC<ImageEditorCropProps> = ({
               const canvas = drawingCanvasRef.current;
               if (!canvas) return;
 
-              canvas.width = width;
-              canvas.height = height;
-
+              // Clear the canvas first
               const ctx = canvas.getContext('2d');
               if (!ctx) return;
+              
+              ctx.clearRect(0, 0, width, height);
+              canvas.width = width;
+              canvas.height = height;
 
               const img = new Image();
               img.onload = () => {
