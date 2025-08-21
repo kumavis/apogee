@@ -316,7 +316,7 @@ const CardEditor: React.FC<CardEditorProps> = ({
         textAlign: 'center'
       }}>
         {editingCard ? 
-          (editingCard.isBuiltin ? '🔍 View Builtin Card' : '✏️ Edit Custom Card') : 
+          (editingCard.isBuiltin ? '🔍 View Builtin Card' : '✏️ Edit Card') : 
           '🎨 Create New Card'
         }
       </h3>

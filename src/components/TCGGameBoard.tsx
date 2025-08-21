@@ -325,8 +325,8 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
 
   return (
     <div style={{
-      width: '100vw',
-      height: '100vh',
+      width: '100%',
+      height: '100%',
       background: 'linear-gradient(135deg, #0f0c29 0%, #24243e 50%, #2b1b17 100%)',
       display: 'flex',
       flexDirection: 'column',

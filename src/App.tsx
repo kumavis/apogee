@@ -83,16 +83,22 @@ function App({ rootDocUrl }: { rootDocUrl: AutomergeUrl }) {
   return (
     <div className="App">
       <ErrorBoundary>
-        <Routes>
-          <Route path="/" element={<HomePage rootDoc={rootDoc} addGame={addGame} />} />
-          <Route path="/game/:gameDocUrl" element={<GameView rootDoc={rootDoc} addGame={addGame} />} />
-          <Route path="/settings" element={<Settings rootDocUrl={rootDocUrl} selfId={rootDoc.selfId} />} />
-          <Route path="/library" element={<CardLibrary rootDoc={rootDoc} addCardToLibrary={addCardToLibrary} removeCardFromLibrary={removeCardFromLibrary} />} />
-          <Route path="/card/:cardId" element={<CardView rootDoc={rootDoc} addCardToLibrary={addCardToLibrary} />} />
-          <Route path="/card/:cardId/edit" element={<CardEditPage rootDoc={rootDoc} addCardToLibrary={addCardToLibrary} />} />
-          <Route path="/decks" element={<DeckLibrary rootDoc={rootDoc} addDeckToCollection={addDeckToCollection} addCardsToLibrary={addCardsToLibrary} removeDeckFromCollection={removeDeckFromCollection} />} />
-          <Route path="/deck/:deckId" element={<DeckView rootDoc={rootDoc} addDeckToCollection={addDeckToCollection} />} />
-        </Routes>
+        <div style={{ 
+          flex: 1, 
+          overflow: 'auto',
+          width: '100%'
+        }}>
+          <Routes>
+            <Route path="/" element={<HomePage rootDoc={rootDoc} addGame={addGame} />} />
+            <Route path="/game/:gameDocUrl" element={<GameView rootDoc={rootDoc} addGame={addGame} />} />
+            <Route path="/settings" element={<Settings rootDocUrl={rootDocUrl} selfId={rootDoc.selfId} />} />
+            <Route path="/library" element={<CardLibrary rootDoc={rootDoc} addCardToLibrary={addCardToLibrary} removeCardFromLibrary={removeCardFromLibrary} />} />
+            <Route path="/card/:cardId" element={<CardView rootDoc={rootDoc} addCardToLibrary={addCardToLibrary} />} />
+            <Route path="/card/:cardId/edit" element={<CardEditPage rootDoc={rootDoc} addCardToLibrary={addCardToLibrary} />} />
+            <Route path="/decks" element={<DeckLibrary rootDoc={rootDoc} addDeckToCollection={addDeckToCollection} addCardsToLibrary={addCardsToLibrary} removeDeckFromCollection={removeDeckFromCollection} />} />
+            <Route path="/deck/:deckId" element={<DeckView rootDoc={rootDoc} addDeckToCollection={addDeckToCollection} />} />
+          </Routes>
+        </div>
       </ErrorBoundary>
     </div>
   )

@@ -38,7 +38,7 @@ const DeckView: React.FC<DeckViewProps> = ({ rootDoc, addDeckToCollection }) => 
     return (
       <div style={{
         maxWidth: 1200,
-        margin: '40px auto',
+        margin: '20px auto',
         background: 'rgba(0,0,0,0.35)',
         border: '1px solid rgba(255,255,255,0.2)',
         borderRadius: 12,
@@ -206,38 +206,15 @@ const DeckView: React.FC<DeckViewProps> = ({ rootDoc, addDeckToCollection }) => 
   return (
     <div style={{
       maxWidth: 1200,
-      margin: '40px auto',
+      margin: '20px auto',
       background: 'rgba(0,0,0,0.35)',
       border: '1px solid rgba(255,255,255,0.2)',
       borderRadius: 12,
       padding: 24,
       color: '#fff',
       boxShadow: '0 8px 30px rgba(0,0,0,0.25)',
-      position: 'relative' as const,
-      maxHeight: 'calc(100vh - 80px)',
-      overflowY: 'auto',
-      overflowX: 'hidden',
-      scrollbarWidth: 'thin',
-      scrollbarColor: 'rgba(0,255,255,0.6) rgba(0,0,0,0.3)'
+      position: 'relative' as const
     }}>
-      <style>
-        {`
-          ::-webkit-scrollbar {
-            width: 8px;
-          }
-          ::-webkit-scrollbar-track {
-            background: rgba(0,0,0,0.3);
-            border-radius: 4px;
-          }
-          ::-webkit-scrollbar-thumb {
-            background: rgba(0,255,255,0.6);
-            border-radius: 4px;
-          }
-          ::-webkit-scrollbar-thumb:hover {
-            background: rgba(0,255,255,0.8);
-          }
-        `}
-      </style>
 
       {/* Header */}
       <div style={{

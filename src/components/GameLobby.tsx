@@ -79,7 +79,7 @@ const GameLobby: React.FC<GameLobbyProps> = ({
   return (
     <div style={{
       maxWidth: 800,
-      margin: '40px auto',
+      margin: '20px auto',
       background: 'rgba(0,0,0,0.35)',
       border: '1px solid rgba(255,255,255,0.2)',
       borderRadius: 12,
