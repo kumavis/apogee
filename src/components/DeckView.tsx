@@ -928,15 +928,14 @@ const DeckCardDisplay: React.FC<{
           <div style={{ display: 'flex', gap: 4 }}>
             <button
               onClick={() => onUpdateQuantity(deckCard.cardUrl, deckCard.quantity - 1)}
-              disabled={deckCard.quantity <= 1}
               style={{
                 width: 24,
                 height: 24,
-                background: deckCard.quantity > 1 ? 'rgba(255,100,100,0.3)' : 'rgba(100,100,100,0.3)',
+                background: 'rgba(255,100,100,0.3)',
                 border: '1px solid rgba(255,100,100,0.5)',
                 borderRadius: '50%',
-                color: deckCard.quantity > 1 ? '#ff6666' : '#666',
-                cursor: deckCard.quantity > 1 ? 'pointer' : 'not-allowed',
+                color: '#ff6666',
+                cursor: 'pointer',
                 fontSize: 12,
                 display: 'flex',
                 alignItems: 'center',
@@ -968,7 +967,7 @@ const DeckCardDisplay: React.FC<{
         </div>
 
         <button
-          onClick={() => onRemoveCard(deckCard.cardUrl)}
+          onClick={() => onRemoveCard(deckCard.cardUrl, deckCard.quantity)}
           style={{
             padding: '4px 8px',
             background: 'rgba(255,0,0,0.2)',
