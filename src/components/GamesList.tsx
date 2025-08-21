@@ -181,7 +181,7 @@ type GamesListProps = {
 
 const GamesList: React.FC<GamesListProps> = ({ gameUrls, onGameSelect, selfId }) => {
   // Use useDocuments to get all game documents at once
-  const [gameDocsMap] = useDocuments<GameDoc>(gameUrls);
+  const [gameDocsMap] = useDocuments<GameDoc>(gameUrls, { suspense: false });
   
   // Get loaded games and sort them by creation date (newest first)
   const loadedGameUrls = useMemo(() => {
