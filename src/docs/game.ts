@@ -1,7 +1,7 @@
 import { AutomergeUrl, DocHandle, Repo } from "@automerge/react";
 import { CARD_LIBRARY } from "../utils/cardLibrary";
 import { Deck } from "./deck";
-import { CardDefinition } from "./cardDefinition";
+import { CardDefinition, RendererDesc } from "./cardDefinition";
 import { 
   executeSpellEffect, 
   createSpellEffectAPI, 
@@ -27,6 +27,7 @@ export type GameCard = {
   description: string;
   spellEffect?: string; // Code string for spell effects
   triggeredAbilities?: ArtifactAbility[]; // Array of triggered abilities (for creatures and artifacts)
+  renderer?: RendererDesc | null; // Optional custom renderer for the card
   attackTargeting?: {
     canTargetPlayers?: boolean;
     canTargetCreatures?: boolean;
@@ -257,7 +258,8 @@ export const snapshotCustomCardLibrary = async (deckUrl: AutomergeUrl, repo: Rep
           name: cardDef.name,
           cost: cardDef.cost,
           type: cardDef.type,
-          description: cardDef.description
+          description: cardDef.description,
+          renderer: cardDef.renderer || undefined,
         };
         
         // Only add optional properties if they are defined
@@ -272,6 +274,9 @@ export const snapshotCustomCardLibrary = async (deckUrl: AutomergeUrl, repo: Rep
         }
         if (cardDef.triggeredAbilities !== undefined) {
           gameCard.triggeredAbilities = cardDef.triggeredAbilities;
+        }
+        if (cardDef.renderer !== undefined) {
+          gameCard.renderer = cardDef.renderer || undefined;
         }
         cardLibrary[gameCardId] = gameCard;
       }

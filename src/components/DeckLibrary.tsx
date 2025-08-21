@@ -111,6 +111,9 @@ const DeckLibrary: React.FC<DeckLibraryProps> = ({ rootDoc, addDeckToCollection,
           if (builtinCard.triggeredAbilities && builtinCard.triggeredAbilities.length > 0) {
             customCardData.triggeredAbilities = builtinCard.triggeredAbilities;
           }
+          if (builtinCard.renderer) {
+            customCardData.renderer = builtinCard.renderer;
+          }
 
           // Create the custom card definition
           const customCardHandle = createCardDefinition(repo, customCardData);

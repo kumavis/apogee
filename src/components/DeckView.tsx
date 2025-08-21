@@ -786,7 +786,8 @@ const AvailableCardDisplay: React.FC<{
     type: cardDef.type,
     description: cardDef.description,
     spellEffect: cardDef.spellEffect,
-    triggeredAbilities: cardDef.triggeredAbilities
+    triggeredAbilities: cardDef.triggeredAbilities,
+    renderer: cardDef.renderer || null
   };
 
   return (
@@ -892,7 +893,8 @@ const DeckCardDisplay: React.FC<{
     type: cardDef.type,
     description: cardDef.description,
     spellEffect: cardDef.spellEffect,
-    triggeredAbilities: cardDef.triggeredAbilities
+    triggeredAbilities: cardDef.triggeredAbilities,
+    renderer: cardDef.renderer || null
   };
 
   return (

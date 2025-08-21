@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { AutomergeUrl, useDocument, useRepo } from '@automerge/react';
 import { RootDocument } from '../docs/rootDoc';
-import { CardDefinition, createCardDefinition } from '../docs/cardDefinition';
+import { CardDefinition, createCardDefinition, RendererDesc, ImageRendererDesc } from '../docs/cardDefinition';
 import { useGameNavigation, makeCardViewUrl } from '../hooks/useGameNavigation';
 import { CARD_LIBRARY } from '../utils/cardLibrary';
 import { GameCard, CardType } from '../docs/game';
 import Card from './Card';
 import { ArtifactAbility, ArtifactTrigger } from '../utils/spellEffects';
 import Editor from '@monaco-editor/react';
+import ImageEditorCrop from './ImageEditorCrop';
 
 type CardLibraryProps = {
   rootDoc: RootDocument;
@@ -24,6 +25,7 @@ type NewCardForm = {
   description: string;
   spellEffect?: string;
   triggeredAbilities: ArtifactAbility[]; // Array of ability objects instead of JSON string
+  renderer?: RendererDesc | null; // Optional custom renderer for the card
 };
 
 const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary, removeCardFromLibrary }) => {
@@ -40,7 +42,8 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary, re
     cost: 1,
     type: 'creature',
     description: '',
-    triggeredAbilities: []
+    triggeredAbilities: [],
+    renderer: null
   });
 
   // Get hardcoded cards as read-only GameCard objects
@@ -77,6 +80,10 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary, re
 
     if (newCardData.triggeredAbilities.length > 0) {
       cardData.triggeredAbilities = newCardData.triggeredAbilities;
+    }
+
+    if (newCardData.renderer) {
+      cardData.renderer = newCardData.renderer;
     }
 
     const cardDefHandle = createCardDefinition(repo, cardData);
@@ -167,6 +174,13 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary, re
                     delete doc.triggeredAbilities;
                   }
                   
+                  // Handle renderer
+                  if (newCardData.renderer) {
+                    doc.renderer = newCardData.renderer;
+                  } else {
+                    delete doc.renderer;
+                  }
+                  
                   console.log('Document updated successfully');
                 } catch (updateError) {
                   console.error('Error during document update:', updateError);
@@ -237,7 +251,8 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary, re
       type: (card.type || 'creature') as CardType,
       description: String(card.description || ''),
       spellEffect: card.spellEffect ? String(card.spellEffect) : '',
-      triggeredAbilities: triggeredAbilities
+      triggeredAbilities: triggeredAbilities,
+      renderer: card.renderer || null
     });
     
     setShowNewCardForm(true);
@@ -256,7 +271,8 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary, re
       type: newCardData.type,
       description: newCardData.description,
       spellEffect: newCardData.spellEffect,
-      triggeredAbilities: newCardData.triggeredAbilities
+      triggeredAbilities: newCardData.triggeredAbilities,
+      renderer: newCardData.renderer
     });
   };
 
@@ -272,7 +288,8 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary, re
       type: newCardData.type,
       description: newCardData.description,
       spellEffect: newCardData.spellEffect,
-      triggeredAbilities: newCardData.triggeredAbilities
+      triggeredAbilities: newCardData.triggeredAbilities,
+      renderer: newCardData.renderer
     });
     setEditingCard(null); // Clear editing state to create new card
   };
@@ -285,7 +302,8 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary, re
       cost: 1,
       type: 'creature',
       description: '',
-      triggeredAbilities: []
+      triggeredAbilities: [],
+      renderer: null
     });
   };
 
@@ -470,10 +488,8 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary, re
                   type: newCardData.type,
                   description: newCardData.description || 'Card description will appear here...',
                   spellEffect: newCardData.spellEffect,
-                  triggeredAbilities: newCardData.triggeredAbilities ? 
-                    (() => {
-                                              return newCardData.triggeredAbilities;
-                    })() : undefined
+                  triggeredAbilities: newCardData.triggeredAbilities,
+                  renderer: newCardData.renderer
                 }} />
               </div>
             </div>
@@ -1057,6 +1073,86 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary, re
                   </div>
                 )}
 
+                {/* Renderer Section */}
+                <div style={{ 
+                  padding: 16,
+                  background: 'rgba(255,165,0,0.05)',
+                  border: '1px solid rgba(255,165,0,0.3)',
+                  borderRadius: 8,
+                  marginBottom: 16
+                }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center',
+                    marginBottom: 16
+                  }}>
+                    <label style={{ 
+                      fontSize: 14, 
+                      opacity: 0.9,
+                      color: '#ffaa00',
+                      fontWeight: 600
+                    }}>
+                      🎨 Card Renderer
+                    </label>
+                    <select
+                      value={newCardData.renderer?.type || 'default'}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === 'default') {
+                          setNewCardData(prev => ({ ...prev, renderer: null }));
+                        } else if (value === 'image') {
+                          setNewCardData(prev => ({ 
+                            ...prev, 
+                            renderer: { type: 'image', url: '' } as ImageRendererDesc 
+                          }));
+                        }
+                      }}
+                      disabled={editingCard?.isBuiltin}
+                      style={{
+                        padding: '6px 12px',
+                        background: editingCard?.isBuiltin ? 'rgba(100,100,100,0.4)' : 'rgba(0,0,0,0.4)',
+                        border: '1px solid rgba(255,165,0,0.5)',
+                        borderRadius: 6,
+                        color: editingCard?.isBuiltin ? '#999' : '#ffaa00',
+                        cursor: editingCard?.isBuiltin ? 'not-allowed' : 'pointer',
+                        fontSize: 12,
+                        fontWeight: 600
+                      }}
+                    >
+                      <option value="default">Default Card Frame</option>
+                      <option value="image">Custom Image</option>
+                    </select>
+                  </div>
+
+                  {/* Image Editor */}
+                  {newCardData.renderer?.type === 'image' && (
+                    <ImageEditorCrop
+                      key="image-editor"
+                      onImageChange={(dataUri) => {
+                        if (dataUri) {
+                          setNewCardData(prev => ({
+                            ...prev,
+                            renderer: { type: 'image', url: dataUri } as ImageRendererDesc
+                          }));
+                        } else {
+                          setNewCardData(prev => ({
+                            ...prev,
+                            renderer: { type: 'image', url: '' } as ImageRendererDesc
+                          }));
+                        }
+                      }}
+                      initialImage={
+                        newCardData.renderer?.type === 'image' && (newCardData.renderer as ImageRendererDesc).url ? 
+                        (newCardData.renderer as ImageRendererDesc).url : 
+                        null
+                      }
+                      width={360}
+                      height={504}
+                    />
+                  )}
+                </div>
+
                 {/* Action Buttons */}
                 <div style={{ 
                   display: 'flex', 
@@ -1591,7 +1687,8 @@ const LoadingCardDisplay: React.FC<{
     type: cardDef.type,
     description: cardDef.description,
     spellEffect: cardDef.spellEffect,
-    triggeredAbilities: cardDef.triggeredAbilities
+    triggeredAbilities: cardDef.triggeredAbilities,
+    renderer: cardDef.renderer || null
   };
 
   return (

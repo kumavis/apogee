@@ -25,6 +25,7 @@
     "@types/node": "^24.2.1",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
+    "react-image-crop": "^11.0.10",
     "react-router-dom": "^6.30.1"
   },
   "devDependencies": {
