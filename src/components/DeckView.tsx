@@ -57,55 +57,43 @@ const DeckView: React.FC<DeckViewProps> = ({ rootDoc, addDeckToCollection }) => 
   const isOwner = deck.createdBy === rootDoc.selfId;
 
   const handleAddCard = (cardUrl: AutomergeUrl) => {
-    // Update the deck document
-    const deckHandle = repo.find(deckId as AutomergeUrl);
-    if (deckHandle) {
-      deckHandle.then((handle) => {
-        if (handle) {
-          handle.change((doc: any) => {
-            const existingCard = doc.cards.find((card: any) => card.cardUrl === cardUrl);
+    changeDeck((doc) => {
+      const existingCard = doc.cards.find((card) => card.cardUrl === cardUrl);
 
-            if (existingCard) {
-              // Update existing card quantity
-              existingCard.quantity += 1;
-            } else {
-              // Add new card
-              doc.cards.push({
-                cardUrl: cardUrl,
-                quantity: 1
-              });
-            }
+      if (existingCard) {
+        // Update existing card quantity
+        existingCard.quantity += 1;
+      } else {
+        // Add new card
+        doc.cards.push({
+          cardUrl: cardUrl,
+          quantity: 1
+        });
+      }
 
-            doc.updatedAt = new Date().toISOString();
-          });
-        }
-      });
-    }
+      doc.updatedAt = new Date().toISOString();
+    });
   };
 
   const handleRemoveCard = (cardUrl: AutomergeUrl, quantity: number = 1) => {
-    const deckHandle = repo.find(deckId as AutomergeUrl);
-    if (deckHandle) {
-      deckHandle.then((handle) => {
-        if (handle) {
-          handle.change((doc: any) => {
-            const existingCard = doc.cards.find((card: any) => card.cardUrl === cardUrl);
+    changeDeck((doc) => {
+      const existingCard = doc.cards.find((card) => card.cardUrl === cardUrl);
 
-            if (existingCard) {
-              if (existingCard.quantity <= quantity) {
-                // Remove card entirely
-                doc.cards = doc.cards.filter((card: any) => card.cardUrl !== cardUrl);
-              } else {
-                // Reduce quantity
-                existingCard.quantity -= quantity;
-              }
-
-              doc.updatedAt = new Date().toISOString();
-            }
-          });
+      if (existingCard) {
+        if (existingCard.quantity <= quantity) {
+          // Remove card entirely
+          const index = doc.cards.findIndex((card) => card.cardUrl === cardUrl);
+          if (index !== -1) {
+            doc.cards.splice(index, 1);
+          }
+        } else {
+          // Reduce quantity
+          existingCard.quantity -= quantity;
         }
-      });
-    }
+
+        doc.updatedAt = new Date().toISOString();
+      }
+    });
   };
 
   const handleUpdateCardQuantity = (cardUrl: AutomergeUrl, newQuantity: number) => {
@@ -114,21 +102,14 @@ const DeckView: React.FC<DeckViewProps> = ({ rootDoc, addDeckToCollection }) => 
       return;
     }
 
-    const deckHandle = repo.find(deckId as AutomergeUrl);
-    if (deckHandle) {
-      deckHandle.then((handle) => {
-        if (handle) {
-          handle.change((doc: any) => {
-            const existingCard = doc.cards.find((card: any) => card.cardUrl === cardUrl);
+    changeDeck((doc) => {
+      const existingCard = doc.cards.find((card) => card.cardUrl === cardUrl);
 
-            if (existingCard) {
-              existingCard.quantity = newQuantity;
-              doc.updatedAt = new Date().toISOString();
-            }
-          });
-        }
-      });
-    }
+      if (existingCard) {
+        existingCard.quantity = newQuantity;
+        doc.updatedAt = new Date().toISOString();
+      }
+    });
   };
 
   const handleCloneDeck = () => {

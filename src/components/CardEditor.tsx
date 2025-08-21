@@ -120,7 +120,7 @@ const CardEditor: React.FC<CardEditorProps> = ({
     onSave(cardDefHandle.url);
   };
 
-  const handleUpdateCard = () => {
+  const handleUpdateCard = async () => {
     if (!editingCard || editingCard.isBuiltin) return;
     
     if (!newCardData.name.trim()) {
@@ -143,98 +143,83 @@ const CardEditor: React.FC<CardEditorProps> = ({
     // Update the document using the correct Automerge pattern
     if (editingCard.cardUrl) {
       try {
-        const cardHandle = repo.find(editingCard.cardUrl);
-        if (cardHandle) {
-          cardHandle.then((handle) => {
-            if (handle) {
-              console.log('Got card handle, updating document...');
-              handle.change((doc: any) => {
-                try {
-                  console.log('Current document state:', {
-                    name: doc.name,
-                    cost: doc.cost,
-                    type: doc.type,
-                    hasAttack: 'attack' in doc,
-                    hasHealth: 'health' in doc,
-                    hasSpellEffect: 'spellEffect' in doc,
-                    hasTriggeredAbilities: 'triggeredAbilities' in doc
-                  });
-                  
-                  // Update basic properties - ensure we're setting primitive values
-                  doc.name = String(newCardData.name.trim());
-                  doc.cost = Number(newCardData.cost);
-                  doc.type = String(newCardData.type);
-                  doc.description = String(newCardData.description);
-                  
-                  // Handle creature-specific properties
-                  if (newCardData.type === 'creature') {
-                    doc.attack = Number(newCardData.attack || 1);
-                    doc.health = Number(newCardData.health || 1);
-                  } else {
-                    // Remove attack/health for non-creatures
-                    delete doc.attack;
-                    delete doc.health;
-                  }
-                  
-                  // Handle spell effect
-                  if (newCardData.spellEffect?.trim()) {
-                    doc.spellEffect = String(newCardData.spellEffect.trim());
-                  } else {
-                    delete doc.spellEffect;
-                  }
-                  
-                  // Handle triggered abilities - ensure we create completely new objects
-                  if (newCardData.triggeredAbilities.length > 0) {
-                    // Create a completely new array with new objects to avoid any reference issues
-                    const cleanAbilities = newCardData.triggeredAbilities.map(ability => {
-                      // Ensure we're creating plain objects, not Automerge references
-                      return {
-                        trigger: String(ability.trigger),
-                        effectCode: String(ability.effectCode),
-                        description: String(ability.description || '')
-                      };
-                    });
-                    doc.triggeredAbilities = cleanAbilities;
-                  } else {
-                    delete doc.triggeredAbilities;
-                  }
-                  
-                  // Handle renderer
-                  if (newCardData.renderer) {
-                    doc.renderer = newCardData.renderer;
-                  } else {
-                    delete doc.renderer;
-                  }
-                  
-                  console.log('Document updated successfully');
-                } catch (updateError) {
-                  console.error('Error during document update:', updateError);
-                  console.error('Update error details:', {
-                    error: updateError,
-                    errorType: typeof updateError,
-                    errorMessage: updateError instanceof Error ? updateError.message : 'Unknown error type',
-                    errorStack: updateError instanceof Error ? updateError.stack : 'No stack trace'
-                  });
-                  throw updateError; // Re-throw to be caught by outer catch
-                }
-              });
-              
-              console.log('Card update completed successfully');
-              // Reset form on successful update
-              onCancel();
+        const cardHandle = await repo.find(editingCard.cardUrl);
+        console.log('Got card handle, updating document...');
+        cardHandle.change((doc: any) => {
+          try {
+            console.log('Current document state:', {
+              name: doc.name,
+              cost: doc.cost,
+              type: doc.type,
+              hasAttack: 'attack' in doc,
+              hasHealth: 'health' in doc,
+              hasSpellEffect: 'spellEffect' in doc,
+              hasTriggeredAbilities: 'triggeredAbilities' in doc
+            });
+            
+            // Update basic properties - ensure we're setting primitive values
+            doc.name = String(newCardData.name.trim());
+            doc.cost = Number(newCardData.cost);
+            doc.type = String(newCardData.type);
+            doc.description = String(newCardData.description);
+            
+            // Handle creature-specific properties
+            if (newCardData.type === 'creature') {
+              doc.attack = Number(newCardData.attack || 1);
+              doc.health = Number(newCardData.health || 1);
             } else {
-              throw new Error('Card handle not found');
+              // Remove attack/health for non-creatures
+              delete doc.attack;
+              delete doc.health;
             }
-          }).catch((error) => {
-            console.error('Error updating card:', error);
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            alert(`Error updating card: ${errorMessage}`);
-          });
-        } else {
-          throw new Error('Card handle not found');
-        }
-      } catch (error) {
-        console.error('Error in handleUpdateCard:', error);
+            
+            // Handle spell effect
+            if (newCardData.spellEffect?.trim()) {
+              doc.spellEffect = String(newCardData.spellEffect.trim());
+            } else {
+              delete doc.spellEffect;
+            }
+            
+            // Handle triggered abilities - ensure we create completely new objects
+            if (newCardData.triggeredAbilities.length > 0) {
+              // Create a completely new array with new objects to avoid any reference issues
+              const cleanAbilities = newCardData.triggeredAbilities.map(ability => {
+                // Ensure we're creating plain objects, not Automerge references
+                return {
+                  trigger: String(ability.trigger),
+                  effectCode: String(ability.effectCode),
+                  description: String(ability.description || '')
+                };
+              });
+              doc.triggeredAbilities = cleanAbilities;
+            } else {
+              delete doc.triggeredAbilities;
+            }
+            
+            // Handle renderer
+            if (newCardData.renderer) {
+              doc.renderer = newCardData.renderer;
+            } else {
+              delete doc.renderer;
+            }
+            
+            console.log('Document updated successfully');
+          } catch (updateError) {
+            console.error('Error during document update:', updateError);
+            console.error('Update error details:', {
+              error: updateError,
+              errorType: typeof updateError,
+              errorMessage: updateError instanceof Error ? updateError.message : 'Unknown error type',
+              errorStack: updateError instanceof Error ? updateError.stack : 'No stack trace'
+            });
+            throw updateError; // Re-throw to be caught by outer catch
+          }
+        });
+        console.log('Card update completed successfully');
+        // Reset form on successful update
+        onCancel();
+      } catch (error) { 
+        console.error('Error updating card:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         alert(`Error updating card: ${errorMessage}`);
       }
