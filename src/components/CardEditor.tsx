@@ -5,7 +5,7 @@ import { GameCard, CardType } from '../docs/game';
 import { ArtifactAbility, ArtifactTrigger } from '../utils/spellEffects';
 import { makeCardViewUrl } from '../hooks/useGameNavigation';
 import Card from './Card';
-import ImageEditorCrop from './ImageEditorCrop';
+import ImageEditor from './ImageEditor';
 import MonacoCodeEditor from './MonacoCodeEditor';
 
 export type NewCardForm = {
@@ -42,6 +42,7 @@ const CardEditor: React.FC<CardEditorProps> = ({
   onClone
 }) => {
   const repo = useRepo();
+  const [imageEditorKey, setImageEditorKey] = useState(0);
   const [newCardData, setNewCardData] = useState<NewCardForm>(() => {
     if (!editingCard) {
       return {
@@ -934,85 +935,103 @@ const CardEditor: React.FC<CardEditorProps> = ({
               </div>
             )}
 
-            {/* Renderer Section */}
-            <div style={{ 
-              padding: 16,
-              background: 'rgba(255,165,0,0.05)',
-              border: '1px solid rgba(255,165,0,0.3)',
-              borderRadius: 8,
-              marginBottom: 16
-            }}>
+            {/* Renderer Section - Only show for non-builtin cards */}
+            {!editingCard?.isBuiltin && (
               <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
+                padding: 16,
+                background: 'rgba(255,165,0,0.05)',
+                border: '1px solid rgba(255,165,0,0.3)',
+                borderRadius: 8,
                 marginBottom: 16
               }}>
-                <label style={{ 
-                  fontSize: 14, 
-                  opacity: 0.9,
-                  color: '#ffaa00',
-                  fontWeight: 600
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  marginBottom: 16
                 }}>
-                  🎨 Card Renderer
-                </label>
-                <select
-                  value={newCardData.renderer?.type || 'default'}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    if (value === 'default') {
-                      setNewCardData(prev => ({ ...prev, renderer: null }));
-                    } else if (value === 'image') {
-                      setNewCardData(prev => ({ 
-                        ...prev, 
-                        renderer: { type: 'image', url: '' } as ImageRendererDesc 
-                      }));
-                    }
-                  }}
-                  disabled={editingCard?.isBuiltin}
-                  style={{
-                    padding: '6px 12px',
-                    background: editingCard?.isBuiltin ? 'rgba(100,100,100,0.4)' : 'rgba(0,0,0,0.4)',
-                    border: '1px solid rgba(255,165,0,0.5)',
-                    borderRadius: 6,
-                    color: editingCard?.isBuiltin ? '#999' : '#ffaa00',
-                    cursor: editingCard?.isBuiltin ? 'not-allowed' : 'pointer',
-                    fontSize: 12,
+                  <label style={{ 
+                    fontSize: 14, 
+                    opacity: 0.9,
+                    color: '#ffaa00',
                     fontWeight: 600
-                  }}
-                >
-                  <option value="default">Default Card Frame</option>
-                  <option value="image">Custom Image</option>
-                </select>
-              </div>
+                  }}>
+                    🎨 Card Renderer
+                  </label>
+                  <select
+                    value={newCardData.renderer?.type || 'default'}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === 'default') {
+                        setNewCardData(prev => ({ ...prev, renderer: null }));
+                      } else if (value === 'image') {
+                        setNewCardData(prev => ({ 
+                          ...prev, 
+                          renderer: { type: 'image', url: '' } as ImageRendererDesc 
+                        }));
+                      }
+                    }}
+                    style={{
+                      padding: '6px 12px',
+                      background: 'rgba(0,0,0,0.4)',
+                      border: '1px solid rgba(255,165,0,0.5)',
+                      borderRadius: 6,
+                      color: '#ffaa00',
+                      cursor: 'pointer',
+                      fontSize: 12,
+                      fontWeight: 600
+                    }}
+                  >
+                    <option value="default">Default Card Frame</option>
+                    <option value="image">Custom Image</option>
+                  </select>
+                </div>
 
-              {/* Image Editor */}
-              {newCardData.renderer?.type === 'image' && (
-                <ImageEditorCrop
-                  key="image-editor"
-                  onImageChange={(dataUri) => {
-                    if (dataUri) {
-                      setNewCardData(prev => ({
-                        ...prev,
-                        renderer: { type: 'image', url: dataUri } as ImageRendererDesc
-                      }));
-                    } else {
-                      setNewCardData(prev => ({
-                        ...prev,
-                        renderer: { type: 'image', url: '' } as ImageRendererDesc
-                      }));
+                {/* Image Editor */}
+                {newCardData.renderer?.type === 'image' && (
+                  <ImageEditor
+                    key={`image-editor-${imageEditorKey}`}
+                    onImageChange={(dataUri) => {
+                      if (dataUri) {
+                        setNewCardData(prev => ({
+                          ...prev,
+                          renderer: { type: 'image', url: dataUri } as ImageRendererDesc
+                        }));
+                      } else {
+                        setNewCardData(prev => ({
+                          ...prev,
+                          renderer: { type: 'image', url: '' } as ImageRendererDesc
+                        }));
+                      }
+                    }}
+                    initialImage={
+                      newCardData.renderer?.type === 'image' && (newCardData.renderer as ImageRendererDesc).url ? 
+                      (newCardData.renderer as ImageRendererDesc).url : 
+                      null
                     }
-                  }}
-                  initialImage={
-                    newCardData.renderer?.type === 'image' && (newCardData.renderer as ImageRendererDesc).url ? 
-                    (newCardData.renderer as ImageRendererDesc).url : 
-                    null
-                  }
-                  width={360}
-                  height={504}
-                />
-              )}
-            </div>
+                    width={240}
+                    height={336}
+                    showUndoButton={!!editingCard && !editingCard.isBuiltin}
+                    onUndo={() => {
+                      if (editingCard?.card.renderer && editingCard.card.renderer.type === 'image') {
+                        const imageRenderer = editingCard.card.renderer as ImageRendererDesc;
+                        setNewCardData(prev => ({
+                          ...prev,
+                          renderer: { type: 'image', url: imageRenderer.url } as ImageRendererDesc
+                        }));
+                      } else {
+                        setNewCardData(prev => ({
+                          ...prev,
+                          renderer: null
+                        }));
+                      }
+                      // Force ImageEditor to re-render with new initial image
+                      setImageEditorKey(prev => prev + 1);
+                    }}
+                  />
+                )}
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div style={{ 
