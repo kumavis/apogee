@@ -33,6 +33,10 @@ export const useGameNavigation = () => {
     navigate(`/deck/${deckId}`);
   }, [navigate]);
 
+  const navigateToCardEdit = useCallback((cardId: AutomergeUrl) => {
+    navigate(`/card/${cardId}/edit`);
+  }, [navigate]);
+
   return {
     navigateToGame,
     navigateToHome,
@@ -41,6 +45,7 @@ export const useGameNavigation = () => {
     navigateToCardView,
     navigateToDeckLibrary,
     navigateToDeckView,
+    navigateToCardEdit,
   };
 };
 

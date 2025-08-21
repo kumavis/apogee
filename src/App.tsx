@@ -7,6 +7,7 @@ import GameView from './components/GameView';
 import Settings from './components/Settings';
 import CardLibrary from './components/CardLibrary';
 import CardView from './components/CardView';
+import CardEditPage from './components/CardEditPage';
 import DeckLibrary from './components/DeckLibrary';
 import DeckView from './components/DeckView';
 import { RootDocument } from './docs/rootDoc';
@@ -88,6 +89,7 @@ function App({ rootDocUrl }: { rootDocUrl: AutomergeUrl }) {
           <Route path="/settings" element={<Settings rootDocUrl={rootDocUrl} selfId={rootDoc.selfId} />} />
           <Route path="/library" element={<CardLibrary rootDoc={rootDoc} addCardToLibrary={addCardToLibrary} removeCardFromLibrary={removeCardFromLibrary} />} />
           <Route path="/card/:cardId" element={<CardView rootDoc={rootDoc} addCardToLibrary={addCardToLibrary} />} />
+          <Route path="/card/:cardId/edit" element={<CardEditPage rootDoc={rootDoc} addCardToLibrary={addCardToLibrary} />} />
           <Route path="/decks" element={<DeckLibrary rootDoc={rootDoc} addDeckToCollection={addDeckToCollection} addCardsToLibrary={addCardsToLibrary} removeDeckFromCollection={removeDeckFromCollection} />} />
           <Route path="/deck/:deckId" element={<DeckView rootDoc={rootDoc} addDeckToCollection={addDeckToCollection} />} />
         </Routes>

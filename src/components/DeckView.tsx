@@ -21,7 +21,7 @@ type DeckViewParams = {
 const DeckView: React.FC<DeckViewProps> = ({ rootDoc, addDeckToCollection }) => {
   const { deckId } = useParams<DeckViewParams>();
   const navigate = useNavigate();
-  const { navigateToHome, navigateToDeckLibrary } = useGameNavigation();
+  const { navigateToHome, navigateToDeckLibrary, navigateToCardEdit, navigateToCardView, navigateToCardLibrary } = useGameNavigation();
   const repo = useRepo();
 
   const [showCloneForm, setShowCloneForm] = useState(false);
@@ -700,6 +700,8 @@ const DeckView: React.FC<DeckViewProps> = ({ rootDoc, addDeckToCollection }) => 
                 deckCard={deckCard}
                 onRemoveCard={handleRemoveCard}
                 onUpdateQuantity={handleUpdateCardQuantity}
+                onEditCard={navigateToCardEdit}
+                onViewCard={navigateToCardView}
               />
             ))}
           </div>
@@ -710,16 +712,50 @@ const DeckView: React.FC<DeckViewProps> = ({ rootDoc, addDeckToCollection }) => 
       <div style={{
         marginBottom: 24
       }}>
-        <h2 style={{
-          fontSize: 20,
-          margin: '0 0 16px 0',
-          color: '#00ffff',
+        <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 8
+          justifyContent: 'space-between',
+          marginBottom: 16
         }}>
-          🎴 Available Cards to Add
-        </h2>
+          <h2 style={{
+            fontSize: 20,
+            margin: 0,
+            color: '#00ffff',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8
+          }}>
+            🎴 Available Cards to Add
+          </h2>
+          
+          <button
+            onClick={navigateToCardLibrary}
+            style={{
+              background: 'linear-gradient(135deg, #00ffff 0%, #0088ff 100%)',
+              color: '#000',
+              border: 'none',
+              padding: '8px 16px',
+              borderRadius: 6,
+              cursor: 'pointer',
+              fontSize: 14,
+              fontWeight: 600,
+              transition: 'all 0.2s ease',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 2px 8px rgba(0,255,255,0.3)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-1px)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,255,255,0.4)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0px)';
+              e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,255,255,0.3)';
+            }}
+          >
+            📚 Go to Card Library
+          </button>
+        </div>
 
         <div style={{
           display: 'grid',
@@ -732,6 +768,8 @@ const DeckView: React.FC<DeckViewProps> = ({ rootDoc, addDeckToCollection }) => 
               key={cardUrl}
               cardUrl={cardUrl}
               onAddCard={handleAddCard}
+              onEditCard={navigateToCardEdit}
+              onViewCard={navigateToCardView}
               currentQuantity={deck.cards.find(card => card.cardUrl === cardUrl)?.quantity || 0}
             />
           ))}
@@ -758,7 +796,9 @@ const AvailableCardDisplay: React.FC<{
   cardUrl: AutomergeUrl;
   onAddCard: (cardUrl: AutomergeUrl) => void;
   currentQuantity: number;
-}> = ({ cardUrl, onAddCard, currentQuantity }) => {
+  onEditCard: (cardUrl: AutomergeUrl) => void;
+  onViewCard: (cardUrl: AutomergeUrl) => void;
+}> = ({ cardUrl, onAddCard, currentQuantity, onEditCard, onViewCard }) => {
   const [cardDef] = useDocument<CardDefinition>(cardUrl, { suspense: false });
 
   if (!cardDef) {
@@ -806,55 +846,120 @@ const AvailableCardDisplay: React.FC<{
         <Card card={gameCard} />
       </div>
 
-      {/* Add Button and Quantity Info */}
+      {/* Buttons and Quantity Info */}
       <div style={{
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        flexDirection: 'column',
+        gap: 6,
         padding: '0 4px'
       }}>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onAddCard(cardUrl);
-          }}
-          style={{
-            background: 'linear-gradient(135deg, #00ff00 0%, #00aa00 100%)',
-            color: '#000',
-            border: 'none',
-            padding: '6px 12px',
-            borderRadius: 6,
-            cursor: 'pointer',
-            fontSize: 12,
-            fontWeight: 600,
-            transition: 'all 0.2s ease',
-            flex: 1,
-            marginRight: 8
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = 'translateY(-1px)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = 'translateY(0px)';
-          }}
-        >
-          ➕ Add
-        </button>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddCard(cardUrl);
+            }}
+            style={{
+              background: 'linear-gradient(135deg, #00ff00 0%, #00aa00 100%)',
+              color: '#000',
+              border: 'none',
+              padding: '6px 12px',
+              borderRadius: 6,
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 600,
+              transition: 'all 0.2s ease',
+              flex: 1,
+              marginRight: 8
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-1px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0px)';
+            }}
+          >
+            ➕ Add
+          </button>
 
-        {currentQuantity > 0 && (
-          <span style={{
-            fontSize: 12,
-            color: '#00ffff',
-            fontWeight: 600,
-            background: 'rgba(0,255,255,0.2)',
-            padding: '4px 8px',
-            borderRadius: 4,
-            minWidth: 20,
-            textAlign: 'center'
-          }}>
-            {currentQuantity}
-          </span>
-        )}
+          {currentQuantity > 0 && (
+            <span style={{
+              fontSize: 12,
+              color: '#00ffff',
+              fontWeight: 600,
+              background: 'rgba(0,255,255,0.2)',
+              padding: '4px 8px',
+              borderRadius: 4,
+              minWidth: 20,
+              textAlign: 'center'
+            }}>
+              {currentQuantity}
+            </span>
+          )}
+        </div>
+        
+        <div style={{
+          display: 'flex',
+          gap: 4
+        }}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEditCard(cardUrl);
+            }}
+            style={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: '#fff',
+              border: 'none',
+              padding: '6px 12px',
+              borderRadius: 6,
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 600,
+              transition: 'all 0.2s ease',
+              flex: 1
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-1px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0px)';
+            }}
+          >
+            ✏️ Edit
+          </button>
+          
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewCard(cardUrl);
+            }}
+            style={{
+              background: 'linear-gradient(135deg, #00ffff 0%, #0088ff 100%)',
+              color: '#000',
+              border: 'none',
+              padding: '6px 12px',
+              borderRadius: 6,
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 600,
+              transition: 'all 0.2s ease',
+              flex: 1
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-1px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0px)';
+            }}
+          >
+            👁️ View
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -865,7 +970,9 @@ const DeckCardDisplay: React.FC<{
   deckCard: { cardUrl: AutomergeUrl; quantity: number };
   onRemoveCard: (cardUrl: AutomergeUrl, quantity?: number) => void;
   onUpdateQuantity: (cardUrl: AutomergeUrl, quantity: number) => void;
-}> = ({ deckCard, onRemoveCard, onUpdateQuantity }) => {
+  onEditCard: (cardUrl: AutomergeUrl) => void;
+  onViewCard: (cardUrl: AutomergeUrl) => void;
+}> = ({ deckCard, onRemoveCard, onUpdateQuantity, onEditCard, onViewCard }) => {
   const [cardDef] = useDocument<CardDefinition>(deckCard.cardUrl, { suspense: false });
 
   if (!cardDef) {
@@ -911,84 +1018,145 @@ const DeckCardDisplay: React.FC<{
         <Card card={gameCard} />
       </div>
 
-      {/* Quantity Controls */}
+      {/* Controls */}
       <div style={{
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        flexDirection: 'column',
         gap: 8
       }}>
+        {/* Quantity Controls */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
+          justifyContent: 'space-between',
           gap: 8
         }}>
-          <span style={{ fontSize: 14, color: '#00ffff', fontWeight: 600 }}>
-            Qty: {deckCard.quantity}
-          </span>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8
+          }}>
+            <span style={{ fontSize: 14, color: '#00ffff', fontWeight: 600 }}>
+              Qty: {deckCard.quantity}
+            </span>
 
-          <div style={{ display: 'flex', gap: 4 }}>
-            <button
-              onClick={() => onUpdateQuantity(deckCard.cardUrl, deckCard.quantity - 1)}
-              style={{
-                width: 24,
-                height: 24,
-                background: 'rgba(255,100,100,0.3)',
-                border: '1px solid rgba(255,100,100,0.5)',
-                borderRadius: '50%',
-                color: '#ff6666',
-                cursor: 'pointer',
-                fontSize: 12,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              -
-            </button>
-            <button
-              onClick={() => onUpdateQuantity(deckCard.cardUrl, deckCard.quantity + 1)}
-              disabled={deckCard.quantity >= 10}
-              style={{
-                width: 24,
-                height: 24,
-                background: deckCard.quantity < 10 ? 'rgba(100,255,100,0.3)' : 'rgba(100,100,100,0.3)',
-                border: '1px solid rgba(100,255,100,0.5)',
-                borderRadius: '50%',
-                color: deckCard.quantity < 10 ? '#66ff66' : '#666',
-                cursor: deckCard.quantity < 10 ? 'pointer' : 'not-allowed',
-                fontSize: 12,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              +
-            </button>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button
+                onClick={() => onUpdateQuantity(deckCard.cardUrl, deckCard.quantity - 1)}
+                style={{
+                  width: 24,
+                  height: 24,
+                  background: 'rgba(255,100,100,0.3)',
+                  border: '1px solid rgba(255,100,100,0.5)',
+                  borderRadius: '50%',
+                  color: '#ff6666',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                -
+              </button>
+              <button
+                onClick={() => onUpdateQuantity(deckCard.cardUrl, deckCard.quantity + 1)}
+                disabled={deckCard.quantity >= 10}
+                style={{
+                  width: 24,
+                  height: 24,
+                  background: deckCard.quantity < 10 ? 'rgba(100,255,100,0.3)' : 'rgba(100,100,100,0.3)',
+                  border: '1px solid rgba(100,255,100,0.5)',
+                  borderRadius: '50%',
+                  color: deckCard.quantity < 10 ? '#66ff66' : '#666',
+                  cursor: deckCard.quantity < 10 ? 'pointer' : 'not-allowed',
+                  fontSize: 12,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                +
+              </button>
+            </div>
           </div>
+
+          <button
+            onClick={() => onRemoveCard(deckCard.cardUrl, deckCard.quantity)}
+            style={{
+              padding: '4px 8px',
+              background: 'rgba(255,0,0,0.2)',
+              border: '1px solid rgba(255,0,0,0.4)',
+              borderRadius: 4,
+              color: '#ff6666',
+              cursor: 'pointer',
+              fontSize: 11,
+              fontWeight: 600
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(255,0,0,0.3)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(255,0,0,0.2)';
+            }}
+          >
+            Remove
+          </button>
         </div>
 
-        <button
-          onClick={() => onRemoveCard(deckCard.cardUrl, deckCard.quantity)}
-          style={{
-            padding: '4px 8px',
-            background: 'rgba(255,0,0,0.2)',
-            border: '1px solid rgba(255,0,0,0.4)',
-            borderRadius: 4,
-            color: '#ff6666',
-            cursor: 'pointer',
-            fontSize: 11,
-            fontWeight: 600
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(255,0,0,0.3)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'rgba(255,0,0,0.2)';
-          }}
-        >
-          Remove
-        </button>
+        {/* Action Buttons */}
+        <div style={{
+          display: 'flex',
+          gap: 6
+        }}>
+          <button
+            onClick={() => onEditCard(deckCard.cardUrl)}
+            style={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: '#fff',
+              border: 'none',
+              padding: '6px 12px',
+              borderRadius: 6,
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 600,
+              transition: 'all 0.2s ease',
+              flex: 1
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-1px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0px)';
+            }}
+          >
+            ✏️ Edit
+          </button>
+          
+          <button
+            onClick={() => onViewCard(deckCard.cardUrl)}
+            style={{
+              background: 'linear-gradient(135deg, #00ffff 0%, #0088ff 100%)',
+              color: '#000',
+              border: 'none',
+              padding: '6px 12px',
+              borderRadius: 6,
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 600,
+              transition: 'all 0.2s ease',
+              flex: 1
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-1px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0px)';
+            }}
+          >
+            👁️ View
+          </button>
+        </div>
       </div>
     </div>
   );

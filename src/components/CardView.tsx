@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useDocument } from '@automerge/react';
 import { AutomergeUrl } from '@automerge/react';
 import { CardDefinition } from '../docs/cardDefinition';
@@ -13,11 +13,13 @@ type CardViewProps = {
 
 const CardView: React.FC<CardViewProps> = ({ rootDoc, addCardToLibrary }) => {
   const { cardId } = useParams<{ cardId: AutomergeUrl }>();
+  const navigate = useNavigate();
+  const location = useLocation();
   if (!cardId) {
     throw new Error('Card ID is required');
   }
   const [cardDoc] = useDocument<CardDefinition>(cardId, { suspense: false });
-  const { navigateToCardLibrary } = useGameNavigation();
+  const { navigateToCardLibrary, navigateToCardEdit } = useGameNavigation();
   
   const cardRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -29,6 +31,15 @@ const CardView: React.FC<CardViewProps> = ({ rootDoc, addCardToLibrary }) => {
     // Check if it's a custom card in the library
     return rootDoc.cardLibrary.includes(cardId);
   }, [cardId, rootDoc.cardLibrary]);
+
+  // Smart back button handler
+  const handleBack = () => {
+    if (location.key !== 'default') {
+      navigate(-1);
+    } else {
+      navigateToCardLibrary();
+    }
+  };
 
   // 3D tilt effect setup with performance optimizations
   useEffect(() => {
@@ -129,7 +140,7 @@ const CardView: React.FC<CardViewProps> = ({ rootDoc, addCardToLibrary }) => {
     }}>
       {/* Back button */}
       <button
-        onClick={() => navigateToCardLibrary()}
+        onClick={handleBack}
         style={{
           position: 'absolute',
           top: 20,
@@ -154,7 +165,7 @@ const CardView: React.FC<CardViewProps> = ({ rootDoc, addCardToLibrary }) => {
           e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
         }}
       >
-        ← Back to Library
+        ← Back
       </button>
 
       {/* 3D Card Container */}
@@ -215,9 +226,42 @@ const CardView: React.FC<CardViewProps> = ({ rootDoc, addCardToLibrary }) => {
           maxWidth: '100%', // Prevent overflow
           wordWrap: 'break-word' // Handle long text gracefully
         }}>
-          <span style={{ color: '#00ffff', fontSize: '1.1rem' }}>
-            ✅ This card is already in your library
-          </span>
+          <div style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center',
+            gap: 12
+          }}>
+            <span style={{ color: '#00ffff', fontSize: '1.1rem' }}>
+              ✅ This card is already in your library
+            </span>
+            <button
+              onClick={() => navigateToCardEdit(cardId)}
+              style={{
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: '#fff',
+                border: 'none',
+                padding: '10px 20px',
+                borderRadius: 8,
+                cursor: 'pointer',
+                fontSize: '0.95rem',
+                fontWeight: 600,
+                transition: 'all 0.2s ease',
+                boxShadow: '0 4px 12px rgba(102,126,234,0.3)',
+                whiteSpace: 'nowrap'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 16px rgba(102,126,234,0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0px)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(102,126,234,0.3)';
+              }}
+            >
+              ✏️ Edit Card
+            </button>
+          </div>
         </div>}
       
         {!isInLibrary && addCardToLibrary && <button
