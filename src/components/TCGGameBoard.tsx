@@ -1074,7 +1074,12 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
         }}>
           {playerBattlefieldData.map((battlefieldCard) => {
             const canBeTargeted = targetingState.isTargeting && canTargetCreature(selfId, battlefieldCard.instanceId);
-            const canAttack = !targetingState.isTargeting && isCurrentPlayer && !battlefieldCard.sapped;
+            // Get the card document from the loaded map
+            const cardDoc = battlefieldCardDocsMap.get(battlefieldCard.cardUrl);
+            const canAttack = !targetingState.isTargeting && 
+                              isCurrentPlayer && 
+                              !battlefieldCard.sapped && 
+                              cardDoc?.type === 'creature'; // Only creatures can attack
 
             const handleClick = canBeTargeted
               ? async () => {
