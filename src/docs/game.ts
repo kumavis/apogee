@@ -138,7 +138,7 @@ export const addCardToBattlefield = async (doc: GameDoc, playerId: AutomergeUrl,
   doc.playerBattlefields[battlefieldIndex].cards.push({
     instanceId,
     cardUrl,
-    sapped: true, // New creatures start sapped (summoning sickness)
+    sapped: cardDoc.type === 'creature', // Only creatures start sapped (summoning sickness), artifacts do not
     currentHealth: cardDoc.health || 1 // Set initial health from card definition, default to 1
   });
   return true;
