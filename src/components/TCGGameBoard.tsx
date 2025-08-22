@@ -1181,7 +1181,6 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
       {/* Game Log */}
       <GameLog
         gameLog={gameDoc.gameLog}
-        cardLibrary={{}}
       />
 
       {/* Action Buttons */}
