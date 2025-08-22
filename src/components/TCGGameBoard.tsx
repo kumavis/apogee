@@ -7,7 +7,7 @@ import { useCardTargeting } from '../hooks/useCardTargeting';
 import Card, { CardData } from './Card';
 import Contact from './Contact';
 import GameLog from './GameLog';
-import { SpellTargetSelector, SpellTarget, createSpellEffectAPI, executeSpellEffect, executeSpellOperations } from '../utils/spellEffects';
+import { SpellTargetSelector, SpellTarget, createSpellEffectAPI, executeSpellEffect, executeSpellOperations, executeSpellTriggeredAbilities } from '../utils/spellEffects';
 import { Target, getTargetingSelectorForAttack } from '../utils/unifiedTargeting';
 
 type NotPromise<T> = T extends Promise<any> ? never : T;
@@ -639,6 +639,9 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
           const api = createSpellEffectAPI(gameDoc, selfId, selectTargets);
           const success = card.spellEffect ? await executeSpellEffect(card.spellEffect, api) : false;
 
+          // Store operations for triggered abilities
+          const operationsForTriggeredAbilities = success && api.operations.length > 0 ? [...api.operations] : [];
+
           // Now update the game state in one synchronous operation
           changeGameDoc((doc) => {
             // Check if we can afford the card and remove it from hand
@@ -654,7 +657,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
                 description: `Cast ${card.name}`
               });
 
-              // Then execute the collected spell operations
+              // Then execute the collected spell operations synchronously
               if (success && api.operations.length > 0) {
                 executeSpellOperations(doc, api.operations);
               }
@@ -662,6 +665,11 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
               console.error('Failed to cast spell - insufficient resources');
             }
           });
+
+          // Execute triggered abilities asynchronously after document changes
+          if (operationsForTriggeredAbilities.length > 0) {
+            await executeSpellTriggeredAbilities(gameDoc, operationsForTriggeredAbilities, repo);
+          }
         } catch (error) {
           console.error('Error casting spell:', error);
           changeGameDoc((doc) => {

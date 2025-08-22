@@ -1,5 +1,5 @@
 import { AutomergeUrl } from '@automerge/react';
-import { GameDoc, dealDamage, addGameLogEntry, removeCreatureFromBattlefield, dealDamageToCreature, drawCard } from '../docs/game';
+import { GameDoc, dealDamage, addGameLogEntry, removeCreatureFromBattlefield, dealDamageToCreature, drawCard, executeTriggeredAbilitiesForCreature } from '../docs/game';
 import { Target, TargetSelector } from './unifiedTargeting';
 
 // Legacy types for backwards compatibility
@@ -362,7 +362,19 @@ export const createArtifactEffectAPI = (
   };
 };
 
-// Execute collected spell operations on the game document
+// Execute triggered abilities from spell operations (async, call after executeSpellOperations)
+export const executeSpellTriggeredAbilities = async (doc: GameDoc, operations: SpellOperation[], repo: any): Promise<void> => {
+  for (const op of operations) {
+    if (op.type === 'damage_creature' && op.instanceId && op.amount !== undefined) {
+      // Trigger "take_damage" abilities for the damaged creature
+      await executeTriggeredAbilitiesForCreature(doc, 'take_damage', op.playerId, op.instanceId, repo, undefined, {
+        damageAmount: op.amount
+      });
+    }
+  }
+};
+
+// Execute collected spell operations on the game document (synchronous mutations only)
 export const executeSpellOperations = (doc: GameDoc, operations: SpellOperation[]): void => {
   for (const op of operations) {
     switch (op.type) {
@@ -376,6 +388,7 @@ export const executeSpellOperations = (doc: GameDoc, operations: SpellOperation[
         if (op.instanceId && op.amount !== undefined) {
           // Use new health-based damage system
           dealDamageToCreature(doc, op.playerId, op.instanceId, op.amount);
+          // Note: take_damage triggered abilities need to be handled outside this synchronous function
         }
         break;
         
