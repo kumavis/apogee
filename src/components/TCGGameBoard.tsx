@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { AutomergeUrl, useRepo, useDocument } from '@automerge/react';
+import { AutomergeUrl, useRepo, useDocument, useDocuments } from '@automerge/react';
 import { GameDoc, removeCardFromHand, spendEnergy, addCardToGraveyard, addGameLogEntry, loadCardDoc } from '../docs/game';
 import { CardDoc } from '../docs/card';
 import { useGameNavigation } from '../hooks/useGameNavigation';
@@ -74,9 +74,9 @@ const BattlefieldCard: React.FC<{
   instanceId: string;
   sapped: boolean;
   currentHealth: number;
-  onAttack?: (instanceId: string) => void;
-  canAttack?: boolean;
-}> = ({ cardUrl, instanceId, sapped, currentHealth, onAttack, canAttack }) => {
+  onSelect?: (instanceId: string) => void;
+  canBeSelected?: boolean;
+}> = ({ cardUrl, instanceId, sapped, currentHealth, onSelect, canBeSelected }) => {
   const [cardDoc] = useDocument<CardDoc>(cardUrl, { suspense: false });
 
   if (!cardDoc) {
@@ -107,12 +107,12 @@ const BattlefieldCard: React.FC<{
 
   return (
     <div
-      onClick={canAttack && onAttack ? () => onAttack(instanceId) : undefined}
+      onClick={canBeSelected && onSelect ? () => onSelect(instanceId) : undefined}
       style={{
-        cursor: canAttack ? 'pointer' : 'default',
-        border: canAttack ? '2px solid #ff4444' : 'none',
+        cursor: canBeSelected ? 'pointer' : 'default',
+        border: canBeSelected ? '2px solid #ff4444' : 'none',
         borderRadius: 8,
-        boxShadow: canAttack ? '0 0 15px rgba(255,68,68,0.5)' : 'none'
+        boxShadow: canBeSelected ? '0 0 15px rgba(255,68,68,0.5)' : 'none'
       }}
     >
       <Card card={cardData} />
@@ -189,6 +189,13 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
     return playerBattlefieldData ? playerBattlefieldData.cards : [];
   }, [gameDoc.playerBattlefields, selfId]);
 
+  // Load all battlefield card documents for attack logic
+  const battlefieldCardUrls = useMemo(() => {
+    return playerBattlefieldData.map(card => card.cardUrl);
+  }, [playerBattlefieldData]);
+
+  const [battlefieldCardDocsMap] = useDocuments<CardDoc>(battlefieldCardUrls, { suspense: false });
+
   // Start attack targeting for a creature
   const handleStartAttackTargeting = async (instanceId: string) => {
     if (!isCurrentPlayer) {
@@ -244,7 +251,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
     }
 
     // Load the attacker card to get attack value
-    const attackerCard = await loadCardDoc(attackerBattlefieldCard.cardUrl, repo);
+    const attackerCard = battlefieldCardDocsMap.get(attackerBattlefieldCard.cardUrl) || await loadCardDoc(attackerBattlefieldCard.cardUrl, repo);
     if (!attackerCard) {
       console.error('handleExecuteAttack: Could not load attacker card');
       return;
@@ -731,7 +738,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
               doc.playerBattlefields[battlefieldIndex].cards.push({
                 instanceId,
                 cardUrl,
-                sapped: true, // New creatures start sapped (summoning sickness)
+                sapped: cardData.type === 'creature', // Only creatures start sapped (summoning sickness), artifacts do not
                 currentHealth: initialHealth
               });
             }
@@ -1022,7 +1029,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
                 instanceId={battlefieldCard.instanceId}
                 sapped={battlefieldCard.sapped}
                 currentHealth={battlefieldCard.currentHealth}
-                onAttack={canTargetCreature(currentOpponent, battlefieldCard.instanceId) ?
+                onSelect={canTargetCreature(currentOpponent, battlefieldCard.instanceId) ?
                   async (instanceId) => {
                     // Load the card to determine its actual type
                     const cardDoc = await loadCardDoc(battlefieldCard.cardUrl, repo);
@@ -1033,7 +1040,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
                       instanceId
                     });
                   } : undefined}
-                canAttack={canTargetCreature(currentOpponent, battlefieldCard.instanceId)}
+                canBeSelected={canTargetCreature(currentOpponent, battlefieldCard.instanceId)}
               />
             )) : (
               <div style={{
@@ -1067,20 +1074,20 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
         }}>
           {playerBattlefieldData.map((battlefieldCard) => {
             const canBeTargeted = targetingState.isTargeting && canTargetCreature(selfId, battlefieldCard.instanceId);
-            const canBeAttacked = !targetingState.isTargeting && isCurrentPlayer && !battlefieldCard.sapped;
+            const canAttack = !targetingState.isTargeting && isCurrentPlayer && !battlefieldCard.sapped;
 
             const handleClick = canBeTargeted
               ? async () => {
-                // Load the card to determine its actual type
-                const cardDoc = await loadCardDoc(battlefieldCard.cardUrl, repo);
-                const cardType = cardDoc?.type || 'creature';
+                // Use the already loaded card doc or load it if needed
+                const loadedCardDoc = battlefieldCardDocsMap.get(battlefieldCard.cardUrl) || await loadCardDoc(battlefieldCard.cardUrl, repo);
+                const cardType = loadedCardDoc?.type || 'creature';
                 handleTargetClick({
                   type: cardType as 'creature' | 'artifact',
                   playerId: selfId,
                   instanceId: battlefieldCard.instanceId
                 });
               }
-              : (canBeAttacked ? () => handleStartAttackTargeting(battlefieldCard.instanceId) : undefined);
+              : (canAttack ? () => handleStartAttackTargeting(battlefieldCard.instanceId) : undefined);
 
             return (
               <BattlefieldCard
@@ -1089,8 +1096,8 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
                 instanceId={battlefieldCard.instanceId}
                 sapped={battlefieldCard.sapped}
                 currentHealth={battlefieldCard.currentHealth}
-                onAttack={handleClick}
-                canAttack={canBeTargeted || canBeAttacked}
+                onSelect={handleClick}
+                canBeSelected={canBeTargeted || canAttack}
               />
             );
           })}
