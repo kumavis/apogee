@@ -161,7 +161,7 @@ const GameListEntry: React.FC<GameListEntryProps> = ({ gameUrl, onClick, selfId 
             {playerCount} player{playerCount !== 1 ? 's' : ''}
           </div>
           <div style={{ fontSize: 11, opacity: 0.6, fontStyle: 'italic' }}>
-            🃏 <DeckName deckUrl={selectedDeckUrl} />
+            🃏 {selectedDeckUrl ? <DeckName deckUrl={selectedDeckUrl} /> : 'No deck selected'}
           </div>
         </div>
       </div>

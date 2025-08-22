@@ -1305,7 +1305,7 @@ export const createStandardDeck = (): string[] => {
 };
 
 // Shuffle an array (Fisher-Yates algorithm)
-export const shuffleDeck = (deck: string[]): string[] => {
+export const shuffleDeck = <T>(deck: T[]): T[] => {
   const shuffled = [...deck];
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));

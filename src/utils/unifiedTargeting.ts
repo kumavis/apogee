@@ -1,5 +1,6 @@
 import { AutomergeUrl } from '@automerge/react';
-import { GameDoc, GameCard } from '../docs/game';
+import { GameDoc } from '../docs/game';
+import { CardDoc } from '../docs/card';
 
 // Targeting types
 export type Target = {
@@ -182,7 +183,7 @@ export const getAutoTargets = (
 
 // Convert creature attack targeting to unified selector
 export const getTargetingSelectorForAttack = (
-  creatureCard: GameCard,
+  creatureCard: CardDoc,
   sourcerId: AutomergeUrl
 ): TargetSelector => {
   const attackTargeting = creatureCard.attackTargeting;

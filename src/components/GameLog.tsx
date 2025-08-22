@@ -6,16 +6,14 @@ import { getRelativeTime } from '../utils/timeUtils';
 
 type GameLogProps = {
   gameLog: GameLogEntry[];
-  cardLibrary: { [cardId: string]: any };
   isExpanded?: boolean;
   canToggle?: boolean;
   position?: 'fixed' | 'relative';
   style?: React.CSSProperties;
 };
 
-const GameLog: React.FC<GameLogProps> = ({ 
-  gameLog, 
-  cardLibrary,
+const GameLog: React.FC<GameLogProps> = ({
+  gameLog,
   isExpanded: initialExpanded = false,
   canToggle = true,
   position = 'fixed',
@@ -35,12 +33,12 @@ const GameLog: React.FC<GameLogProps> = ({
 
   const formatLogEntry = (entry: GameLogEntry) => {
     // If we have a description, prefer that over the default formatting
-    if (entry.description && entry.description !== `Played ${entry.cardId}`) {
+    if (entry.description) {
       return entry.description;
     }
     
-    const card = entry.cardId ? cardLibrary[entry.cardId] : null;
-    const cardName = card ? card.name : 'Unknown Card';
+    // Since we don't have cardLibrary anymore, use generic names
+    const cardName = 'Card';
     
     switch (entry.action) {
       case 'game_start':

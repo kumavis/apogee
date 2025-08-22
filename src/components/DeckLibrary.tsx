@@ -3,7 +3,7 @@ import { AutomergeUrl, useDocument, useRepo } from '@automerge/react';
 import { RootDocument } from '../docs/rootDoc';
 import { Deck, createDeck } from '../docs/deck';
 import { useGameNavigation } from '../hooks/useGameNavigation';
-import { create, CardDoc } from '../docs/card';
+
 
 type DeckLibraryProps = {
   rootDoc: RootDocument;
@@ -17,7 +17,7 @@ type NewDeckForm = {
   description: string;
 };
 
-const DeckLibrary: React.FC<DeckLibraryProps> = ({ rootDoc, addDeckToCollection, addCardsToLibrary, removeDeckFromCollection }) => {
+const DeckLibrary: React.FC<DeckLibraryProps> = ({ rootDoc, addDeckToCollection, removeDeckFromCollection }) => {
   const { navigateToHome, navigateToDeckView } = useGameNavigation();
   const repo = useRepo();
   const [showNewDeckForm, setShowNewDeckForm] = useState(false);

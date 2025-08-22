@@ -15,7 +15,11 @@ const MainMenu: React.FC<MainMenuProps> = ({ onNewGame }) => {
     'Tragic: Nerd Gathering',
     'Gagic the Mathering',
     'Making the Game-thering',
-    '1KCE'
+    '2KCE',
+    'Carte Blanche',
+    'Yu-Gi-No!',
+    'EvalMon',
+    'Gotta Mod Em All',
   ];
   
   // State to track current name index

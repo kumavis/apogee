@@ -244,7 +244,6 @@ const GameFinished: React.FC<GameFinishedProps> = ({
             
             <GameLog
               gameLog={gameDoc.gameLog || []}
-              cardLibrary={gameDoc.cardLibrary || {}}
               isExpanded={true}
               canToggle={false}
               position="relative"

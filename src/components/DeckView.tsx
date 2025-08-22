@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AutomergeUrl, useDocument, useRepo } from '@automerge/react';
 import { Deck, cloneDeck } from '../docs/deck';
-import { CardDefinition } from '../docs/card';
-import { GameCard } from '../docs/game';
+import { CardDoc } from '../docs/card';
+
 import { RootDocument } from '../docs/rootDoc';
 import { ContactDoc } from '../docs/contact';
 import { useGameNavigation } from '../hooks/useGameNavigation';
@@ -799,7 +799,7 @@ const AvailableCardDisplay: React.FC<{
   onEditCard: (cardUrl: AutomergeUrl) => void;
   onViewCard: (cardUrl: AutomergeUrl) => void;
 }> = ({ cardUrl, onAddCard, currentQuantity, onEditCard, onViewCard }) => {
-  const [cardDef] = useDocument<CardDefinition>(cardUrl, { suspense: false });
+  const [cardDef] = useDocument<CardDoc>(cardUrl, { suspense: false });
 
   if (!cardDef) {
     return (
@@ -817,8 +817,7 @@ const AvailableCardDisplay: React.FC<{
   }
 
   // Convert CardDefinition to GameCard format for Card component
-  const gameCard: GameCard = {
-    id: cardDef.id,
+  const gameCard: CardDoc = {
     name: cardDef.name,
     cost: cardDef.cost,
     attack: cardDef.attack,
@@ -827,7 +826,9 @@ const AvailableCardDisplay: React.FC<{
     description: cardDef.description,
     spellEffect: cardDef.spellEffect,
     triggeredAbilities: cardDef.triggeredAbilities,
-    renderer: cardDef.renderer || null
+    renderer: cardDef.renderer || null,
+    createdAt: cardDef.createdAt,
+    createdBy: cardDef.createdBy
   };
 
   return (
@@ -973,7 +974,7 @@ const DeckCardDisplay: React.FC<{
   onEditCard: (cardUrl: AutomergeUrl) => void;
   onViewCard: (cardUrl: AutomergeUrl) => void;
 }> = ({ deckCard, onRemoveCard, onUpdateQuantity, onEditCard, onViewCard }) => {
-  const [cardDef] = useDocument<CardDefinition>(deckCard.cardUrl, { suspense: false });
+  const [cardDef] = useDocument<CardDoc>(deckCard.cardUrl, { suspense: false });
 
   if (!cardDef) {
     return (
@@ -991,8 +992,7 @@ const DeckCardDisplay: React.FC<{
   }
 
   // Convert CardDefinition to GameCard format for Card component
-  const gameCard: GameCard = {
-    id: cardDef.id,
+  const gameCard: CardDoc = {
     name: cardDef.name,
     cost: cardDef.cost,
     attack: cardDef.attack,
@@ -1001,7 +1001,9 @@ const DeckCardDisplay: React.FC<{
     description: cardDef.description,
     spellEffect: cardDef.spellEffect,
     triggeredAbilities: cardDef.triggeredAbilities,
-    renderer: cardDef.renderer || null
+    renderer: cardDef.renderer || null,
+    createdAt: cardDef.createdAt,
+    createdBy: cardDef.createdBy
   };
 
   return (

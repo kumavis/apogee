@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { AutomergeUrl } from '@automerge/react';
-import { GameDoc, GameCard } from '../docs/game';
+import { GameDoc } from '../docs/game';
+import { CardDoc } from '../docs/card';
 import { 
   Target, 
   TargetSelector, 
@@ -12,7 +13,7 @@ export type TargetingContext = {
   type: 'spell' | 'attack';
   cardId?: string;
   attackerInstanceId?: string;
-  attackerCard?: GameCard;
+  attackerCard?: CardDoc;
 };
 
 export type CardTargetingState = {

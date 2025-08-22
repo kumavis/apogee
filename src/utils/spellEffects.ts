@@ -51,7 +51,7 @@ export type SpellEffectAPI = {
   // Utility functions
   log: (description: string) => void;
   getAllPlayers: () => AutomergeUrl[];
-  getCreaturesForPlayer: (playerId: AutomergeUrl) => Array<{instanceId: string, cardId: string}>;
+  getCreaturesForPlayer: (playerId: AutomergeUrl) => Array<{instanceId: string, cardUrl: AutomergeUrl}>;
 };
 
 // Utility function to convert a function to a string for storage
@@ -103,10 +103,10 @@ export type ArtifactEffectAPI = {
   // Utility functions
   log: (description: string) => void;
   getAllPlayers: () => AutomergeUrl[];
-  getCreaturesForPlayer: (playerId: AutomergeUrl) => Array<{instanceId: string, cardId: string}>;
+  getCreaturesForPlayer: (playerId: AutomergeUrl) => Array<{instanceId: string, cardUrl: AutomergeUrl}>;
   
   // Artifact-specific functions
-  getOwnCreatures: () => Array<{instanceId: string, cardId: string}>;
+  getOwnCreatures: () => Array<{instanceId: string, cardUrl: AutomergeUrl}>;
   drawCard: () => void;
   gainEnergy: (amount: number) => void;
   
@@ -217,7 +217,7 @@ export const createSpellEffectAPI = (
       return [...doc.players];
     },
     
-    getCreaturesForPlayer: (playerId: AutomergeUrl): Array<{instanceId: string, cardId: string}> => {
+    getCreaturesForPlayer: (playerId: AutomergeUrl): Array<{instanceId: string, cardUrl: AutomergeUrl}> => {
       const battlefield = doc.playerBattlefields.find(
         battlefield => battlefield.playerId === playerId
       );
@@ -226,7 +226,7 @@ export const createSpellEffectAPI = (
       
       return battlefield.cards.map(card => ({
         instanceId: card.instanceId,
-        cardId: card.cardId
+        cardUrl: card.cardUrl
       }));
     }
   };
@@ -311,7 +311,7 @@ export const createArtifactEffectAPI = (
       return [...doc.players];
     },
     
-    getCreaturesForPlayer: (playerId: AutomergeUrl): Array<{instanceId: string, cardId: string}> => {
+    getCreaturesForPlayer: (playerId: AutomergeUrl): Array<{instanceId: string, cardUrl: AutomergeUrl}> => {
       const battlefield = doc.playerBattlefields.find(
         battlefield => battlefield.playerId === playerId
       );
@@ -320,11 +320,11 @@ export const createArtifactEffectAPI = (
       
       return battlefield.cards.map(card => ({
         instanceId: card.instanceId,
-        cardId: card.cardId
+        cardUrl: card.cardUrl
       }));
     },
     
-    getOwnCreatures: (): Array<{instanceId: string, cardId: string}> => {
+    getOwnCreatures: (): Array<{instanceId: string, cardUrl: AutomergeUrl}> => {
       const battlefield = doc.playerBattlefields.find(
         battlefield => battlefield.playerId === ownerId
       );
@@ -332,14 +332,14 @@ export const createArtifactEffectAPI = (
       if (!battlefield) return [];
       
       return battlefield.cards
-        .filter(card => {
+        .filter(_card => {
           // Note: We can't load cards synchronously anymore, so we'll assume all battlefield cards are targetable
           // The actual type validation will happen during spell execution
           return true; // All battlefield cards are potentially targetable
         })
         .map(card => ({
           instanceId: card.instanceId,
-          cardId: card.cardUrl // Updated to use cardUrl instead of cardId
+          cardUrl: card.cardUrl
         }));
     },
     

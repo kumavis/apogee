@@ -145,13 +145,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
     reader.readAsDataURL(blob);
   }, [completedCrop, width, height, onImageChange]);
 
-  const generateDrawingImage = useCallback(() => {
-    const canvas = drawingCanvasRef.current;
-    if (!canvas) return;
-    
-    const dataUri = canvas.toDataURL('image/png');
-    onImageChange(dataUri);
-  }, [onImageChange]);
+
 
   // Drawing event handlers
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -312,29 +306,7 @@ const ImageEditor: React.FC<ImageEditorProps> = ({
     onImageChange(dataUri);
   };
 
-  const loadImageToCanvas = (imageUrl?: string) => {
-    const srcToUse = imageUrl || imgSrc;
-    if (!srcToUse) return;
-    
-    const canvas = drawingCanvasRef.current;
-    if (!canvas) return;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    ctx.clearRect(0, 0, width, height);
-    canvas.width = width;
-    canvas.height = height;
-
-    const img = new Image();
-    img.onload = () => {
-      ctx.drawImage(img, 0, 0, width, height);
-      setSelectedTool('draw');
-      const dataUri = canvas.toDataURL('image/png');
-      onImageChange(dataUri);
-    };
-    img.src = srcToUse;
-  };
 
   // Set up global paste event listener
   React.useEffect(() => {
