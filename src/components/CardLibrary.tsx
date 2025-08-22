@@ -22,16 +22,22 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary, re
     cardUrl?: AutomergeUrl; // URL for custom cards
   } | null>(null);
 
-  // Get hardcoded cards as read-only CardDoc objects
-  const hardcodedCards = Object.values(CARD_LIBRARY);
+  // Get hardcoded cards with their IDs for React keys
+  const hardcodedCardEntries = Object.entries(CARD_LIBRARY);
 
   const handleCardSave = (cardUrl: AutomergeUrl) => {
     addCardToLibrary(cardUrl);
     handleCancelEdit();
   };
 
-  const handleEditCard = (card: CardDoc, isBuiltin: boolean, cardUrl?: AutomergeUrl) => {
-    setEditingCard({ card, isBuiltin, cardUrl });
+  const handleEditCard = (card: CardDoc | Omit<CardDoc, 'createdAt' | 'createdBy'>, isBuiltin: boolean, cardUrl?: AutomergeUrl) => {
+    // Convert template to full CardDoc if needed
+    const fullCard: CardDoc = 'createdAt' in card ? card : {
+      ...card,
+      createdAt: new Date().toISOString(),
+      createdBy: rootDoc.selfId
+    };
+    setEditingCard({ card: fullCard, isBuiltin, cardUrl });
     setShowNewCardForm(true);
   };
 
@@ -186,7 +192,7 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary, re
             alignItems: 'center',
             gap: 8
           }}>
-            🏛️ Base Game Cards ({hardcodedCards.length}) - Read Only
+            🏛️ Base Game Cards ({hardcodedCardEntries.length}) - Read Only
           </h2>
           <div style={{
             display: 'grid',
@@ -194,9 +200,9 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary, re
             gap: 16,
             justifyContent: 'center'
           }}>
-            {hardcodedCards.map((card) => (
+            {hardcodedCardEntries.map(([cardId, card]) => (
               <div 
-                key={card.id} 
+                key={cardId} 
                 style={{ 
                   opacity: 0.8,
                   cursor: 'pointer',
@@ -213,7 +219,11 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary, re
                   e.currentTarget.style.transform = 'scale(1)';
                 }}
               >
-                <Card card={card} />
+                <Card card={{
+                  ...card,
+                  createdAt: new Date().toISOString(),
+                  createdBy: rootDoc.selfId
+                }} />
               </div>
             ))}
           </div>
@@ -226,10 +236,10 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary, re
 // Component to display a custom card from URL
 const LoadingCardDisplay: React.FC<{ 
   cardUrl: AutomergeUrl; 
-  onCardSelect: (card: CardDefinition | GameCard, isBuiltin: boolean, cardUrl?: AutomergeUrl) => void;
+  onCardSelect: (card: CardDoc, isBuiltin: boolean, cardUrl?: AutomergeUrl) => void;
   onRemove?: (cardUrl: AutomergeUrl) => void;
 }> = ({ cardUrl, onCardSelect, onRemove }) => {
-  const [cardDef] = useDocument<CardDefinition>(cardUrl, { suspense: false });
+  const [cardDef] = useDocument<CardDoc>(cardUrl, { suspense: false });
 
   if (!cardDef) {
     return (
