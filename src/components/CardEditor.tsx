@@ -99,8 +99,10 @@ const CardEditor: React.FC<CardEditorProps> = ({
 
     // Only add properties if they have values (Automerge doesn't support undefined)
     if (newCardData.type === 'creature') {
-      if (newCardData.attack !== undefined) cardData.attack = newCardData.attack || 1;
-      if (newCardData.health !== undefined) cardData.health = newCardData.health || 1;
+      if (newCardData.attack !== undefined) cardData.attack = newCardData.attack || 0;
+    }
+    if (newCardData.type === 'creature' || newCardData.type === 'artifact') {
+      if (newCardData.health !== undefined) cardData.health = newCardData.health || 0;
     }
 
     if (newCardData.spellEffect?.trim()) {
@@ -165,10 +167,16 @@ const CardEditor: React.FC<CardEditorProps> = ({
             // Handle creature-specific properties
             if (newCardData.type === 'creature') {
               doc.attack = newCardData.attack || 0;
+            } else {
+              // Remove attack for non-creatures
+              delete doc.attack;
+            }
+            
+            // Handle health for creatures and artifacts
+            if (newCardData.type === 'creature' || newCardData.type === 'artifact') {
               doc.health = newCardData.health || 0;
             } else {
-              // Remove attack/health for non-creatures
-              delete doc.attack;
+              // Remove health for spells
               delete doc.health;
             }
             
@@ -232,9 +240,9 @@ const CardEditor: React.FC<CardEditorProps> = ({
     setNewCardData(prev => ({
       ...prev,
       type,
-      // Reset attack/health when changing from creature
+      // Reset attack/health when changing type
       attack: type === 'creature' ? (prev.attack || 1) : undefined,
-      health: type === 'creature' ? (prev.health || 1) : undefined
+      health: (type === 'creature' || type === 'artifact') ? (prev.health || 1) : undefined
     }));
   };
 
@@ -329,7 +337,7 @@ const CardEditor: React.FC<CardEditorProps> = ({
               name: newCardData.name || 'Card Name',
               cost: newCardData.cost,
               attack: newCardData.type === 'creature' ? (newCardData.attack || 1) : undefined,
-              health: newCardData.type === 'creature' ? (newCardData.health || 1) : undefined,
+              health: (newCardData.type === 'creature' || newCardData.type === 'artifact') ? (newCardData.health || 1) : undefined,
               type: newCardData.type,
               description: newCardData.description || 'Card description will appear here...',
               spellEffect: newCardData.spellEffect,
@@ -570,11 +578,11 @@ const CardEditor: React.FC<CardEditorProps> = ({
               />
             </div>
 
-            {/* Creature Stats */}
-            {newCardData.type === 'creature' && (
+            {/* Creature/Artifact Stats */}
+            {(newCardData.type === 'creature' || newCardData.type === 'artifact') && (
               <div style={{ 
                 display: 'grid', 
-                gridTemplateColumns: '1fr 1fr', 
+                gridTemplateColumns: newCardData.type === 'creature' ? '1fr 1fr' : '1fr', 
                 gap: 16, 
                 marginBottom: 16,
                 padding: 16,
@@ -582,17 +590,18 @@ const CardEditor: React.FC<CardEditorProps> = ({
                 border: '1px solid rgba(255,100,100,0.3)',
                 borderRadius: 8
               }}>
-                <div>
-                  <label style={{ 
-                    display: 'block', 
-                    marginBottom: 6, 
-                    fontSize: 14, 
-                    opacity: 0.9,
-                    color: '#ff6666',
-                    fontWeight: 600
-                  }}>
-                    ⚔️ Attack
-                  </label>
+                {newCardData.type === 'creature' && (
+                  <div>
+                    <label style={{ 
+                      display: 'block', 
+                      marginBottom: 6, 
+                      fontSize: 14, 
+                      opacity: 0.9,
+                      color: '#ff6666',
+                      fontWeight: 600
+                    }}>
+                      ⚔️ Attack
+                    </label>
                   <input
                     type="number"
                     min="0"
@@ -624,7 +633,8 @@ const CardEditor: React.FC<CardEditorProps> = ({
                       }
                     }}
                   />
-                </div>
+                  </div>
+                )}
                 <div>
                   <label style={{ 
                     display: 'block', 
