@@ -37,6 +37,10 @@ export const useGameNavigation = () => {
     navigate(`/card/${cardId}/edit`);
   }, [navigate]);
 
+  const navigateToDebug = useCallback(() => {
+    navigate('/debug');
+  }, [navigate]);
+
   return {
     navigateToGame,
     navigateToHome,
@@ -46,6 +50,7 @@ export const useGameNavigation = () => {
     navigateToDeckLibrary,
     navigateToDeckView,
     navigateToCardEdit,
+    navigateToDebug,
   };
 };
 

@@ -10,7 +10,7 @@ type SettingsProps = {
 };
 
 const Settings: React.FC<SettingsProps> = ({ rootDocUrl, selfId }) => {
-  const { navigateToHome } = useGameNavigation();
+  const { navigateToHome, navigateToDebug } = useGameNavigation();
   const [newRootDocUrl, setNewRootDocUrl] = useState('');
   const [validationError, setValidationError] = useState('');
   const [isValidating, setIsValidating] = useState(false);
@@ -572,6 +572,50 @@ const Settings: React.FC<SettingsProps> = ({ rootDocUrl, selfId }) => {
             {isValidating ? '⏳ Validating...' : 'Set URL'}
           </button>
         </div>
+      </div>
+
+      <div style={{ marginBottom: 32 }}>
+        <h2 style={{ 
+          fontSize: 18, 
+          marginBottom: 16, 
+          color: '#ffaa00',
+          fontWeight: 600 
+        }}>
+          🔧 Developer Tools
+        </h2>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 14, marginBottom: 8, opacity: 0.8 }}>
+            Advanced debugging tools for inspecting automerge documents.
+          </div>
+          <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 12 }}>
+            View JSON data, document sizes, and automerge history for all documents in your repository.
+          </div>
+        </div>
+        <button
+          onClick={navigateToDebug}
+          style={{
+            background: 'linear-gradient(135deg, #ffaa00 0%, #ff8800 100%)',
+            color: '#000',
+            border: 'none',
+            padding: '12px 20px',
+            borderRadius: 8,
+            cursor: 'pointer',
+            fontSize: 14,
+            fontWeight: 600,
+            boxShadow: '0 2px 6px rgba(255,170,0,0.3)',
+            transition: 'all 0.2s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-1px)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(255,170,0,0.4)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0px)';
+            e.currentTarget.style.boxShadow = '0 2px 6px rgba(255,170,0,0.3)';
+          }}
+        >
+          🔍 Debug Documents
+        </button>
       </div>
 
       <div style={{ marginBottom: 32 }}>

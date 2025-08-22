@@ -10,6 +10,7 @@ import CardView from './components/CardView';
 import CardEditPage from './components/CardEditPage';
 import DeckLibrary from './components/DeckLibrary';
 import DeckView from './components/DeckView';
+import DebugView from './components/DebugView';
 import { RootDocument } from './docs/rootDoc';
 import { useCallback } from 'react';
 
@@ -97,6 +98,7 @@ function App({ rootDocUrl }: { rootDocUrl: AutomergeUrl }) {
             <Route path="/card/:cardId/edit" element={<CardEditPage rootDoc={rootDoc} addCardToLibrary={addCardToLibrary} />} />
             <Route path="/decks" element={<DeckLibrary rootDoc={rootDoc} addDeckToCollection={addDeckToCollection} addCardsToLibrary={addCardsToLibrary} removeDeckFromCollection={removeDeckFromCollection} />} />
             <Route path="/deck/:deckId" element={<DeckView rootDoc={rootDoc} addDeckToCollection={addDeckToCollection} />} />
+            <Route path="/debug" element={<DebugView rootDocUrl={rootDocUrl} />} />
           </Routes>
         </div>
       </ErrorBoundary>
