@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useDocument } from '@automerge/react';
 import { AutomergeUrl } from '@automerge/react';
-import { CardDefinition } from '../docs/cardDefinition';
+import { CardDoc } from '../docs/card';
 import { useGameNavigation } from '../hooks/useGameNavigation';
 import Card from './Card';
 
@@ -18,7 +18,7 @@ const CardView: React.FC<CardViewProps> = ({ rootDoc, addCardToLibrary }) => {
   if (!cardId) {
     throw new Error('Card ID is required');
   }
-  const [cardDoc] = useDocument<CardDefinition>(cardId, { suspense: false });
+  const [cardDoc] = useDocument<CardDoc>(cardId, { suspense: false });
   const { navigateToCardLibrary, navigateToCardEdit } = useGameNavigation();
   
   const cardRef = useRef<HTMLDivElement>(null);

@@ -4,7 +4,7 @@ import { RootDocument } from '../docs/rootDoc';
 
 type DocumentInfo = {
   url: AutomergeUrl;
-  type: 'RootDocument' | 'GameDoc' | 'ContactDoc' | 'Deck' | 'CardDefinition' | 'Unknown';
+  type: 'RootDocument' | 'GameDoc' | 'ContactDoc' | 'Deck' | 'CardDoc' | 'Unknown';
   data: any;
   size: number;
   sizeWithHistory: number;
@@ -79,7 +79,7 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
 
 
 
-  const determineDocumentType = (doc: any): 'RootDocument' | 'GameDoc' | 'ContactDoc' | 'Deck' | 'CardDefinition' | 'Unknown' => {
+  const determineDocumentType = (doc: any): 'RootDocument' | 'GameDoc' | 'ContactDoc' | 'Deck' | 'CardDoc' | 'Unknown' => {
     if (doc.selfId && doc.games && doc.cardLibrary && doc.decks) {
       return 'RootDocument';
     }
@@ -92,8 +92,8 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
     if (doc.cards && Array.isArray(doc.cards) && doc.name && doc.description) {
       return 'Deck';
     }
-    if (doc.cost !== undefined && doc.type && doc.description && doc.isCustom !== undefined) {
-      return 'CardDefinition';
+    if (doc.cost !== undefined && doc.type && doc.description && doc.createdAt && doc.createdBy) {
+      return 'CardDoc';
     }
     return 'Unknown';
   };
@@ -1199,7 +1199,7 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
               <strong>History Overhead:</strong> {Math.round(((totalSizeWithHistory - totalSize) / totalSize) * 100)}%
             </p>
             <div style={{ marginTop: '10px' }}>
-              {['RootDocument', 'GameDoc', 'ContactDoc', 'Deck', 'CardDefinition', 'Unknown'].map(type => {
+              {['RootDocument', 'GameDoc', 'ContactDoc', 'Deck', 'CardDoc', 'Unknown'].map(type => {
                 const count = documents.filter(doc => doc.type === type).length;
                 if (count === 0) return null;
                 return (
@@ -1482,7 +1482,7 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
                     Name: {docInfo.data.name}, Cards: {docInfo.data.cards?.length || 0}
                   </div>
                 )}
-                {docInfo.type === 'CardDefinition' && (
+                {docInfo.type === 'CardDoc' && (
                   <div style={{ fontSize: '11px', color: '#888888', marginTop: '4px' }}>
                     Name: {docInfo.data.name}, Cost: {docInfo.data.cost}, Type: {docInfo.data.type}
                   </div>

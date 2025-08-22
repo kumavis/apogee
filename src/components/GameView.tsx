@@ -1,9 +1,9 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
 import { AutomergeUrl, useDocument, useRepo } from '@automerge/react';
-import { GameDoc, GameCard, initializeGame, createRematchGame, snapshotDeckToGame, snapshotCustomCardLibrary, getGameDeckSelection } from '../docs/game';
+import { GameDoc, initializeGame, createRematchGame, createGameDeckFromDeck, getGameDeckSelection } from '../docs/game';
 import { RootDocument } from '../docs/rootDoc';
-import { createStandardDeck, shuffleDeck, CARD_LIBRARY } from '../utils/cardLibrary';
+import { shuffleDeck } from '../utils/defaultCardLibrary';
 import { useGameNavigation } from '../hooks/useGameNavigation';
 import GameLobby from './GameLobby';
 import TCGGameBoard from './TCGGameBoard';
@@ -46,38 +46,27 @@ const GameView: React.FC<GameViewProps> = ({ rootDoc, addGame }) => {
     }
     
     try {
-      // Get the single deck selection for the game
+      // Get the deck selection for the game (required)
       const selectedDeckUrl = getGameDeckSelection(gameDoc);
-      let deckForGame: string[];
-
-      let customCardLibrary: { [cardId: string]: GameCard };
       
-      if (selectedDeckUrl !== null) {
-        // Snapshot custom deck
-        const [deckCards, deckCardLibrary] = await Promise.all([
-          snapshotDeckToGame(selectedDeckUrl, repo),
-          snapshotCustomCardLibrary(selectedDeckUrl, repo)
-        ]);
-        deckForGame = deckCards;
-        customCardLibrary = deckCardLibrary;
-      } else {
-        // Use default deck
-        deckForGame = createStandardDeck();
-        customCardLibrary = { ...CARD_LIBRARY };
+      if (!selectedDeckUrl) {
+        console.error('handleStartGame: Cannot start game - no deck selected');
+        alert('Please select a deck before starting the game.');
+        return;
       }
       
+      // Create game deck from the selected deck (no snapshotting)
+      const deckForGame = await createGameDeckFromDeck(selectedDeckUrl, repo);
       const shuffledDeck = shuffleDeck(deckForGame);
-      // Initialize the game state with the deck and custom cards
+      
+      // Initialize the game state with the deck
       changeGameDoc((doc) => {
-        // Update card library with custom cards
-        doc.cardLibrary = customCardLibrary;
-        
         // Initialize the game with the shuffled deck
         initializeGame(doc, shuffledDeck);
       });
     } catch (error) {
-      console.error('Error starting game with custom decks:', error);
-      alert('Failed to start game. Some deck cards may not be available. Please try again.');
+      console.error('Error starting game with deck:', error);
+      alert('Failed to start game. Please ensure the selected deck is available and try again.');
     }
   };
 

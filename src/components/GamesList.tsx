@@ -12,12 +12,8 @@ const PlayerName: React.FC<{ playerId: AutomergeUrl }> = ({ playerId }) => {
 };
 
 // Helper component to get deck name
-const DeckName: React.FC<{ deckUrl: AutomergeUrl | null }> = ({ deckUrl }) => {
-  const [deck] = useDocument<Deck>(deckUrl || '' as AutomergeUrl, { suspense: false });
-  
-  if (!deckUrl) {
-    return <span>Default Deck</span>;
-  }
+const DeckName: React.FC<{ deckUrl: AutomergeUrl }> = ({ deckUrl }) => {
+  const [deck] = useDocument<Deck>(deckUrl, { suspense: false });
   
   if (!deck) {
     return <span>Loading...</span>;

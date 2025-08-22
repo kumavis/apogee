@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { AutomergeUrl, useDocument } from '@automerge/react';
 import { RootDocument } from '../docs/rootDoc';
-import { CardDefinition } from '../docs/cardDefinition';
+import { CardDoc } from '../docs/card';
 import { useGameNavigation } from '../hooks/useGameNavigation';
-import { CARD_LIBRARY } from '../utils/cardLibrary';
-import { GameCard } from '../docs/game';
+import { CARD_LIBRARY } from '../utils/defaultCardLibrary';
 import Card from './Card';
 import CardEditor, { NewCardForm } from './CardEditor';
 
@@ -18,12 +17,12 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary, re
   const { navigateToHome } = useGameNavigation();
   const [showNewCardForm, setShowNewCardForm] = useState(false);
   const [editingCard, setEditingCard] = useState<{ 
-    card: CardDefinition | GameCard; 
+    card: CardDoc; 
     isBuiltin: boolean; 
     cardUrl?: AutomergeUrl; // URL for custom cards
   } | null>(null);
 
-  // Get hardcoded cards as read-only GameCard objects
+  // Get hardcoded cards as read-only CardDoc objects
   const hardcodedCards = Object.values(CARD_LIBRARY);
 
   const handleCardSave = (cardUrl: AutomergeUrl) => {
@@ -31,7 +30,7 @@ const CardLibrary: React.FC<CardLibraryProps> = ({ rootDoc, addCardToLibrary, re
     handleCancelEdit();
   };
 
-  const handleEditCard = (card: CardDefinition | GameCard, isBuiltin: boolean, cardUrl?: AutomergeUrl) => {
+  const handleEditCard = (card: CardDoc, isBuiltin: boolean, cardUrl?: AutomergeUrl) => {
     setEditingCard({ card, isBuiltin, cardUrl });
     setShowNewCardForm(true);
   };
@@ -247,19 +246,8 @@ const LoadingCardDisplay: React.FC<{
     );
   }
 
-  // Convert CardDefinition to GameCard format for Card component
-  const gameCard: GameCard = {
-    id: cardDef.id,
-    name: cardDef.name,
-    cost: cardDef.cost,
-    attack: cardDef.attack,
-    health: cardDef.health,
-    type: cardDef.type,
-    description: cardDef.description,
-    spellEffect: cardDef.spellEffect,
-    triggeredAbilities: cardDef.triggeredAbilities,
-    renderer: cardDef.renderer || null
-  };
+  // Card component now expects CardDoc directly
+  const cardDoc = cardDef;
 
   return (
     <div 
@@ -276,7 +264,7 @@ const LoadingCardDisplay: React.FC<{
         e.currentTarget.style.transform = 'scale(1)';
       }}
     >
-      <Card card={gameCard} />
+      <Card card={cardDoc} />
       {onRemove && (
         <button
           onClick={(e) => {

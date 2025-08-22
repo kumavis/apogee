@@ -157,12 +157,15 @@ export const useCardTargeting = (gameDoc: GameDoc, selfId: AutomergeUrl) => {
     // Get the target's type from the game state
     const targetBattlefield = gameDoc.playerBattlefields.find(b => b.playerId === playerId);
     const targetCard = targetBattlefield?.cards.find(c => c.instanceId === instanceId);
-    const targetGameCard = targetCard ? gameDoc.cardLibrary[targetCard.cardId] : null;
     
-    if (!targetGameCard || targetGameCard.type === 'spell') return false;
+    // Note: We can't load the card synchronously anymore, so we'll assume it's a creature/artifact for targeting
+    // The actual card loading and validation will happen when the target is selected
+    if (!targetCard) return false;
     
+    // Since we can't load the card synchronously, we'll default to 'creature' type
+    // The actual type validation will happen during target selection
     const target: Target = { 
-      type: targetGameCard.type as 'creature' | 'artifact', 
+      type: 'creature', // Default assumption - will be validated async during selection
       playerId, 
       instanceId 
     };

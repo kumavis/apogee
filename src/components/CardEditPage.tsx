@@ -2,7 +2,7 @@ import React from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { AutomergeUrl, useDocument } from '@automerge/react';
 import { RootDocument } from '../docs/rootDoc';
-import { CardDefinition } from '../docs/cardDefinition';
+import { CardDoc } from '../docs/card';
 import { useGameNavigation } from '../hooks/useGameNavigation';
 import CardEditor, { NewCardForm } from './CardEditor';
 
@@ -19,7 +19,7 @@ const CardEditPage: React.FC<CardEditPageProps> = ({ rootDoc, addCardToLibrary }
   
   // Try to get the card data from URL params
   const cardUrl = cardId as AutomergeUrl;
-  const [cardDef] = useDocument<CardDefinition>(cardUrl, { suspense: false });
+  const [cardDef] = useDocument<CardDoc>(cardUrl, { suspense: false });
 
   // Create editing card state
   const editingCard = cardDef ? {

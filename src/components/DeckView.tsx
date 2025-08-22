@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { AutomergeUrl, useDocument, useRepo } from '@automerge/react';
 import { Deck, cloneDeck } from '../docs/deck';
-import { CardDefinition } from '../docs/cardDefinition';
+import { CardDefinition } from '../docs/card';
 import { GameCard } from '../docs/game';
 import { RootDocument } from '../docs/rootDoc';
 import { ContactDoc } from '../docs/contact';

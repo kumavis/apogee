@@ -3,8 +3,7 @@ import { AutomergeUrl, useDocument, useRepo } from '@automerge/react';
 import { RootDocument } from '../docs/rootDoc';
 import { Deck, createDeck } from '../docs/deck';
 import { useGameNavigation } from '../hooks/useGameNavigation';
-import { CARD_LIBRARY, createStandardDeck } from '../utils/cardLibrary';
-import { createCardDefinition, CardDefinition } from '../docs/cardDefinition';
+import { create, CardDoc } from '../docs/card';
 
 type DeckLibraryProps = {
   rootDoc: RootDocument;
@@ -57,100 +56,7 @@ const DeckLibrary: React.FC<DeckLibraryProps> = ({ rootDoc, addDeckToCollection,
     navigateToDeckView(deckHandle.url);
   };
 
-  const handleCreateDefaultDeck = async () => {
-    try {
-      // Create a new deck
-      const deckData = {
-        name: 'Default Starter Deck',
-        description: 'A balanced starter deck with custom copies of builtin cards',
-        cards: [],
-        createdBy: rootDoc.selfId
-      };
-
-      const deckHandle = createDeck(repo, deckData);
-
-      // Get the standard deck card list
-      const standardDeckCards = createStandardDeck();
-      
-      // Count occurrences of each card ID to get quantities
-      const cardCounts: { [cardId: string]: number } = {};
-      standardDeckCards.forEach(cardId => {
-        cardCounts[cardId] = (cardCounts[cardId] || 0) + 1;
-      });
-
-      // Create custom copies of each unique card and collect their URLs
-      const cardUrls: AutomergeUrl[] = [];
-      const uniqueCardIds = Object.keys(cardCounts);
-      
-      for (const cardId of uniqueCardIds) {
-        const builtinCard = CARD_LIBRARY[cardId];
-        if (builtinCard) {
-          // Generate unique ID for the custom copy
-          const customCardId = `custom_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          
-          // Create custom card data
-          const customCardData: Omit<CardDefinition, 'createdAt' | 'isCustom'> = {
-            id: customCardId,
-            name: builtinCard.name,
-            cost: builtinCard.cost,
-            type: builtinCard.type,
-            description: builtinCard.description,
-            createdBy: rootDoc.selfId
-          };
-
-          // Only add properties if they have values (Automerge doesn't support undefined)
-          if (builtinCard.attack !== undefined) {
-            customCardData.attack = builtinCard.attack;
-          }
-          if (builtinCard.health !== undefined) {
-            customCardData.health = builtinCard.health;
-          }
-          if (builtinCard.spellEffect) {
-            customCardData.spellEffect = builtinCard.spellEffect;
-          }
-          if (builtinCard.triggeredAbilities && builtinCard.triggeredAbilities.length > 0) {
-            customCardData.triggeredAbilities = builtinCard.triggeredAbilities;
-          }
-          if (builtinCard.renderer) {
-            customCardData.renderer = builtinCard.renderer;
-          }
-
-          // Create the custom card definition
-          const customCardHandle = createCardDefinition(repo, customCardData);
-
-          // Collect the card URL for later addition to library and deck
-          cardUrls.push(customCardHandle.url);
-        }
-      }
-
-      // Add all cards to library in a single change operation
-      addCardsToLibrary(cardUrls);
-
-      // Add all cards to deck in a single change operation with proper quantities
-      deckHandle.change((doc: any) => {
-        let cardIndex = 0;
-        for (const cardId of uniqueCardIds) {
-          if (CARD_LIBRARY[cardId] && cardUrls[cardIndex]) {
-            doc.cards.push({
-              cardUrl: cardUrls[cardIndex],
-              quantity: cardCounts[cardId]
-            });
-            cardIndex++;
-          }
-        }
-      });
-
-      // Add deck to user's collection
-      addDeckToCollection(deckHandle.url);
-
-      // Navigate to the new deck
-      navigateToDeckView(deckHandle.url);
-
-    } catch (error) {
-      console.error('Error creating default deck:', error);
-      alert('Failed to create default deck. Please try again.');
-    }
-  };
+  // Note: Default deck creation removed - users must create custom decks
 
   const handleCancelEdit = () => {
     setShowNewDeckForm(false);
@@ -215,28 +121,7 @@ const DeckLibrary: React.FC<DeckLibraryProps> = ({ rootDoc, addDeckToCollection,
           🃏 Deck Library
         </h1>
         <div style={{ display: 'flex', gap: 12 }}>
-          <button
-            onClick={handleCreateDefaultDeck}
-            style={{
-              background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)',
-              color: '#fff',
-              border: 'none',
-              padding: '10px 20px',
-              borderRadius: 8,
-              cursor: 'pointer',
-              fontSize: 14,
-              fontWeight: 600,
-              transition: 'all 0.2s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-1px)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0px)';
-            }}
-          >
-            🎯 Make Basic Deck
-          </button>
+          {/* Note: Default deck creation removed - users must create custom decks */}
           <button
             onClick={() => setShowNewDeckForm(!showNewDeckForm)}
             style={{

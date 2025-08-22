@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { AutomergeUrl, useRepo } from '@automerge/react';
-import { CardDefinition, createCardDefinition, RendererDesc, ImageRendererDesc } from '../docs/cardDefinition';
-import { GameCard, CardType } from '../docs/game';
+import { CardDoc, create, CardType, RendererDesc, ImageRendererDesc } from '../docs/card';
 import { ArtifactAbility, ArtifactTrigger } from '../utils/spellEffects';
 import { makeCardViewUrl } from '../hooks/useGameNavigation';
 import Card from './Card';
@@ -21,7 +20,7 @@ export type NewCardForm = {
 };
 
 type EditingCard = {
-  card: CardDefinition | GameCard;
+  card: CardDoc;
   isBuiltin: boolean;
   cardUrl?: AutomergeUrl;
 } | null;
@@ -116,7 +115,7 @@ const CardEditor: React.FC<CardEditorProps> = ({
       cardData.renderer = newCardData.renderer;
     }
 
-    const cardDefHandle = createCardDefinition(repo, cardData);
+    const cardDefHandle = create(repo, cardData);
     onSave(cardDefHandle.url);
   };
 
@@ -143,9 +142,9 @@ const CardEditor: React.FC<CardEditorProps> = ({
     // Update the document using the correct Automerge pattern
     if (editingCard.cardUrl) {
       try {
-        const cardHandle = await repo.find<CardDefinition>(editingCard.cardUrl);
+        const cardHandle = await repo.find<CardDoc>(editingCard.cardUrl);
         console.log('Got card handle, updating document...');
-        cardHandle.change((doc: CardDefinition) => {
+        cardHandle.change((doc: CardDoc) => {
           try {
             console.log('Current document state:', {
               name: doc.name,
@@ -327,7 +326,6 @@ const CardEditor: React.FC<CardEditorProps> = ({
             position: 'relative'
           }}>
             <Card card={{
-              id: 'preview',
               name: newCardData.name || 'Card Name',
               cost: newCardData.cost,
               attack: newCardData.type === 'creature' ? (newCardData.attack || 1) : undefined,
@@ -336,7 +334,10 @@ const CardEditor: React.FC<CardEditorProps> = ({
               description: newCardData.description || 'Card description will appear here...',
               spellEffect: newCardData.spellEffect,
               triggeredAbilities: newCardData.triggeredAbilities,
-              renderer: newCardData.renderer
+              renderer: newCardData.renderer,
+              createdAt: new Date().toISOString(),
+              createdBy: 'preview' as AutomergeUrl,
+              isPlayable: false
             }} />
           </div>
         </div>

@@ -54,7 +54,8 @@ const GameLobby: React.FC<GameLobbyProps> = ({
   // Check if current user is the host (first player in the list)
   const isHost = gameDoc.players.length > 0 && gameDoc.players[0] === rootDoc.selfId;
   const hasMinPlayers = gameDoc.players.length >= 2;
-  const canStartGame = gameDoc.status === 'waiting' && isHost && hasMinPlayers;
+  const hasDeckSelected = getGameDeckSelection(gameDoc) !== null;
+  const canStartGame = gameDoc.status === 'waiting' && isHost && hasMinPlayers && hasDeckSelected;
   
   // Check if this game is already in the user's games list
   const isGameInList = rootDoc.games.includes(gameDocUrl as AutomergeUrl);
@@ -230,9 +231,17 @@ const GameLobby: React.FC<GameLobbyProps> = ({
                     e.currentTarget.style.boxShadow = '0 2px 8px rgba(114, 46, 209, 0.3)';
                   }
                 }}
-                title={!hasMinPlayers ? 'Need at least 2 players to start' : 'Start the game'}
+                title={
+                  !hasMinPlayers ? 'Need at least 2 players to start' :
+                  !hasDeckSelected ? 'Need to select a deck to start' :
+                  'Start the game'
+                }
               >
-                🚀 {canStartGame ? 'Start Game' : `Start Game (${playerCount}/2)`}
+                🚀 {canStartGame ? 'Start Game' : 
+                     !hasMinPlayers ? `Start Game (${playerCount}/2)` :
+                     !hasDeckSelected ? 'Start Game (Select Deck)' :
+                     'Start Game'
+                }
               </button>
             )}
           </div>
@@ -357,7 +366,7 @@ const DeckSelectionSection: React.FC<{
         🃏 Choose Game Deck
       </h3>
 
-      {/* Current Selection */}
+            {/* Current Selection */}
       <div style={{ marginBottom: 20 }}>
         <div style={{ fontSize: 14, color: '#ccc', marginBottom: 8 }}>
           Current Selection:
@@ -367,16 +376,16 @@ const DeckSelectionSection: React.FC<{
         ) : (
           <div style={{
             padding: 16,
-            background: 'rgba(255, 255, 0, 0.1)',
-            border: '1px solid rgba(255, 255, 0, 0.3)',
+            background: 'rgba(255, 0, 0, 0.1)',
+            border: '1px solid rgba(255, 0, 0, 0.3)',
             borderRadius: 8,
-            color: '#ffff99',
+            color: '#ff9999',
             fontSize: 14,
             display: 'flex',
             alignItems: 'center',
             gap: 8
           }}>
-            ⚠️ Default Basic Deck (Standard cards will be used)
+            ❌ No deck selected - please choose a deck to start the game
           </div>
         )}
       </div>
@@ -406,28 +415,7 @@ const DeckSelectionSection: React.FC<{
             maxHeight: 300,
             overflowY: 'auto'
           }}>
-            {/* Default Deck Option */}
-            <div 
-              onClick={() => onDeckSelection(null)}
-              style={{
-                padding: 12,
-                background: currentSelection === null ? 'rgba(0, 255, 255, 0.2)' : 'rgba(0,0,0,0.2)',
-                border: currentSelection === null ? '2px solid #00ffff' : '1px solid rgba(255,255,255,0.1)',
-                borderRadius: 8,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              <div style={{ fontWeight: 600, marginBottom: 4, color: '#ffff99' }}>
-                🎯 Default Basic Deck
-              </div>
-              <div style={{ fontSize: 12, color: '#ccc', marginBottom: 8 }}>
-                Balanced starter deck with standard cards
-              </div>
-              <div style={{ fontSize: 11, color: '#999' }}>
-                ~100 cards • Recommended for new players
-              </div>
-            </div>
+            {/* Note: Default deck option removed - games must use custom decks */}
 
             {/* User's Decks */}
             {rootDoc.decks.map((deckUrl) => (
@@ -619,16 +607,16 @@ const DeckDisplaySection: React.FC<{
         ) : (
           <div style={{
             padding: 16,
-            background: 'rgba(255, 255, 0, 0.1)',
-            border: '1px solid rgba(255, 255, 0, 0.3)',
+            background: 'rgba(255, 0, 0, 0.1)',
+            border: '1px solid rgba(255, 0, 0, 0.3)',
             borderRadius: 8,
-            color: '#ffff99',
+            color: '#ff9999',
             fontSize: 14,
             display: 'flex',
             alignItems: 'center',
             gap: 8
           }}>
-            ⚠️ Default Basic Deck (Standard cards will be used)
+            ❌ No deck selected - cannot start game without a deck
           </div>
         )}
       </div>

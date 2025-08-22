@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { AutomergeUrl } from '@automerge/react';
-import { GameDoc, playCard, endPlayerTurn, attackPlayerWithCreature, attackCreatureWithCreature, removeCardFromHand, spendEnergy, addCardToGraveyard, addGameLogEntry } from '../docs/game';
+import { AutomergeUrl, useRepo, useDocument } from '@automerge/react';
+import { GameDoc, removeCardFromHand, spendEnergy, addCardToGraveyard, addGameLogEntry, loadCardDoc } from '../docs/game';
+import { CardDoc } from '../docs/card';
 import { useGameNavigation } from '../hooks/useGameNavigation';
 import { useCardTargeting } from '../hooks/useCardTargeting';
 import Card, { CardData } from './Card';
@@ -9,12 +10,115 @@ import GameLog from './GameLog';
 import { SpellTargetSelector, SpellTarget, createSpellEffectAPI, executeSpellEffect, executeSpellOperations } from '../utils/spellEffects';
 import { Target, getTargetingSelectorForAttack } from '../utils/unifiedTargeting';
 
+type NotPromise<T> = T extends Promise<any> ? never : T;
+
 type TCGGameBoardProps = {
   gameDoc: GameDoc;
   selfId: AutomergeUrl;
-  changeGameDoc: ((callback: (doc: GameDoc) => void) => void) | null;
+  changeGameDoc: (callback: (doc: GameDoc) => NotPromise<void>) => void;
 };
 
+// Component for loading and displaying a hand card
+const HandCard: React.FC<{
+  cardUrl: AutomergeUrl;
+  currentEnergy?: number;
+  isCurrentPlayer: boolean;
+  onPlay: (cardUrl: AutomergeUrl) => void;
+  isTargeting: boolean;
+}> = ({ cardUrl, currentEnergy = 0, isCurrentPlayer, onPlay, isTargeting }) => {
+  const [cardDoc] = useDocument<CardDoc>(cardUrl, { suspense: false });
+
+  if (!cardDoc) {
+    return (
+      <div style={{
+        width: 120,
+        height: 168,
+        background: 'rgba(0,0,0,0.3)',
+        border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: 8,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#666'
+      }}>
+        Loading...
+      </div>
+    );
+  }
+
+  const isPlayable = isCurrentPlayer && !isTargeting && cardDoc.cost <= currentEnergy;
+
+  const cardData: CardData = {
+    ...cardDoc,
+    isPlayable
+  };
+
+  return (
+    <div
+      style={{
+        cursor: (!isTargeting && isPlayable) ? 'pointer' : 'default',
+        opacity: isTargeting ? 0.5 : (isPlayable ? 1 : 0.7)
+      }}
+    >
+      <Card 
+        card={cardData}
+        onClick={!isTargeting && isPlayable ? () => onPlay(cardUrl) : undefined}
+      />
+    </div>
+  );
+};
+
+// Component for loading and displaying a battlefield card
+const BattlefieldCard: React.FC<{
+  cardUrl: AutomergeUrl;
+  instanceId: string;
+  sapped: boolean;
+  currentHealth: number;
+  onAttack?: (instanceId: string) => void;
+  canAttack?: boolean;
+}> = ({ cardUrl, instanceId, sapped, currentHealth, onAttack, canAttack }) => {
+  const [cardDoc] = useDocument<CardDoc>(cardUrl, { suspense: false });
+
+  if (!cardDoc) {
+    return (
+      <div style={{
+        width: 120,
+        height: 168,
+        background: 'rgba(0,0,0,0.3)',
+        border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: 8,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#666'
+      }}>
+        Loading...
+      </div>
+    );
+  }
+
+  const cardData: CardData & { instanceId: string; sapped: boolean; currentHealth: number } = {
+    ...cardDoc,
+    instanceId,
+    sapped,
+    currentHealth,
+    isPlayable: false
+  };
+
+  return (
+    <div
+      onClick={canAttack && onAttack ? () => onAttack(instanceId) : undefined}
+      style={{
+        cursor: canAttack ? 'pointer' : 'default',
+        border: canAttack ? '2px solid #ff4444' : 'none',
+        borderRadius: 8,
+        boxShadow: canAttack ? '0 0 15px rgba(255,68,68,0.5)' : 'none'
+      }}
+    >
+      <Card card={cardData} />
+    </div>
+  );
+};
 
 const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
   gameDoc,
@@ -22,6 +126,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
   changeGameDoc
 }) => {
   const { navigateToHome } = useGameNavigation();
+  const repo = useRepo();
   const [currentOpponentIndex, setCurrentOpponentIndex] = useState(0);
   const playerList = gameDoc.players;
 
@@ -40,15 +145,15 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
   // Enhanced target click handler that auto-confirms single attack targets
   const handleTargetClick = useCallback((target: Target) => {
     // For attacks with single target requirement, directly confirm the target
-    if (targetingState.context?.type === 'attack' && 
-        targetingState.selector?.targetCount === 1) {
+    if (targetingState.context?.type === 'attack' &&
+      targetingState.selector?.targetCount === 1) {
       // Check if target is already selected (to toggle it off) or if it's a new selection
-      const isAlreadySelected = targetingState.selectedTargets.some(t => 
-        t.playerId === target.playerId && 
-        t.instanceId === target.instanceId && 
+      const isAlreadySelected = targetingState.selectedTargets.some(t =>
+        t.playerId === target.playerId &&
+        t.instanceId === target.instanceId &&
         t.type === target.type
       );
-      
+
       if (isAlreadySelected) {
         // If already selected, deselect it
         hookHandleTargetClick(target);
@@ -70,87 +175,49 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
     return gameDoc.playerStates?.find(state => state.playerId === selfId);
   }, [gameDoc.playerStates, selfId]);
 
-  // Convert card IDs to CardData using the game's card library
-  const convertCardsToData = (cardIds: string[], isHand = false): CardData[] => {
-    if (!gameDoc.cardLibrary) return [];
-    return cardIds.map(cardId => {
-      const card = gameDoc.cardLibrary![cardId];
-      if (!card) {
-        console.error(`Card not found in library: ${cardId}`);
-        return null;
-      }
-      const isPlayable = isHand && currentPlayerState ? 
-        card.cost <= currentPlayerState.energy && isCurrentPlayer && !targetingState.isTargeting : 
-        false;
-      return {
-        ...card,
-        isPlayable
-      } as CardData;
-    }).filter((card): card is CardData => card !== null); // Filter out null cards with type guard
-  };
-
-  // Get player's hand
-  const playerHand = useMemo(() => {
+  // Get player's hand card URLs
+  const playerHandCardUrls = useMemo(() => {
     if (!gameDoc.playerHands) return [];
     const playerHandData = gameDoc.playerHands.find(hand => hand.playerId === selfId);
-    return playerHandData ? convertCardsToData(playerHandData.cards, true) : [];
-  }, [gameDoc.playerHands, gameDoc.cardLibrary, selfId, currentPlayerState, isCurrentPlayer, targetingState.isTargeting]);
+    return playerHandData ? playerHandData.cards : [];
+  }, [gameDoc.playerHands, selfId]);
 
-  // Get player's battlefield
-  const playerBattlefield = useMemo(() => {
+  // Get player's battlefield data
+  const playerBattlefieldData = useMemo(() => {
     if (!gameDoc.playerBattlefields) return [];
     const playerBattlefieldData = gameDoc.playerBattlefields.find(battlefield => battlefield.playerId === selfId);
-    if (!playerBattlefieldData) return [];
-    
-    return playerBattlefieldData.cards.map(battlefieldCard => {
-      const card = gameDoc.cardLibrary[battlefieldCard.cardId];
-      if (!card) return null;
-      
-      return {
-        ...card,
-        instanceId: battlefieldCard.instanceId, // Add instance ID for unique identification
-        sapped: battlefieldCard.sapped,
-        currentHealth: battlefieldCard.currentHealth, // Add current health
-        isPlayable: false // Battlefield cards aren't "playable" in the same sense
-      };
-    }).filter(card => card !== null) as (CardData & { instanceId: string; sapped: boolean; currentHealth: number })[];
-  }, [gameDoc.playerBattlefields, gameDoc.cardLibrary, selfId]);
-
-
+    return playerBattlefieldData ? playerBattlefieldData.cards : [];
+  }, [gameDoc.playerBattlefields, selfId]);
 
   // Start attack targeting for a creature
   const handleStartAttackTargeting = async (instanceId: string) => {
-    if (!changeGameDoc) {
-      console.error('handleStartAttackTargeting: Cannot attack - missing changeGameDoc');
-      return;
-    }
     if (!isCurrentPlayer) {
       console.warn('handleStartAttackTargeting: Cannot attack - not current player');
       return;
     }
 
-    // Find the card by instanceId
-    const battlefieldCard = playerBattlefield.find(c => c.instanceId === instanceId);
-    if (!battlefieldCard || !battlefieldCard.attack) {
+    // Find the battlefield card by instanceId
+    const battlefieldCard = playerBattlefieldData.find(c => c.instanceId === instanceId);
+    if (!battlefieldCard) {
       console.error(`handleStartAttackTargeting: Invalid creature instance: ${instanceId}`);
       return;
     }
 
-    // Get the creature card for targeting restrictions
-    const creatureCard = gameDoc.cardLibrary[battlefieldCard.id];
-    if (!creatureCard) {
-      console.error(`handleStartAttackTargeting: Creature card not found: ${battlefieldCard.id}`);
+    // Load the creature card for targeting restrictions
+    const creatureCard = await loadCardDoc(battlefieldCard.cardUrl, repo);
+    if (!creatureCard || !creatureCard.attack) {
+      console.error(`handleStartAttackTargeting: Creature card not found or has no attack: ${battlefieldCard.cardUrl}`);
       return;
     }
 
     try {
       const selector = getTargetingSelectorForAttack(creatureCard, selfId);
-      const targets = await startTargeting(selector, { 
-        type: 'attack', 
-        attackerInstanceId: instanceId, 
-        attackerCard: creatureCard 
+      const targets = await startTargeting(selector, {
+        type: 'attack',
+        attackerInstanceId: instanceId,
+        attackerCard: creatureCard
       });
-      
+
       if (targets.length > 0) {
         handleExecuteAttack(instanceId, targets[0]);
       }
@@ -160,50 +227,366 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
   };
 
   // Execute attack with selected target
-  const handleExecuteAttack = (attackerInstanceId: string, target: Target) => {
-    if (!changeGameDoc) {
-      console.error('handleExecuteAttack: Cannot attack - missing changeGameDoc');
-      return;
-    }
+  const handleExecuteAttack = async (attackerInstanceId: string, target: Target) => {
+    console.log('handleExecuteAttack called with:', {
+      attackerInstanceId,
+      target,
+      targetType: target.type,
+      targetPlayerId: target.playerId,
+      targetInstanceId: target.instanceId
+    });
 
-    // Find attacker battlefield card to get attack value
-    const attackerBattlefieldCard = playerBattlefield.find(c => c.instanceId === attackerInstanceId);
+    // Find attacker battlefield card
+    const attackerBattlefieldCard = playerBattlefieldData.find((c: any) => c.instanceId === attackerInstanceId);
     if (!attackerBattlefieldCard) {
       console.error('handleExecuteAttack: Attacker not found on battlefield');
       return;
     }
 
-    changeGameDoc((doc) => {
-      if (target.type === 'player') {
-        attackPlayerWithCreature(doc, selfId, attackerInstanceId, target.playerId, attackerBattlefieldCard.attack || 0);
-      } else if ((target.type === 'creature' || target.type === 'artifact') && target.instanceId) {
-        attackCreatureWithCreature(doc, selfId, attackerInstanceId, target.playerId, target.instanceId);
-      }
-    });
-  };
-
-
-
-  // Handle ending turn
-  const handleEndTurn = () => {
-    if (!changeGameDoc) {
-      console.error('handleEndTurn: Cannot end turn - missing changeGameDoc');
+    // Load the attacker card to get attack value
+    const attackerCard = await loadCardDoc(attackerBattlefieldCard.cardUrl, repo);
+    if (!attackerCard) {
+      console.error('handleExecuteAttack: Could not load attacker card');
       return;
     }
+
+    // Load target card data first for synchronous changes
+    if (target.type === 'player') {
+      // For player attacks, make synchronous changes directly
+      try {
+        console.log('Making synchronous player attack...');
+        const damage = attackerCard.attack || 0;
+        
+        changeGameDoc((doc) => {
+          console.log('Inside synchronous changeGameDoc for player attack');
+          
+          // Mark attacker as sapped
+          const attackerBattlefield = doc.playerBattlefields.find(b => b.playerId === selfId);
+          const attackerBattlefieldCard = attackerBattlefield?.cards.find(c => c.instanceId === attackerInstanceId);
+          
+          if (attackerBattlefieldCard) {
+            console.log('Sapping attacker...');
+            attackerBattlefieldCard.sapped = true;
+          }
+          
+          // Deal damage to target player
+          const targetPlayerState = doc.playerStates.find(state => state.playerId === target.playerId);
+          if (targetPlayerState && damage > 0) {
+            console.log(`Dealing ${damage} damage to player with ${targetPlayerState.health} health`);
+            targetPlayerState.health = Math.max(0, targetPlayerState.health - damage);
+            console.log(`Player health after damage: ${targetPlayerState.health}`);
+            
+            // Check for game end
+            if (targetPlayerState.health <= 0) {
+              console.log('Player defeated, ending game');
+              doc.status = 'finished';
+            }
+          }
+          
+          // Add game log entry
+          addGameLogEntry(doc, {
+            playerId: selfId,
+            action: 'attack',
+            targetId: target.playerId,
+            amount: damage,
+            description: `${attackerCard.name} attacked player for ${damage} damage`
+          });
+          
+          console.log('Player attack changes applied synchronously');
+        });
+        
+      } catch (error) {
+        console.error('Error executing player attack:', error);
+      }
+    } else if ((target.type === 'creature' || target.type === 'artifact') && target.instanceId) {
+      // For creature attacks, load all data first, then make synchronous changes
+      try {
+        console.log('Loading data for creature attack with triggered abilities...');
+        
+        // Find target battlefield card
+        const targetBattlefield = gameDoc.playerBattlefields.find(bf => bf.playerId === target.playerId);
+        const targetBattlefieldCard = targetBattlefield?.cards.find(c => c.instanceId === target.instanceId);
+        
+        if (!targetBattlefieldCard) {
+          console.error('Target battlefield card not found');
+          return;
+        }
+        
+        // Load target card data
+        const targetCard = await loadCardDoc(targetBattlefieldCard.cardUrl, repo);
+        if (!targetCard) {
+          console.error('Could not load target card');
+          return;
+        }
+        
+        console.log('Target card loaded:', targetCard.name, 'Type:', targetCard.type);
+        console.log('Checking for triggered abilities...');
+        
+        // Check if target has "take_damage" triggered abilities
+        const takeDamageAbilities = targetCard.triggeredAbilities?.filter(ability => ability.trigger === 'take_damage') || [];
+        console.log('Found take_damage abilities:', takeDamageAbilities.length);
+        
+        // Now make all changes synchronously
+        changeGameDoc((doc: GameDoc) => {
+          console.log('Inside synchronous changeGameDoc for creature combat');
+          
+          // Mark attacker as sapped
+          const attackerBattlefield = doc.playerBattlefields.find(b => b.playerId === selfId);
+          const attackerBattlefieldCard = attackerBattlefield?.cards.find(c => c.instanceId === attackerInstanceId);
+
+          if (!attackerBattlefieldCard) {
+            console.error('Attacker battlefield card not found');
+            return;
+          }
+          
+          console.log('Sapping attacker...');
+          attackerBattlefieldCard.sapped = true;
+          
+          // Deal damage to target
+          const docTargetBattlefield = doc.playerBattlefields.find(b => b.playerId === target.playerId);
+          const docTargetCard = docTargetBattlefield?.cards.find(c => c.instanceId === target.instanceId);
+          
+          if (docTargetCard && attackerCard.attack) {
+            console.log(`Dealing ${attackerCard.attack} damage to target with ${docTargetCard.currentHealth} health`);
+            docTargetCard.currentHealth -= attackerCard.attack;
+            console.log(`Target health after damage: ${docTargetCard.currentHealth}`);
+            
+            // Execute take_damage triggered abilities synchronously
+            for (const ability of takeDamageAbilities) {
+              console.log('Executing take_damage ability:', ability.description);
+              try {
+                // Simple implementation for the draw card effect
+                if (ability.effectCode.includes('api.drawCard()')) {
+                  console.log('Triggering draw card effect');
+                  // Draw a card for the target's owner
+                  if (doc.deck.length === 0 && doc.graveyard.length > 0) {
+                    // Reshuffle if needed
+                    doc.deck = [...doc.graveyard];
+                    doc.graveyard = [];
+                    // Simple shuffle
+                    for (let i = doc.deck.length - 1; i > 0; i--) {
+                      const j = Math.floor(Math.random() * (i + 1));
+                      [doc.deck[i], doc.deck[j]] = [doc.deck[j], doc.deck[i]];
+                    }
+                  }
+                  
+                  if (doc.deck.length > 0) {
+                    const drawnCard = doc.deck.pop();
+                    if (drawnCard) {
+                      const targetPlayerHand = doc.playerHands.find(hand => hand.playerId === target.playerId);
+                      if (targetPlayerHand) {
+                        targetPlayerHand.cards.push(drawnCard);
+                        addGameLogEntry(doc, {
+                          playerId: target.playerId,
+                          action: 'draw_card',
+                          cardUrl: drawnCard,
+                          description: `${targetCard.name}: Drew a card`
+                        });
+                      }
+                    }
+                  }
+                }
+              } catch (abilityError) {
+                console.error('Error executing triggered ability:', abilityError);
+              }
+            }
+            
+            // If target is a creature and has attack power, deal damage back to attacker (mutual combat)
+            if (targetCard.type === 'creature' && targetCard.attack && targetCard.attack > 0) {
+              console.log(`Target creature ${targetCard.name} deals ${targetCard.attack} damage back to attacker`);
+              
+              // Find the attacker in the document
+              const docAttackerBattlefield = doc.playerBattlefields.find(b => b.playerId === selfId);
+              const docAttackerCard = docAttackerBattlefield?.cards.find(c => c.instanceId === attackerInstanceId);
+              
+              if (docAttackerCard) {
+                console.log(`Attacker has ${docAttackerCard.currentHealth} health, taking ${targetCard.attack} damage`);
+                docAttackerCard.currentHealth -= targetCard.attack;
+                console.log(`Attacker health after counter-attack: ${docAttackerCard.currentHealth}`);
+                
+                // If attacker dies from counter-attack, remove it too
+                if (docAttackerCard.currentHealth <= 0) {
+                  console.log('Attacker destroyed by counter-attack, removing from battlefield');
+                  const attackerCardIndex = docAttackerBattlefield!.cards.findIndex(c => c.instanceId === attackerInstanceId);
+                  docAttackerBattlefield!.cards.splice(attackerCardIndex, 1);
+                  doc.graveyard.push(attackerBattlefieldCard.cardUrl);
+                }
+              }
+            }
+            
+            // If target dies, remove from battlefield and add to graveyard
+            if (docTargetCard.currentHealth <= 0) {
+              console.log('Target destroyed, removing from battlefield');
+              const cardIndex = docTargetBattlefield!.cards.findIndex(c => c.instanceId === target.instanceId);
+              docTargetBattlefield!.cards.splice(cardIndex, 1);
+              doc.graveyard.push(targetBattlefieldCard.cardUrl);
+            }
+          }
+          
+          // Add game log entry
+          const attackerDamage = attackerCard.attack || 0;
+          const targetDamage = (targetCard.type === 'creature' && targetCard.attack) ? targetCard.attack : 0;
+          
+          let combatDescription;
+          if (targetDamage > 0) {
+            combatDescription = `${attackerCard.name} and ${targetCard.name} fight! ${attackerCard.name} deals ${attackerDamage}, ${targetCard.name} deals ${targetDamage} damage`;
+          } else {
+            combatDescription = `${attackerCard.name} attacked ${targetCard.name} for ${attackerDamage} damage`;
+          }
+          
+          addGameLogEntry(doc, {
+            playerId: selfId,
+            action: 'attack',
+            targetId: target.playerId,
+            amount: attackerDamage,
+            description: combatDescription
+          });
+          
+          console.log('Creature combat changes applied synchronously');
+        });
+        
+      } catch (error) {
+        console.error('Error executing creature attack:', error);
+      }
+    }
+  };
+
+  // Handle ending turn
+  const handleEndTurn = async () => {
     if (!isCurrentPlayer) {
       console.warn('handleEndTurn: Cannot end turn - not current player');
       return;
     }
-    
+
     // Prevent ending turn while targeting
     if (targetingState.isTargeting) {
       console.warn('handleEndTurn: Cannot end turn while targeting');
       return;
     }
 
-    changeGameDoc((doc) => {
-      endPlayerTurn(doc, selfId);
-    });
+    try {
+      // Pre-load card data for next player's battlefield to handle healing properly
+      console.log('Ending turn with synchronous operations...');
+      const nextPlayerIndex = (gameDoc.currentPlayerIndex + 1) % gameDoc.players.length;
+      const nextPlayerId = gameDoc.players[nextPlayerIndex];
+      
+      // Load battlefield card data for proper healing
+      const nextPlayerBattlefield = gameDoc.playerBattlefields.find(bf => bf.playerId === nextPlayerId);
+      const battlefieldCardData: Array<{ instanceId: string; cardDoc: CardDoc | null; maxHealth: number }> = [];
+      
+      if (nextPlayerBattlefield) {
+        for (const battlefieldCard of nextPlayerBattlefield.cards) {
+          const cardDoc = await loadCardDoc(battlefieldCard.cardUrl, repo);
+          battlefieldCardData.push({
+            instanceId: battlefieldCard.instanceId,
+            cardDoc,
+            maxHealth: cardDoc?.health || 1
+          });
+        }
+      }
+      
+      changeGameDoc((doc: GameDoc) => {
+        // Add to game log FIRST, before any next player actions
+        addGameLogEntry(doc, {
+          playerId: selfId,
+          action: 'end_turn',
+          description: 'Ended turn'
+        });
+
+        const nextPlayerIndex = (doc.currentPlayerIndex + 1) % doc.players.length;
+        doc.currentPlayerIndex = nextPlayerIndex;
+        const nextPlayerId = doc.players[nextPlayerIndex];
+        
+        // Draw a card for the next player (start of their turn)
+        if (doc.deck.length === 0) {
+          // Try to reshuffle graveyard into deck
+          if (doc.graveyard.length > 0) {
+            doc.deck = [...doc.graveyard];
+            doc.graveyard = [];
+            
+            // Simple shuffle (Fisher-Yates)
+            for (let i = doc.deck.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [doc.deck[i], doc.deck[j]] = [doc.deck[j], doc.deck[i]];
+            }
+            
+            addGameLogEntry(doc, {
+              playerId: nextPlayerId,
+              action: 'draw_card',
+              description: 'Reshuffled graveyard into deck'
+            });
+          }
+        }
+        
+        // Draw the top card
+        if (doc.deck.length > 0) {
+          const cardUrl = doc.deck.pop();
+          if (cardUrl) {
+            const playerHandIndex = doc.playerHands.findIndex(hand => hand.playerId === nextPlayerId);
+            if (playerHandIndex !== -1) {
+              doc.playerHands[playerHandIndex].cards.push(cardUrl);
+              
+              addGameLogEntry(doc, {
+                playerId: nextPlayerId,
+                action: 'draw_card',
+                cardUrl,
+                description: 'Drew a card'
+              });
+            }
+          }
+        }
+        
+        // Refresh creatures for the next player (unsap them)
+        const battlefieldIndex = doc.playerBattlefields.findIndex(battlefield => battlefield.playerId === nextPlayerId);
+        if (battlefieldIndex !== -1) {
+          doc.playerBattlefields[battlefieldIndex].cards.forEach(card => {
+            card.sapped = false;
+          });
+        }
+        
+        // Heal creatures for the next player (only creatures, not artifacts)
+        if (battlefieldIndex !== -1) {
+          for (const battlefieldCard of doc.playerBattlefields[battlefieldIndex].cards) {
+            // Find the corresponding card data we pre-loaded
+            const cardData = battlefieldCardData.find(cd => cd.instanceId === battlefieldCard.instanceId);
+            
+            if (cardData && cardData.cardDoc) {
+              // Only heal creatures, not artifacts
+              if (cardData.cardDoc.type === 'creature') {
+                const maxHealth = cardData.maxHealth;
+                if (battlefieldCard.currentHealth < maxHealth) {
+                  battlefieldCard.currentHealth = Math.min(maxHealth, battlefieldCard.currentHealth + 1);
+                }
+              }
+            }
+          }
+        }
+
+        // If we've gone through all players, increment turn and increase max energy
+        if (nextPlayerIndex === 0) {
+          doc.turn += 1;
+          
+          // Increase max energy for all players and restore their energy
+          doc.playerStates.forEach(playerState => {
+            if (playerState.maxEnergy < 10) {
+              playerState.maxEnergy += 1;
+            }
+            playerState.energy = playerState.maxEnergy;
+          });
+        } else {
+          // Restore energy for the next player only
+          const nextPlayerStateIndex = doc.playerStates.findIndex(state => state.playerId === nextPlayerId);
+          if (nextPlayerStateIndex !== -1) {
+            doc.playerStates[nextPlayerStateIndex].energy = doc.playerStates[nextPlayerStateIndex].maxEnergy;
+          }
+        }
+        
+        console.log('Turn ended synchronously');
+      });
+      
+    } catch (error) {
+      console.error('Error ending turn:', error);
+    }
   };
 
   // Implementation of target selection for spells
@@ -217,37 +600,30 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
     }
   };
 
-
-
-
-
   // Handle card playing (updated for async spells)
-  const handlePlayCard = async (cardId: string) => {
-    if (!changeGameDoc) {
-      console.error('handlePlayCard: Cannot play card - missing changeGameDoc');
-      return;
-    }
+  const handlePlayCard = async (cardUrl: AutomergeUrl) => {
     if (!currentPlayerState) {
       console.error('handlePlayCard: Cannot play card - missing currentPlayerState');
       return;
     }
-    
+
     // Prevent playing cards while targeting
     if (targetingState.isTargeting) {
       console.warn('handlePlayCard: Cannot play card while targeting');
       return;
     }
-    
-    const card = gameDoc.cardLibrary[cardId];
+
+    // Load the card
+    const card = await loadCardDoc(cardUrl, repo);
     if (!card) {
-      console.error(`handlePlayCard: Card not found in library: ${cardId}`);
+      console.error(`handlePlayCard: Card not found: ${cardUrl}`);
       return;
     }
     if (card.cost > currentPlayerState.energy) {
-      console.warn(`handlePlayCard: Cannot afford card ${cardId} (cost: ${card.cost}, available energy: ${currentPlayerState.energy})`);
+      console.warn(`handlePlayCard: Cannot afford card ${cardUrl} (cost: ${card.cost}, available energy: ${currentPlayerState.energy})`);
       return;
     }
-    
+
     // Check if it's the player's turn
     if (!isCurrentPlayer) {
       console.warn('handlePlayCard: Cannot play card - not current player turn');
@@ -262,25 +638,22 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
           // First execute the spell effect to collect operations
           const api = createSpellEffectAPI(gameDoc, selfId, selectTargets);
           const success = card.spellEffect ? await executeSpellEffect(card.spellEffect, api) : false;
-          
+
           // Now update the game state in one synchronous operation
           changeGameDoc((doc) => {
-            const currentCard = doc.cardLibrary[cardId];
-            if (!currentCard) return;
-            
             // Check if we can afford the card and remove it from hand
-            if (removeCardFromHand(doc, selfId, cardId) && spendEnergy(doc, selfId, currentCard.cost)) {
+            if (removeCardFromHand(doc, selfId, cardUrl) && spendEnergy(doc, selfId, card.cost)) {
               // Add to graveyard
-              addCardToGraveyard(doc, cardId);
-              
+              addCardToGraveyard(doc, cardUrl);
+
               // Add cast log entry FIRST
               addGameLogEntry(doc, {
                 playerId: selfId,
                 action: 'play_card',
-                cardId,
+                cardUrl,
                 description: `Cast ${card.name}`
               });
-              
+
               // Then execute the collected spell operations
               if (success && api.operations.length > 0) {
                 executeSpellOperations(doc, api.operations);
@@ -295,17 +668,81 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
             addGameLogEntry(doc, {
               playerId: selfId,
               action: 'play_card',
-              cardId,
+              cardUrl,
               description: `Failed to cast ${card.name}`
             });
           });
         }
       })();
     } else {
-      // Use sync version for creatures and simple spells
-      changeGameDoc((doc) => {
-        playCard(doc, selfId, cardId);
-      });
+      // Load card first, then make synchronous changes
+      try {
+        // Pre-load the card data
+        const cardData = await loadCardDoc(cardUrl, repo);
+        if (!cardData) {
+          console.error('handlePlayCard: Could not load card data');
+          return;
+        }
+        
+        // Now make synchronous changes to the document
+        changeGameDoc((doc) => {
+          // Remove card from hand
+          if (!removeCardFromHand(doc, selfId, cardUrl)) {
+            console.error(`handlePlayCard: Failed to remove card ${cardUrl} from player ${selfId}'s hand`);
+            return;
+          }
+
+          // Spend energy
+          if (!spendEnergy(doc, selfId, cardData.cost)) {
+            console.error(`handlePlayCard: Failed to spend energy for card ${cardUrl} (cost: ${cardData.cost}) for player ${selfId}`);
+            // Try to add the card back to hand since we couldn't spend energy
+            const playerHandIndex = doc.playerHands.findIndex(hand => hand.playerId === selfId);
+            if (playerHandIndex !== -1) {
+              doc.playerHands[playerHandIndex].cards.push(cardUrl);
+            }
+            return;
+          }
+
+          // Handle card based on type
+          if (cardData.type === 'creature' || cardData.type === 'artifact') {
+            // Add to battlefield
+            const battlefieldIndex = doc.playerBattlefields.findIndex(battlefield => battlefield.playerId === selfId);
+            if (battlefieldIndex !== -1) {
+              // Generate unique instance ID for this card copy
+              const instanceId = `instance_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+              
+              const initialHealth = cardData.health || 1;
+              console.log('Adding card to battlefield:', {
+                cardName: cardData.name,
+                cardType: cardData.type,
+                cardHealth: cardData.health,
+                initialHealth,
+                cardData
+              });
+              
+              doc.playerBattlefields[battlefieldIndex].cards.push({
+                instanceId,
+                cardUrl,
+                sapped: true, // New creatures start sapped (summoning sickness)
+                currentHealth: initialHealth
+              });
+            }
+          } else {
+            // Other card types go to graveyard
+            addCardToGraveyard(doc, cardUrl);
+          }
+
+          // Add to game log
+          addGameLogEntry(doc, {
+            playerId: selfId,
+            action: 'play_card',
+            cardUrl,
+            description: `Played ${cardData.name}`
+          });
+        });
+      } catch (error) {
+        console.error('Error playing card:', error);
+      }
     }
   };
 
@@ -320,8 +757,6 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
   const prevOpponent = () => {
     setCurrentOpponentIndex((prev) => (prev - 1 + opponents.length) % opponents.length);
   };
-
-  
 
   return (
     <div style={{
@@ -369,8 +804,8 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{ fontSize: 12, opacity: 0.7 }}>Turn {gameDoc.turn || 1}</div>
-          <div style={{ 
-            fontSize: 12, 
+          <div style={{
+            fontSize: 12,
             color: isCurrentPlayer ? '#00ff00' : '#ffaa00',
             fontWeight: 600,
             display: 'flex',
@@ -381,9 +816,9 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
               <>🎯 Your Turn</>
             ) : (
               <>
-                ⏳ 
-                <Contact 
-                  contactUrl={gameDoc.players[gameDoc.currentPlayerIndex]} 
+                ⏳
+                <Contact
+                  contactUrl={gameDoc.players[gameDoc.currentPlayerIndex]}
                   style={{
                     background: 'rgba(255, 170, 0, 0.2)',
                     borderColor: 'rgba(255, 170, 0, 0.4)',
@@ -435,9 +870,9 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
             </button>
           )}
 
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
             gap: 12,
             transform: opponents.length > 1 ? `translateX(${currentOpponentIndex * -100}px)` : 'none',
             transition: 'transform 0.3s ease'
@@ -457,13 +892,13 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
                   border: canTargetPlayer(currentOpponent) ? '3px solid #00ff00' : 'none',
                   borderRadius: 8,
                   padding: canTargetPlayer(currentOpponent) ? 2 : 0,
-                  boxShadow: isTargetSelected({type: 'player', playerId: currentOpponent}) ? '0 0 15px #00ff00' : 'none'
+                  boxShadow: isTargetSelected({ type: 'player', playerId: currentOpponent }) ? '0 0 15px #00ff00' : 'none'
                 }}
               >
-                <Contact 
+                <Contact
                   contactUrl={currentOpponent}
-                  style={{ 
-                    background: 'rgba(100, 0, 150, 0.6)', 
+                  style={{
+                    background: 'rgba(100, 0, 150, 0.6)',
                     borderColor: 'rgba(0, 255, 255, 0.5)',
                     opacity: canTargetPlayer(currentOpponent) ? 1 : (targetingState.isTargeting ? 0.5 : 1)
                   }}
@@ -471,23 +906,23 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
               </div>
             )}
             {/* Opponent Info */}
-            <div style={{ 
-              display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: 'center', 
-              gap: 4 
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 4
             }}>
               {opponents.length > 1 && (
                 <div style={{ fontSize: 14, fontWeight: 600 }}>
                   Opponent {currentOpponentIndex + 1} of {opponents.length}
                 </div>
               )}
-              
+
               {/* Opponent Health Display */}
               {(() => {
                 const currentOpponent = opponents[currentOpponentIndex];
                 const opponentState = gameDoc.playerStates?.find(state => state.playerId === currentOpponent);
-                
+
                 return currentOpponent && opponentState ? (
                   <div style={{
                     display: 'flex',
@@ -544,7 +979,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
             const currentOpponent = opponents[currentOpponentIndex];
             const opponentHand = gameDoc.playerHands?.find(hand => hand.playerId === currentOpponent);
             const handSize = opponentHand?.cards.length || 0;
-            
+
             return Array.from({ length: handSize }, (_, i) => (
               <Card
                 key={`opp-hand-${currentOpponent}-${i}`}
@@ -570,66 +1005,28 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
             // Get current opponent's battlefield
             const currentOpponent = opponents[currentOpponentIndex];
             const opponentBattlefield = gameDoc.playerBattlefields?.find(battlefield => battlefield.playerId === currentOpponent);
-            const opponentCards = opponentBattlefield ? 
-              opponentBattlefield.cards.map(battlefieldCard => {
-                const card = gameDoc.cardLibrary[battlefieldCard.cardId];
-                if (!card) return null;
-                return {
-                  ...card,
-                  instanceId: battlefieldCard.instanceId,
-                  sapped: battlefieldCard.sapped,
-                  currentHealth: battlefieldCard.currentHealth,
-                  isPlayable: false
-                };
-              }).filter(card => card !== null) as (CardData & { instanceId: string; sapped: boolean; currentHealth: number })[] : [];
-            
-            return opponentCards.length > 0 ? opponentCards.map((card) => (
-              <div
-                key={`opponent-${card.instanceId}`}
-                onClick={() => {
-                  if (canTargetCreature(currentOpponent, card.instanceId)) {
+            const opponentCards = opponentBattlefield ? opponentBattlefield.cards : [];
+
+            return opponentCards.length > 0 ? opponentCards.map((battlefieldCard) => (
+              <BattlefieldCard
+                key={`opponent-${battlefieldCard.instanceId}`}
+                cardUrl={battlefieldCard.cardUrl}
+                instanceId={battlefieldCard.instanceId}
+                sapped={battlefieldCard.sapped}
+                currentHealth={battlefieldCard.currentHealth}
+                onAttack={canTargetCreature(currentOpponent, battlefieldCard.instanceId) ?
+                  async (instanceId) => {
+                    // Load the card to determine its actual type
+                    const cardDoc = await loadCardDoc(battlefieldCard.cardUrl, repo);
+                    const cardType = cardDoc?.type || 'creature';
                     handleTargetClick({
-                      type: 'creature',
+                      type: cardType as 'creature' | 'artifact',
                       playerId: currentOpponent,
-                      instanceId: card.instanceId
+                      instanceId
                     });
-                  }
-                }}
-                style={{
-                  position: 'relative',
-                  opacity: card.sapped ? 0.6 : 1,
-                  cursor: canTargetCreature(currentOpponent, card.instanceId) ? 'pointer' : 'default',
-                  border: canTargetCreature(currentOpponent, card.instanceId) ? '3px solid #00ff00' : 'none',
-                  borderRadius: 8,
-                  padding: canTargetCreature(currentOpponent, card.instanceId) ? 2 : 0,
-                  boxShadow: isTargetSelected({type: 'creature', playerId: currentOpponent, instanceId: card.instanceId}) ? '0 0 15px #00ff00' : 'none'
-                }}
-              >
-                <Card
-                  card={card}
-                  size="medium"
-                  style={{
-                    opacity: canTargetCreature(currentOpponent, card.instanceId) ? 1 : (targetingState.isTargeting ? 0.5 : 1)
-                  }}
-                />
-                {card.sapped && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    background: 'rgba(0, 0, 0, 0.8)',
-                    color: '#ffaa00',
-                    padding: '4px 8px',
-                    borderRadius: 4,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    pointerEvents: 'none'
-                  }}>
-                    💤 SAPPED
-                  </div>
-                )}
-              </div>
+                  } : undefined}
+                canAttack={canTargetCreature(currentOpponent, battlefieldCard.instanceId)}
+              />
             )) : (
               <div style={{
                 color: 'rgba(255,255,255,0.5)',
@@ -660,75 +1057,36 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
           padding: '20px',
           flexWrap: 'wrap'
         }}>
-          {playerBattlefield.map((card) => {
-            const canAttack = isCurrentPlayer && card.type === 'creature' && card.attack && card.attack > 0 && !card.sapped;
+          {playerBattlefieldData.map((battlefieldCard) => {
+            const canBeTargeted = targetingState.isTargeting && canTargetCreature(selfId, battlefieldCard.instanceId);
+            const canBeAttacked = !targetingState.isTargeting && isCurrentPlayer && !battlefieldCard.sapped;
 
-            const instanceId = card.instanceId;
-            
-
-            
-            const canBeTargeted = targetingState.isTargeting && canTargetCreature(selfId, card.instanceId);
-            const canBeAttacked = !targetingState.isTargeting && canAttack;
-            const isClickable = canBeTargeted || canBeAttacked;
-            
             const handleClick = canBeTargeted
-              ? () => handleTargetClick({
-                  type: card.type as 'creature' | 'artifact',
+              ? async () => {
+                // Load the card to determine its actual type
+                const cardDoc = await loadCardDoc(battlefieldCard.cardUrl, repo);
+                const cardType = cardDoc?.type || 'creature';
+                handleTargetClick({
+                  type: cardType as 'creature' | 'artifact',
                   playerId: selfId,
-                  instanceId: card.instanceId
-                })
-              : (canBeAttacked ? () => handleStartAttackTargeting(instanceId) : undefined);
-            
+                  instanceId: battlefieldCard.instanceId
+                });
+              }
+              : (canBeAttacked ? () => handleStartAttackTargeting(battlefieldCard.instanceId) : undefined);
+
             return (
-              <div
-                key={`battlefield-${card.instanceId}`}
-                onClick={handleClick}
-                style={{
-                  cursor: isClickable ? 'pointer' : 'default',
-                  border: canBeTargeted
-                    ? '3px solid #00ff00' 
-                    : canBeAttacked 
-                      ? '2px solid #ff4444' 
-                      : card.sapped 
-                        ? '2px solid #666666' 
-                        : '2px solid transparent',
-                  borderRadius: 8,
-                  boxShadow: canBeTargeted
-                    ? (isTargetSelected({type: card.type as 'creature' | 'artifact', playerId: selfId, instanceId: card.instanceId}) ? '0 0 15px #00ff00' : '0 0 8px rgba(0, 255, 0, 0.4)')
-                    : canBeAttacked 
-                      ? '0 0 8px rgba(255, 68, 68, 0.4)' 
-                      : 'none',
-                  opacity: card.sapped ? 0.6 : (canBeTargeted ? 1 : (targetingState.isTargeting ? 0.5 : 1)),
-                  transition: 'all 0.2s ease',
-                  position: 'relative',
-                  padding: canBeTargeted ? 2 : 0
-                }}
-              >
-                <Card
-                  card={card}
-                  size="medium"
-                />
-                {card.sapped && (
-                  <div style={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    background: 'rgba(0, 0, 0, 0.8)',
-                    color: '#ffaa00',
-                    padding: '4px 8px',
-                    borderRadius: 4,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    pointerEvents: 'none'
-                  }}>
-                    💤 SAPPED
-                  </div>
-                )}
-              </div>
+              <BattlefieldCard
+                key={`battlefield-${battlefieldCard.instanceId}`}
+                cardUrl={battlefieldCard.cardUrl}
+                instanceId={battlefieldCard.instanceId}
+                sapped={battlefieldCard.sapped}
+                currentHealth={battlefieldCard.currentHealth}
+                onAttack={handleClick}
+                canAttack={canBeTargeted || canBeAttacked}
+              />
             );
           })}
-          {playerBattlefield.length === 0 && (
+          {playerBattlefieldData.length === 0 && (
             <div style={{
               color: 'rgba(255,255,255,0.5)',
               fontSize: 16,
@@ -770,13 +1128,13 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
                 border: canTargetPlayer(selfId) ? '3px solid #00ff00' : 'none',
                 borderRadius: 8,
                 padding: canTargetPlayer(selfId) ? 2 : 0,
-                boxShadow: isTargetSelected({type: 'player', playerId: selfId}) ? '0 0 15px #00ff00' : 'none'
+                boxShadow: isTargetSelected({ type: 'player', playerId: selfId }) ? '0 0 15px #00ff00' : 'none'
               }}
             >
-              <Contact 
+              <Contact
                 contactUrl={selfId}
-                style={{ 
-                  background: 'rgba(0, 100, 150, 0.6)', 
+                style={{
+                  background: 'rgba(0, 100, 150, 0.6)',
                   borderColor: 'rgba(0, 255, 255, 0.5)',
                   opacity: canTargetPlayer(selfId) ? 1 : (targetingState.isTargeting ? 0.5 : 1)
                 }}
@@ -804,22 +1162,26 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
             padding: '0 20px',
             overflowX: 'auto'
           }}>
-                      {playerHand.map((card, index) => (
-            <Card
-              key={`hand-${card.id}-${index}`}
-              card={card}
-              size="medium"
-              onClick={card.isPlayable ? () => handlePlayCard(card.id) : undefined}
-            />
-          ))}
+            {playerHandCardUrls.map((cardUrl, index) => {
+              return (
+                <HandCard
+                  key={`hand-${cardUrl}-${index}`}
+                  cardUrl={cardUrl}
+                  currentEnergy={currentPlayerState?.energy || 0}
+                  isCurrentPlayer={isCurrentPlayer}
+                  onPlay={handlePlayCard}
+                  isTargeting={targetingState.isTargeting}
+                />
+              );
+            })}
           </div>
         </div>
       </div>
 
       {/* Game Log */}
-      <GameLog 
+      <GameLog
         gameLog={gameDoc.gameLog}
-        cardLibrary={gameDoc.cardLibrary}
+        cardLibrary={{}}
       />
 
       {/* Action Buttons */}
@@ -832,7 +1194,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
         gap: 8
       }}>
         {isCurrentPlayer && (
-          <button 
+          <button
             onClick={handleEndTurn}
             disabled={targetingState.isTargeting}
             style={{
@@ -878,10 +1240,10 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
           top: '50%',
           transform: 'translateY(-50%)',
           width: 320,
-          background: targetingState.context?.type === 'attack' 
+          background: targetingState.context?.type === 'attack'
             ? 'linear-gradient(135deg, #220011 0%, #440022 100%)'
             : 'linear-gradient(135deg, #001122 0%, #002244 100%)',
-          border: targetingState.context?.type === 'attack' 
+          border: targetingState.context?.type === 'attack'
             ? '2px solid #ff4444'
             : '2px solid #00ffff',
           borderRadius: 12,
@@ -889,20 +1251,20 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
           textAlign: 'center',
           color: '#fff',
           zIndex: 1000,
-          boxShadow: targetingState.context?.type === 'attack' 
+          boxShadow: targetingState.context?.type === 'attack'
             ? '0 8px 32px rgba(255, 68, 68, 0.3)'
             : '0 8px 32px rgba(0, 255, 255, 0.3)'
         }}>
-          <h3 style={{ 
-            margin: '0 0 16px 0', 
+          <h3 style={{
+            margin: '0 0 16px 0',
             color: targetingState.context?.type === 'attack' ? '#ff4444' : '#00ffff',
             fontSize: 18
           }}>
             {targetingState.context?.type === 'attack' ? '⚔️ Attack Enemy Target' : '🎯 Target Selection'}
           </h3>
-          
-          <p style={{ 
-            margin: '0 0 16px 0', 
+
+          <p style={{
+            margin: '0 0 16px 0',
             fontSize: 14,
             lineHeight: 1.4
           }}>
@@ -913,8 +1275,8 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
           </p>
 
           {targetingState.context?.type === 'attack' && targetingState.context.attackerCard?.attackTargeting?.description && (
-            <p style={{ 
-              margin: '0 0 16px 0', 
+            <p style={{
+              margin: '0 0 16px 0',
               fontSize: 12,
               color: '#ffaa00',
               fontStyle: 'italic'
@@ -922,7 +1284,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
               {targetingState.context.attackerCard.attackTargeting.description}
             </p>
           )}
-          
+
           {targetingState.context?.type === 'spell' && (
             <div style={{
               margin: '0 0 20px 0',
@@ -937,10 +1299,10 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
               )}
             </div>
           )}
-          
+
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
             {targetingState.context?.type === 'spell' && targetingState.selectedTargets.length > 0 && (
-              <button 
+              <button
                 onClick={() => confirmSelection()}
                 style={{
                   background: 'linear-gradient(135deg, #52c41a 0%, #389e0d 100%)',
@@ -956,8 +1318,8 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
                 ✅ Confirm ({targetingState.selectedTargets.length})
               </button>
             )}
-            
-            <button 
+
+            <button
               onClick={cancelTargeting}
               style={{
                 background: 'linear-gradient(135deg, #ff4d4f 0%, #d32f2f 100%)',

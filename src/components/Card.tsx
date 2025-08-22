@@ -1,18 +1,8 @@
 import React from 'react';
-import { ArtifactAbility } from '../utils/spellEffects';
-import { RendererDesc, ImageRendererDesc } from '../docs/cardDefinition';
+import { CardDoc } from '../docs/card';
+import { RendererDesc, ImageRendererDesc } from '../docs/card';
 
-export type CardData = {
-  id: string;
-  name: string;
-  cost: number;
-  attack?: number;
-  health?: number;
-  type: 'creature' | 'spell' | 'artifact';
-  description: string;
-  spellEffect?: string;
-  triggeredAbilities?: ArtifactAbility[]; // Array of triggered abilities
-  renderer?: RendererDesc | null; // Optional custom renderer for the card
+export type CardData = CardDoc & {
   isPlayable?: boolean;
   currentHealth?: number; // For battlefield cards
 };
@@ -73,25 +63,25 @@ const Card: React.FC<CardProps> = ({
         justifyContent: 'center'
       };
     }
-    
-    if (isImageRenderer(card.renderer)) {
-      return {
-        overflow: 'hidden'
-      };
-    }
-    
-    // Regular card style
-    return {
-      background: card.isPlayable 
-        ? 'linear-gradient(135deg, #001122 0%, #002244 100%)'
-        : 'linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%)',
+
+    const style: React.CSSProperties = {
+      overflow: 'hidden',
       border: `2px solid ${card.isPlayable ? getTypeColor(card.type) : '#404040'}`,
       boxShadow: card.isPlayable 
         ? `0 4px 8px ${getTypeColor(card.type)}40`
         : '0 4px 8px rgba(0,0,0,0.2)',
       color: card.isPlayable ? '#ffffff' : '#888888',
-      overflow: 'hidden'
-    };
+    }
+    
+    if (isImageRenderer(card.renderer)) {
+      return style;
+    } else {
+      style.background = card.isPlayable 
+        ? 'linear-gradient(135deg, #001122 0%, #002244 100%)'
+        : 'linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%)';
+      return style;
+    }
+    
   };
 
   const getHoverEffects = () => {
@@ -111,24 +101,7 @@ const Card: React.FC<CardProps> = ({
         }
       };
     }
-    
-    if (isImageRenderer(card.renderer)) {
-      return {
-        onMouseEnter: (e: React.MouseEvent<HTMLDivElement>) => {
-          if (onClick) {
-            e.currentTarget.style.transform = 'translateY(-2px)';
-            e.currentTarget.style.boxShadow = '0 6px 12px rgba(0,0,0,0.4)';
-          }
-        },
-        onMouseLeave: (e: React.MouseEvent<HTMLDivElement>) => {
-          if (onClick) {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
-          }
-        }
-      };
-    }
-    
+
     // Regular card hover effects
     return {
       onMouseEnter: (e: React.MouseEvent<HTMLDivElement>) => {
@@ -162,21 +135,128 @@ const Card: React.FC<CardProps> = ({
     if (isImageRenderer(card.renderer)) {
       const imageRenderer = card.renderer as ImageRendererDesc;
       return (
-        <img
-          src={imageRenderer.url}
-          alt={card.name}
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            borderRadius: 8
-          }}
-          onError={(e) => {
-            // Fallback to default card frame if image fails to load
-            console.error(`Failed to load image for card ${card.name}: ${imageRenderer.url}`);
-            e.currentTarget.style.display = 'none';
-          }}
-        />
+        <>
+          {/* Background Image */}
+          <img
+            src={imageRenderer.url}
+            alt={card.name}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              borderRadius: 8
+            }}
+            onError={(e) => {
+              // Fallback to default card frame if image fails to load
+              console.error(`Failed to load image for card ${card.name}: ${imageRenderer.url}`);
+              e.currentTarget.style.display = 'none';
+            }}
+          />
+          
+          {/* Sapped Overlay */}
+          {(card as any).sapped && (
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              background: 'rgba(0,0,0,0.6)',
+              borderRadius: 8,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#999',
+              fontSize: size === 'small' ? 12 : size === 'medium' ? 16 : 20,
+              fontWeight: 'bold',
+              textShadow: '0 0 4px rgba(0,0,0,0.8)',
+              zIndex: 1
+            }}>
+              😴 SAPPED
+            </div>
+          )}
+          
+          {/* Cost (top-left) */}
+          <div style={{
+            position: 'absolute',
+            top: 4,
+            left: 4,
+            width: size === 'small' ? 16 : 20,
+            height: size === 'small' ? 16 : 20,
+            borderRadius: '50%',
+            background: getTypeColor(card.type),
+            color: 'white',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: size === 'small' ? 8 : 10,
+            fontWeight: 'bold',
+            zIndex: 2,
+            boxShadow: '0 0 4px rgba(0,0,0,0.5)'
+          }}>
+            {card.cost}
+          </div>
+
+          {/* Card Name (top-right) */}
+          <div style={{
+            position: 'absolute',
+            top: 4,
+            right: 4,
+            left: size === 'small' ? 24 : 28,
+            fontSize: size === 'small' ? 8 : size === 'medium' ? 10 : 12,
+            fontWeight: 600,
+            textOverflow: 'ellipsis',
+            overflow: 'hidden',
+            whiteSpace: 'nowrap',
+            color: 'white',
+            textShadow: '0 0 4px rgba(0,0,0,0.8)',
+            zIndex: 2
+          }}>
+            {card.name}
+          </div>
+
+          {/* Stats (bottom) - for creatures and artifacts */}
+          {(card.type === 'creature' || card.type === 'artifact') && (
+            <div style={{
+              position: 'absolute',
+              bottom: 4,
+              left: 4,
+              right: 4,
+              display: 'flex',
+              justifyContent: card.type === 'artifact' ? 'center' : 'space-between',
+              fontSize: size === 'small' ? 8 : 10,
+              fontWeight: 'bold',
+              zIndex: 2
+            }}>
+              {/* Attack (only for creatures) */}
+              {card.type === 'creature' && (
+                <div style={{
+                  background: '#ff0080',
+                  color: 'white',
+                  padding: '1px 4px',
+                  borderRadius: 3,
+                  minWidth: size === 'small' ? 12 : 16,
+                  textAlign: 'center',
+                  boxShadow: '0 0 4px #ff0080'
+                }}>
+                  🗡️{card.attack}
+                </div>
+              )}
+              {/* Health (for both creatures and artifacts) */}
+              <div style={{
+                background: card.currentHealth !== undefined && card.currentHealth < (card.health || 0) ? '#ff8800' : '#00ff41',
+                color: 'black',
+                padding: '1px 4px',
+                borderRadius: 3,
+                minWidth: size === 'small' ? 12 : 16,
+                textAlign: 'center',
+                boxShadow: `0 0 4px ${card.currentHealth !== undefined && card.currentHealth < (card.health || 0) ? '#ff8800' : '#00ff41'}`
+              }}>
+                🛡{card.currentHealth !== undefined ? `${card.currentHealth}/${card.health}` : card.health}
+              </div>
+            </div>
+          )}
+        </>
       );
     }
 

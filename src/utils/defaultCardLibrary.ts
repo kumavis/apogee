@@ -1,10 +1,12 @@
-import { GameCard } from '../docs/game';
+import { CardDoc } from '../docs/card';
 import { functionToString } from './spellEffects';
 
-// Sci-fi themed card library
-export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
+// Sci-fi themed card library - used as templates for creating custom card documents
+// These are not actual CardDoc instances but templates that get converted to CardDoc when needed
+type CardTemplate = Omit<CardDoc, 'createdAt' | 'createdBy'>;
+
+export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
   'card_001': {
-    id: 'card_001',
     name: 'Cyber Drone',
     cost: 2,
     attack: 2,
@@ -13,7 +15,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     description: 'A fast reconnaissance unit.'
   },
   'card_002': {
-    id: 'card_002',
     name: 'Plasma Burst',
     cost: 3,
     type: 'spell',
@@ -46,7 +47,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     })
   },
   'card_003': {
-    id: 'card_003',
     name: 'Steel Sentinel',
     cost: 4,
     attack: 2,
@@ -56,7 +56,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
   },
 
   'card_005': {
-    id: 'card_005',
     name: 'Quantum Destroyer',
     cost: 5,
     attack: 4,
@@ -65,7 +64,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     description: 'A cybernetic war machine from the future.'
   },
   'card_006': {
-    id: 'card_006',
     name: 'Data Spike',
     cost: 1,
     type: 'spell',
@@ -90,7 +88,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     })
   },
   'card_007': {
-    id: 'card_007',
     name: 'Bio-Mech Guardian',
     cost: 6,
     attack: 5,
@@ -117,7 +114,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     }]
   },
   'card_008': {
-    id: 'card_008',
     name: 'Energy Shield',
     cost: 3,
     attack: 1,
@@ -143,7 +139,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     }]
   },
   'card_009': {
-    id: 'card_009',
     name: 'Neural Interface',
     cost: 1,
     health: 2,
@@ -160,7 +155,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     }]
   },
   'card_010': {
-    id: 'card_010',
     name: 'Fusion Core',
     cost: 4,
     health: 5,
@@ -177,7 +171,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     }]
   },
   'card_011': {
-    id: 'card_011',
     name: 'Assault Bot',
     cost: 3,
     attack: 3,
@@ -186,7 +179,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     description: 'Fast attack unit.'
   },
   'card_012': {
-    id: 'card_012',
     name: 'System Crash',
     cost: 4,
     type: 'spell',
@@ -233,7 +225,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     })
   },
   'card_013': {
-    id: 'card_013',
     name: 'Repair Drone',
     cost: 2,
     attack: 1,
@@ -269,7 +260,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     }]
   },
   'card_014': {
-    id: 'card_014',
     name: 'Photon Cannon',
     cost: 5,
     type: 'spell',
@@ -302,7 +292,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     })
   },
   'card_015': {
-    id: 'card_015',
     name: 'Stealth Infiltrator',
     cost: 2,
     attack: 1,
@@ -342,7 +331,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     }]
   },
   'card_016': {
-    id: 'card_016',
     name: 'Chain Lightning',
     cost: 4,
     type: 'spell',
@@ -374,7 +362,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     })
   },
   'card_017': {
-    id: 'card_017',
     name: 'Mass Heal',
     cost: 3,
     type: 'spell',
@@ -401,7 +388,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     })
   },
   'card_018': {
-    id: 'card_018',
     name: 'Neural Disruption',
     cost: 3,
     type: 'spell',
@@ -433,7 +419,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     })
   },
   'card_019': {
-    id: 'card_019',
     name: 'Electromagnetic Pulse',
     cost: 5,
     type: 'spell',
@@ -460,7 +445,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     })
   },
   'card_020': {
-    id: 'card_020',
     name: 'Targeted Strike',
     cost: 2,
     type: 'spell',
@@ -490,7 +474,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     })
   },
   'card_021': {
-    id: 'card_021',
     name: 'Cleansing Light',
     cost: 2,
     type: 'spell',
@@ -502,7 +485,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     })
   },
   'card_022': {
-    id: 'card_022',
     name: 'Twin Missiles',
     cost: 3,
     type: 'spell',
@@ -534,7 +516,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     })
   },
   'card_023': {
-    id: 'card_023',
     name: 'Overcharge',
     cost: 1,
     type: 'spell',
@@ -561,7 +542,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     })
   },
   'card_024': {
-    id: 'card_024',
     name: 'Anti-Artifact Hunter',
     cost: 3,
     attack: 3,
@@ -576,7 +556,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     }
   },
   'card_025': {
-    id: 'card_025',
     name: 'Defensive Turret',
     cost: 2,
     attack: 1,
@@ -591,7 +570,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     }
   },
   'card_026': {
-    id: 'card_026',
     name: 'Assassin Drone',
     cost: 4,
     attack: 3,
@@ -606,7 +584,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     }
   },
   'card_027': {
-    id: 'card_027',
     name: 'Siege Breaker',
     cost: 5,
     attack: 4,
@@ -621,7 +598,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     }
   },
   'card_028': {
-    id: 'card_028',
     name: 'Artifact Repair',
     cost: 2,
     type: 'spell',
@@ -655,7 +631,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     })
   },
   'card_029': {
-    id: 'card_029',
     name: 'Energy Collector',
     cost: 3,
     health: 4,
@@ -672,7 +647,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     }]
   },
   'card_030': {
-    id: 'card_030',
     name: 'Shield Generator',
     cost: 2,
     health: 3,
@@ -698,7 +672,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     }]
   },
   'card_031': {
-    id: 'card_031',
     name: 'Lightning Rod',
     cost: 4,
     health: 2,
@@ -722,7 +695,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     }]
   },
   'card_032': {
-    id: 'card_032',
     name: 'Quantum Processor',
     cost: 5,
     health: 4,
@@ -760,7 +732,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     ]
   },
   'card_033': {
-    id: 'card_033',
     name: 'Cyber Medic',
     cost: 3,
     attack: 2,
@@ -798,7 +769,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     }]
   },
   'card_034': {
-    id: 'card_034',
     name: 'Energy Vampire',
     cost: 3,
     attack: 2,
@@ -825,7 +795,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     }]
   },
   'card_035': {
-    id: 'card_035',
     name: 'Nano Swarm',
     cost: 2,
     attack: 1,
@@ -850,7 +819,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     }]
   },
   'card_036': {
-    id: 'card_036',
     name: 'Shield Drone',
     cost: 2,
     attack: 0,
@@ -879,7 +847,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     }]
   },
   'card_037': {
-    id: 'card_037',
     name: 'Data Miner',
     cost: 2,
     attack: 1,
@@ -897,7 +864,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     }]
   },
   'card_038': {
-    id: 'card_038',
     name: 'Berserker Bot',
     cost: 4,
     attack: 5,
@@ -906,7 +872,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     description: 'High-risk, high-reward combat unit.'
   },
   'card_039': {
-    id: 'card_039',
     name: 'Healing Station',
     cost: 3,
     health: 5,
@@ -923,7 +888,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     }]
   },
   'card_040': {
-    id: 'card_040',
     name: 'Recon Specialist',
     cost: 1,
     attack: 1,
@@ -941,7 +905,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     }]
   },
   'card_041': {
-    id: 'card_041',
     name: 'Volatile Core',
     cost: 2,
     health: 3,
@@ -975,7 +938,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     }]
   },
   'card_042': {
-    id: 'card_042',
     name: 'Resource Recycler',
     cost: 4,
     health: 4,
@@ -1003,7 +965,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     ]
   },
   'card_043': {
-    id: 'card_043',
     name: 'Omega Destroyer',
     cost: 8,
     attack: 7,
@@ -1066,7 +1027,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     ]
   },
   'card_044': {
-    id: 'card_044',
     name: 'Titan Forge',
     cost: 7,
     health: 8,
@@ -1116,7 +1076,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     ]
   },
   'card_045': {
-    id: 'card_045',
     name: 'Mind Dominator',
     cost: 9,
     attack: 4,
@@ -1158,7 +1117,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     ]
   },
   'card_046': {
-    id: 'card_046',
     name: 'Reality Shatter',
     cost: 10,
     type: 'spell',
@@ -1185,7 +1143,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     })
   },
   'card_047': {
-    id: 'card_047',
     name: 'Apocalypse Engine',
     cost: 8,
     health: 10,
@@ -1244,7 +1201,6 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
   },
   
   'card_048': {
-    id: 'card_048',
     name: 'Void Assassin',
     cost: 4,
     attack: 1,
@@ -1273,6 +1229,9 @@ export const CARD_LIBRARY: { [cardId: string]: GameCard } = {
     }]
   }
 };
+
+// Note: CARD_LIBRARY is now used as a reference for creating custom card documents
+// Games no longer use this directly - they use card document URLs instead
 
 // Create a standard deck with multiple copies of cards
 export const createStandardDeck = (): string[] => {
