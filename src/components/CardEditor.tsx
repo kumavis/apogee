@@ -67,10 +67,10 @@ const CardEditor: React.FC<CardEditorProps> = ({
     }
 
     return {
-      name: String(card.name || ''),
-      cost: Number(card.cost || 1),
-      attack: card.attack !== undefined ? Number(card.attack) : undefined,
-      health: card.health !== undefined ? Number(card.health) : undefined,
+      name: card.name || '',
+      cost: card.cost || 0,
+      attack: card.attack !== undefined ? card.attack : undefined,
+      health: card.health !== undefined ? card.health : undefined,
       type: (card.type || 'creature') as CardType,
       description: String(card.description || ''),
       spellEffect: card.spellEffect ? String(card.spellEffect) : '',
@@ -143,9 +143,9 @@ const CardEditor: React.FC<CardEditorProps> = ({
     // Update the document using the correct Automerge pattern
     if (editingCard.cardUrl) {
       try {
-        const cardHandle = await repo.find(editingCard.cardUrl);
+        const cardHandle = await repo.find<CardDefinition>(editingCard.cardUrl);
         console.log('Got card handle, updating document...');
-        cardHandle.change((doc: any) => {
+        cardHandle.change((doc: CardDefinition) => {
           try {
             console.log('Current document state:', {
               name: doc.name,
@@ -158,15 +158,15 @@ const CardEditor: React.FC<CardEditorProps> = ({
             });
             
             // Update basic properties - ensure we're setting primitive values
-            doc.name = String(newCardData.name.trim());
-            doc.cost = Number(newCardData.cost);
-            doc.type = String(newCardData.type);
-            doc.description = String(newCardData.description);
+            doc.name = newCardData.name.trim();
+            doc.cost = newCardData.cost;
+            doc.type = newCardData.type;
+            doc.description = newCardData.description;
             
             // Handle creature-specific properties
             if (newCardData.type === 'creature') {
-              doc.attack = Number(newCardData.attack || 1);
-              doc.health = Number(newCardData.health || 1);
+              doc.attack = newCardData.attack || 0;
+              doc.health = newCardData.health || 0;
             } else {
               // Remove attack/health for non-creatures
               delete doc.attack;
@@ -175,7 +175,7 @@ const CardEditor: React.FC<CardEditorProps> = ({
             
             // Handle spell effect
             if (newCardData.spellEffect?.trim()) {
-              doc.spellEffect = String(newCardData.spellEffect.trim());
+              doc.spellEffect = newCardData.spellEffect.trim();
             } else {
               delete doc.spellEffect;
             }
@@ -186,9 +186,9 @@ const CardEditor: React.FC<CardEditorProps> = ({
               const cleanAbilities = newCardData.triggeredAbilities.map(ability => {
                 // Ensure we're creating plain objects, not Automerge references
                 return {
-                  trigger: String(ability.trigger),
-                  effectCode: String(ability.effectCode),
-                  description: String(ability.description || '')
+                  trigger: ability.trigger,
+                  effectCode: ability.effectCode,
+                  description: ability.description || ''
                 };
               });
               doc.triggeredAbilities = cleanAbilities;

@@ -17,6 +17,11 @@ const repo = new Repo({
   storage: new IndexedDBStorageAdapter(),
 });
 
+// For debugging purposes
+if (repo && !(globalThis as any).repo) {
+  (globalThis as any).repo = repo;
+}
+
 // Initialize the root document
 const rootDocUrl = getOrCreateRoot(repo);
 

@@ -1,5 +1,4 @@
 import { AutomergeUrl, DocHandle, Repo } from "@automerge/react";
-import { CARD_LIBRARY } from "../utils/cardLibrary";
 import { Deck } from "./deck";
 import { CardDefinition, RendererDesc } from "./cardDefinition";
 import { 
@@ -245,6 +244,7 @@ export const snapshotCustomCardLibrary = async (deckUrl: AutomergeUrl, repo: Rep
   const cardLibrary: { [cardId: string]: GameCard } = {};
   
   // Load each unique card from the deck
+  let snapShottedCards = 0;
   await Promise.all(deckDoc.cards.map(async (deckCard) => {
     try {
       const cardHandle = await repo.find<CardDefinition>(deckCard.cardUrl);
@@ -259,7 +259,6 @@ export const snapshotCustomCardLibrary = async (deckUrl: AutomergeUrl, repo: Rep
           cost: cardDef.cost,
           type: cardDef.type,
           description: cardDef.description,
-          renderer: cardDef.renderer || undefined,
         };
         
         // Only add optional properties if they are defined
@@ -276,9 +275,11 @@ export const snapshotCustomCardLibrary = async (deckUrl: AutomergeUrl, repo: Rep
           gameCard.triggeredAbilities = cardDef.triggeredAbilities;
         }
         if (cardDef.renderer !== undefined) {
-          gameCard.renderer = cardDef.renderer || undefined;
+          gameCard.renderer = cardDef.renderer;
         }
         cardLibrary[gameCardId] = gameCard;
+        snapShottedCards++;
+        console.log(`Snapshotted ${snapShottedCards}/${deckDoc.cards.length} cards (${Math.round((snapShottedCards / deckDoc.cards.length) * 100)}%)`);
       }
     } catch (error) {
       console.error(`Failed to load card ${deckCard.cardUrl}:`, error);
@@ -1120,7 +1121,7 @@ export const create = (repo: Repo, initialState?: Partial<GameDoc>): DocHandle<G
     currentPlayerIndex: 0,
     turn: 0,
     gameLog: [],
-    cardLibrary: CARD_LIBRARY,
+    cardLibrary: {}, // Empty card library until game starts
     ...initialState
   };
   const handle = repo.create<GameDoc>(gameData);
