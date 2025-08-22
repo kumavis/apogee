@@ -8,6 +8,7 @@ This project is configured to handle static assets correctly for both developmen
 public/
 └── assets/
     ├── example-image.svg
+    ├── example-audio.mp3
     └── (other static assets)
 ```
 
@@ -27,8 +28,13 @@ import { getAssetPath, getAssetUrl } from '../utils/assetUtils';
 // Get the correct path for any environment
 const imagePath = getAssetPath('assets/my-image.png');
 
-// Use in JSX
+// Use in JSX for images
 <img src={getAssetPath('assets/example-image.svg')} alt="Example" />
+
+// Use in JSX for audio
+<audio controls>
+  <source src={getAssetPath('assets/example-audio.mp3')} type="audio/mpeg" />
+</audio>
 
 // Get full URL (for sharing or external references)
 const fullUrl = getAssetUrl('assets/my-image.png');
@@ -59,6 +65,7 @@ When you run `npm run build`, assets are copied to:
 dist/
 ├── assets/
 │   ├── example-image.svg  (copied from public/assets/)
+│   ├── example-audio.mp3  (copied from public/assets/)
 │   ├── index.css         (generated)
 │   └── automerge_wasm_bg.wasm (generated)
 ├── index.html
