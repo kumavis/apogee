@@ -54,6 +54,48 @@ export const useGameNavigation = () => {
   };
 };
 
+// URL helper functions that include the full path context
+export const makeGameUrl = (gameUrl: AutomergeUrl) => {
+  const { origin, pathname } = window.location;
+  return `${origin}${pathname}#/game/${gameUrl}`;
+};
+
 export const makeCardViewUrl = (cardId: AutomergeUrl) => {
-  return `${window.location.origin}/#/card/${cardId}`;
+  const { origin, pathname } = window.location;
+  return `${origin}${pathname}#/card/${cardId}`;
+};
+
+export const makeCardEditUrl = (cardId: AutomergeUrl) => {
+  const { origin, pathname } = window.location;
+  return `${origin}${pathname}#/card/${cardId}/edit`;
+};
+
+export const makeDeckViewUrl = (deckId: AutomergeUrl) => {
+  const { origin, pathname } = window.location;
+  return `${origin}${pathname}#/deck/${deckId}`;
+};
+
+export const makeHomeUrl = () => {
+  const { origin, pathname } = window.location;
+  return `${origin}${pathname}#/`;
+};
+
+export const makeSettingsUrl = () => {
+  const { origin, pathname } = window.location;
+  return `${origin}${pathname}#/settings`;
+};
+
+export const makeCardLibraryUrl = () => {
+  const { origin, pathname } = window.location;
+  return `${origin}${pathname}#/library`;
+};
+
+export const makeDeckLibraryUrl = () => {
+  const { origin, pathname } = window.location;
+  return `${origin}${pathname}#/decks`;
+};
+
+export const makeDebugUrl = () => {
+  const { origin, pathname } = window.location;
+  return `${origin}${pathname}#/debug`;
 };

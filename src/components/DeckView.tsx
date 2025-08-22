@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { AutomergeUrl, useDocument, useRepo } from '@automerge/react';
 import { Deck, cloneDeck } from '../docs/deck';
 import { CardDoc } from '../docs/card';
@@ -21,8 +21,7 @@ type DeckViewParams = {
 
 const DeckView: React.FC<DeckViewProps> = ({ rootDoc, addDeckToCollection, addCardsToLibrary }) => {
   const { deckId } = useParams<DeckViewParams>();
-  const navigate = useNavigate();
-  const { navigateToHome, navigateToDeckLibrary, navigateToCardEdit, navigateToCardView, navigateToCardLibrary } = useGameNavigation();
+  const { navigateToHome, navigateToDeckLibrary, navigateToCardEdit, navigateToCardView, navigateToCardLibrary, navigateToDeckView } = useGameNavigation();
   const repo = useRepo();
 
   const [showCloneForm, setShowCloneForm] = useState(false);
@@ -130,7 +129,7 @@ const DeckView: React.FC<DeckViewProps> = ({ rootDoc, addDeckToCollection, addCa
     // Reset form and navigate to new deck
     setShowCloneForm(false);
     setCloneName('');
-    navigate(`/deck/${newDeckHandle.url}`);
+    navigateToDeckView(newDeckHandle.url);
   };
 
   const handleStartRename = () => {
