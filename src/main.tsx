@@ -10,16 +10,19 @@ import {
 import { getOrCreateRoot } from "./docs/rootDoc";
 import { HashRouter } from 'react-router-dom';
 
+const storageAdapter = new IndexedDBStorageAdapter();
+
 const repo = new Repo({
   network: [
     new WebSocketClientAdapter("wss://sync.automerge.org"),
   ],
-  storage: new IndexedDBStorageAdapter(),
+  storage: storageAdapter,
 });
 
 // For debugging purposes
 if (repo && !(globalThis as any).repo) {
   (globalThis as any).repo = repo;
+  (globalThis as any).storageAdapter = storageAdapter;
 }
 
 // Initialize the root document
