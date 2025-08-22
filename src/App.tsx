@@ -97,7 +97,7 @@ function App({ rootDocUrl }: { rootDocUrl: AutomergeUrl }) {
             <Route path="/card/:cardId" element={<CardView rootDoc={rootDoc} addCardToLibrary={addCardToLibrary} />} />
             <Route path="/card/:cardId/edit" element={<CardEditPage rootDoc={rootDoc} addCardToLibrary={addCardToLibrary} />} />
             <Route path="/decks" element={<DeckLibrary rootDoc={rootDoc} addDeckToCollection={addDeckToCollection} addCardsToLibrary={addCardsToLibrary} removeDeckFromCollection={removeDeckFromCollection} />} />
-            <Route path="/deck/:deckId" element={<DeckView rootDoc={rootDoc} addDeckToCollection={addDeckToCollection} />} />
+            <Route path="/deck/:deckId" element={<DeckView rootDoc={rootDoc} addDeckToCollection={addDeckToCollection} addCardsToLibrary={addCardsToLibrary} />} />
             <Route path="/debug" element={<DebugView rootDocUrl={rootDocUrl} />} />
           </Routes>
         </div>

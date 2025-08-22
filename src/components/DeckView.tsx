@@ -12,13 +12,14 @@ import Card from './Card';
 type DeckViewProps = {
   rootDoc: RootDocument;
   addDeckToCollection: (deckUrl: AutomergeUrl) => void;
+  addCardsToLibrary: (cardUrls: AutomergeUrl[]) => void;
 };
 
 type DeckViewParams = {
   deckId: string;
 };
 
-const DeckView: React.FC<DeckViewProps> = ({ rootDoc, addDeckToCollection }) => {
+const DeckView: React.FC<DeckViewProps> = ({ rootDoc, addDeckToCollection, addCardsToLibrary }) => {
   const { deckId } = useParams<DeckViewParams>();
   const navigate = useNavigate();
   const { navigateToHome, navigateToDeckLibrary, navigateToCardEdit, navigateToCardView, navigateToCardLibrary } = useGameNavigation();
@@ -179,6 +180,11 @@ const DeckView: React.FC<DeckViewProps> = ({ rootDoc, addDeckToCollection }) => 
 
   const handleAddToCollection = () => {
     addDeckToCollection(deckId as AutomergeUrl);
+  };
+
+  const handleAddAllCardsToLibrary = () => {
+    const cardUrls = deck.cards.map(deckCard => deckCard.cardUrl);
+    addCardsToLibrary(cardUrls);
   };
 
   const totalCards = deck.cards.reduce((total, card) => total + card.quantity, 0);
@@ -618,16 +624,52 @@ const DeckView: React.FC<DeckViewProps> = ({ rootDoc, addDeckToCollection }) => 
       <div style={{
         marginBottom: 24,
       }}>
-        <h2 style={{
-          fontSize: 20,
-          margin: '0 0 16px 0',
-          color: '#00ffff',
+        <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
+          justifyContent: 'space-between',
+          marginBottom: 16
         }}>
-          🎴 Cards ({totalCards})
-        </h2>
+          <h2 style={{
+            fontSize: 20,
+            margin: 0,
+            color: '#00ffff',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}>
+            🎴 Cards ({totalCards})
+          </h2>
+          
+          {deck.cards.length > 0 && (
+            <button
+              onClick={handleAddAllCardsToLibrary}
+              style={{
+                background: 'linear-gradient(135deg, #00ff00 0%, #00aa00 100%)',
+                color: '#000',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: 6,
+                cursor: 'pointer',
+                fontSize: 14,
+                fontWeight: 600,
+                transition: 'all 0.2s ease',
+                whiteSpace: 'nowrap',
+                boxShadow: '0 2px 8px rgba(0,255,0,0.3)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,255,0,0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0px)';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,255,0,0.3)';
+              }}
+            >
+              ➕ Add All to Library
+            </button>
+          )}
+        </div>
 
         {deck.cards.length === 0 ? (
           <div style={{
