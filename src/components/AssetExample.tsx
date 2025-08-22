@@ -1,33 +1,39 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { getAssetPath } from '../utils/assetUtils';
 
 /**
  * Example component demonstrating proper asset loading for GitHub Pages
  */
 export const AssetExample: React.FC = () => {
-  const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
 
   const handlePlayAudio = async () => {
-    if (!audioRef.current) return;
-
     try {
-      if (isPlaying) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
+      if (currentAudio && isPlaying) {
+        // Stop current audio
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+        setCurrentAudio(null);
         setIsPlaying(false);
       } else {
-        await audioRef.current.play();
+        // Create and play new audio (no DOM element needed!)
+        const audio = new Audio(getAssetPath('assets/example-audio.mp3'));
+        await audio.play();
+        setCurrentAudio(audio);
         setIsPlaying(true);
+        
+        // Handle when audio ends
+        audio.addEventListener('ended', () => {
+          setIsPlaying(false);
+          setCurrentAudio(null);
+        });
       }
     } catch (error) {
       console.error('Error playing audio:', error);
       setIsPlaying(false);
+      setCurrentAudio(null);
     }
-  };
-
-  const handleAudioEnded = () => {
-    setIsPlaying(false);
   };
 
   return (
@@ -48,17 +54,8 @@ export const AssetExample: React.FC = () => {
         Image path: {getAssetPath('assets/example-image.svg')}
       </p>
 
-      {/* Example of loading audio from the assets directory */}
+      {/* Example of playing audio with pure JavaScript (no DOM element!) */}
       <div style={{ margin: '20px 0' }}>
-        <audio 
-          ref={audioRef}
-          onEnded={handleAudioEnded}
-          preload="metadata"
-        >
-          <source src={getAssetPath('assets/example-audio.mp3')} type="audio/mpeg" />
-          Your browser does not support the audio element.
-        </audio>
-        
         <button
           onClick={handlePlayAudio}
           style={{
