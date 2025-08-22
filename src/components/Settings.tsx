@@ -3,6 +3,7 @@ import { AutomergeUrl, useDocument } from '@automerge/react';
 import { deleteRootDoc, setRootDocUrl } from '../docs/rootDoc';
 import { ContactDoc } from '../docs/contact';
 import { useGameNavigation } from '../hooks/useGameNavigation';
+import AssetExample from './AssetExample';
 
 type SettingsProps = {
   rootDocUrl: AutomergeUrl;
@@ -616,6 +617,33 @@ const Settings: React.FC<SettingsProps> = ({ rootDocUrl, selfId }) => {
         >
           🔍 Debug Documents
         </button>
+      </div>
+
+      <div style={{ marginBottom: 32 }}>
+        <h2 style={{ 
+          fontSize: 18, 
+          marginBottom: 16, 
+          color: '#00ff00',
+          fontWeight: 600 
+        }}>
+          🖼️ Static Assets Demo
+        </h2>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 14, marginBottom: 8, opacity: 0.8 }}>
+            Example of how static assets are loaded from the public/assets directory.
+          </div>
+          <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 12 }}>
+            This demonstrates proper asset path handling for GitHub Pages deployment.
+          </div>
+        </div>
+        <div style={{
+          background: 'rgba(255,255,255,0.05)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: 8,
+          padding: 16
+        }}>
+          <AssetExample />
+        </div>
       </div>
 
       <div style={{ marginBottom: 32 }}>
