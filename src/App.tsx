@@ -11,19 +11,44 @@ import CardEditPage from './components/CardEditPage';
 import DeckLibrary from './components/DeckLibrary';
 import DeckView from './components/DeckView';
 import DebugView from './components/DebugView';
+import DebugOverlay from './components/DebugOverlay';
 import { RootDocument } from './docs/rootDoc';
-import { useCallback } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 
 function App({ rootDocUrl }: { rootDocUrl: AutomergeUrl }) {
   const [rootDoc, changeRootDoc] = useDocument<RootDocument>(rootDocUrl, {
     suspense: true,
   });
 
+  // Debug overlay state
+  const [isDebugOverlayOpen, setIsDebugOverlayOpen] = useState(false);
+
   // For debugging purposes, we store the rootDoc in the globalThis object
   if (rootDoc && !(globalThis as any).rootDoc) {
     (globalThis as any).rootDoc = rootDoc;
     (globalThis as any).changeRootDoc = changeRootDoc;
   }
+
+  // Global keyboard event listener for debug overlay
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Check for backtick key (keyCode 192 or key '`')
+      if (event.key === '`' || event.keyCode === 192) {
+        // Prevent default behavior (like opening browser console)
+        event.preventDefault();
+        // Toggle debug overlay
+        setIsDebugOverlayOpen(prev => !prev);
+      }
+    };
+
+    // Add event listener to document
+    document.addEventListener('keydown', handleKeyDown);
+
+    // Cleanup event listener on unmount
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   const addGame = useCallback((gameUrl: AutomergeUrl) => {
     changeRootDoc((doc) => {
@@ -102,6 +127,13 @@ function App({ rootDocUrl }: { rootDocUrl: AutomergeUrl }) {
           </Routes>
         </div>
       </ErrorBoundary>
+
+      {/* Debug Overlay - accessible from anywhere with backtick key */}
+      <DebugOverlay
+        isOpen={isDebugOverlayOpen}
+        onClose={() => setIsDebugOverlayOpen(false)}
+        rootDocUrl={rootDocUrl}
+      />
     </div>
   )
 }
