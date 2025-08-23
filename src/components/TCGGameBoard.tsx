@@ -1,22 +1,15 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { AutomergeUrl, useRepo, useDocument, useDocuments } from '@automerge/react';
-import { GameDoc, removeCardFromHand, spendEnergy, addCardToGraveyard, addGameLogEntry, loadCardDoc } from '../docs/game';
+import { AutomergeUrl, useDocument, useDocuments } from '@automerge/react';
+import { GameDoc } from '../docs/game';
+import { GameEngine } from '../utils/GameEngine';
 import { CardDoc } from '../docs/card';
 import { useGameNavigation } from '../hooks/useGameNavigation';
 import { useCardTargeting } from '../hooks/useCardTargeting';
 import Card, { CardData } from './Card';
 import Contact from './Contact';
 import GameLog from './GameLog';
-import { SpellTargetSelector, SpellTarget, createSpellEffectAPI, executeSpellEffect, executeSpellOperations, executeSpellTriggeredAbilities } from '../utils/spellEffects';
+import { SpellTargetSelector, SpellTarget } from '../utils/spellEffects';
 import { Target, getTargetingSelectorForAttack } from '../utils/unifiedTargeting';
-
-type NotPromise<T> = T extends Promise<any> ? never : T;
-
-type TCGGameBoardProps = {
-  gameDoc: GameDoc;
-  selfId: AutomergeUrl;
-  changeGameDoc: (callback: (doc: GameDoc) => NotPromise<void>) => void;
-};
 
 // Component for loading and displaying a hand card
 const HandCard: React.FC<{
@@ -120,13 +113,19 @@ const BattlefieldCard: React.FC<{
   );
 };
 
+type TCGGameBoardProps = {
+  gameEngine: GameEngine;
+  gameDoc: GameDoc;
+  selfId: AutomergeUrl;
+};
+
 const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
+  gameEngine,
   gameDoc,
   selfId,
-  changeGameDoc
 }) => {
   const { navigateToHome } = useGameNavigation();
-  const repo = useRepo();
+
   const [currentOpponentIndex, setCurrentOpponentIndex] = useState(0);
   const playerList = gameDoc.players;
 
@@ -211,7 +210,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
     }
 
     // Load the creature card for targeting restrictions
-    const creatureCard = await loadCardDoc(battlefieldCard.cardUrl, repo);
+    const creatureCard = await gameEngine.loadCardDoc(battlefieldCard.cardUrl);
     if (!creatureCard || !creatureCard.attack) {
       console.error(`handleStartAttackTargeting: Creature card not found or has no attack: ${battlefieldCard.cardUrl}`);
       return;
@@ -251,7 +250,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
     }
 
     // Load the attacker card to get attack value
-    const attackerCard = battlefieldCardDocsMap.get(attackerBattlefieldCard.cardUrl) || await loadCardDoc(attackerBattlefieldCard.cardUrl, repo);
+    const attackerCard = battlefieldCardDocsMap.get(attackerBattlefieldCard.cardUrl) || await gameEngine.loadCardDoc(attackerBattlefieldCard.cardUrl);
     if (!attackerCard) {
       console.error('handleExecuteAttack: Could not load attacker card');
       return;
@@ -259,201 +258,48 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
 
     // Load target card data first for synchronous changes
     if (target.type === 'player') {
-      // For player attacks, make synchronous changes directly
+      // Use GameEngine method for player attacks
       try {
-        console.log('Making synchronous player attack...');
+        console.log('Executing player attack via GameEngine...');
         const damage = attackerCard.attack || 0;
         
-        changeGameDoc((doc) => {
-          console.log('Inside synchronous changeGameDoc for player attack');
-          
-          // Mark attacker as sapped
-          const attackerBattlefield = doc.playerBattlefields.find(b => b.playerId === selfId);
-          const attackerBattlefieldCard = attackerBattlefield?.cards.find(c => c.instanceId === attackerInstanceId);
-          
-          if (attackerBattlefieldCard) {
-            console.log('Sapping attacker...');
-            attackerBattlefieldCard.sapped = true;
-          }
-          
-          // Deal damage to target player
-          const targetPlayerState = doc.playerStates.find(state => state.playerId === target.playerId);
-          if (targetPlayerState && damage > 0) {
-            console.log(`Dealing ${damage} damage to player with ${targetPlayerState.health} health`);
-            targetPlayerState.health = Math.max(0, targetPlayerState.health - damage);
-            console.log(`Player health after damage: ${targetPlayerState.health}`);
-            
-            // Check for game end
-            if (targetPlayerState.health <= 0) {
-              console.log('Player defeated, ending game');
-              doc.status = 'finished';
-            }
-          }
-          
-          // Add game log entry
-          addGameLogEntry(doc, {
-            playerId: selfId,
-            action: 'attack',
-            targetId: target.playerId,
-            amount: damage,
-            description: `${attackerCard.name} attacked player for ${damage} damage`
-          });
-          
-          console.log('Player attack changes applied synchronously');
-        });
+        const success = await gameEngine.attackPlayerWithCreature(
+          selfId,
+          attackerInstanceId,
+          target.playerId,
+          damage
+        );
+        
+        if (success) {
+          console.log('Player attack completed successfully');
+        } else {
+          console.error('Player attack failed');
+        }
         
       } catch (error) {
         console.error('Error executing player attack:', error);
       }
     } else if ((target.type === 'creature' || target.type === 'artifact') && target.instanceId) {
-      // For creature attacks, load all data first, then make synchronous changes
+      // Use GameEngine method for creature vs creature combat
       try {
-        console.log('Loading data for creature attack with triggered abilities...');
+        console.log('Executing creature combat via GameEngine...');
         
-        // Find target battlefield card
-        const targetBattlefield = gameDoc.playerBattlefields.find(bf => bf.playerId === target.playerId);
-        const targetBattlefieldCard = targetBattlefield?.cards.find(c => c.instanceId === target.instanceId);
+        const success = await gameEngine.attackCreatureWithCreature(
+          selfId,
+          attackerInstanceId,
+          target.playerId,
+          target.instanceId,
+          selectTargets
+        );
         
-        if (!targetBattlefieldCard) {
-          console.error('Target battlefield card not found');
-          return;
+        if (success) {
+          console.log('Creature combat completed successfully');
+        } else {
+          console.error('Creature combat failed');
         }
-        
-        // Load target card data
-        const targetCard = await loadCardDoc(targetBattlefieldCard.cardUrl, repo);
-        if (!targetCard) {
-          console.error('Could not load target card');
-          return;
-        }
-        
-        console.log('Target card loaded:', targetCard.name, 'Type:', targetCard.type);
-        console.log('Checking for triggered abilities...');
-        
-        // Check if target has "take_damage" triggered abilities
-        const takeDamageAbilities = targetCard.triggeredAbilities?.filter(ability => ability.trigger === 'take_damage') || [];
-        console.log('Found take_damage abilities:', takeDamageAbilities.length);
-        
-        // Now make all changes synchronously
-        changeGameDoc((doc: GameDoc) => {
-          console.log('Inside synchronous changeGameDoc for creature combat');
-          
-          // Mark attacker as sapped
-          const attackerBattlefield = doc.playerBattlefields.find(b => b.playerId === selfId);
-          const attackerBattlefieldCard = attackerBattlefield?.cards.find(c => c.instanceId === attackerInstanceId);
-
-          if (!attackerBattlefieldCard) {
-            console.error('Attacker battlefield card not found');
-            return;
-          }
-          
-          console.log('Sapping attacker...');
-          attackerBattlefieldCard.sapped = true;
-          
-          // Deal damage to target
-          const docTargetBattlefield = doc.playerBattlefields.find(b => b.playerId === target.playerId);
-          const docTargetCard = docTargetBattlefield?.cards.find(c => c.instanceId === target.instanceId);
-          
-          if (docTargetCard && attackerCard.attack) {
-            console.log(`Dealing ${attackerCard.attack} damage to target with ${docTargetCard.currentHealth} health`);
-            docTargetCard.currentHealth -= attackerCard.attack;
-            console.log(`Target health after damage: ${docTargetCard.currentHealth}`);
-            
-            // Execute take_damage triggered abilities synchronously
-            for (const ability of takeDamageAbilities) {
-              console.log('Executing take_damage ability:', ability.description);
-              try {
-                // Simple implementation for the draw card effect
-                if (ability.effectCode.includes('api.drawCard()')) {
-                  console.log('Triggering draw card effect');
-                  // Draw a card for the target's owner
-                  if (doc.deck.length === 0 && doc.graveyard.length > 0) {
-                    // Reshuffle if needed
-                    doc.deck = [...doc.graveyard];
-                    doc.graveyard = [];
-                    // Simple shuffle
-                    for (let i = doc.deck.length - 1; i > 0; i--) {
-                      const j = Math.floor(Math.random() * (i + 1));
-                      [doc.deck[i], doc.deck[j]] = [doc.deck[j], doc.deck[i]];
-                    }
-                  }
-                  
-                  if (doc.deck.length > 0) {
-                    const drawnCard = doc.deck.pop();
-                    if (drawnCard) {
-                      const targetPlayerHand = doc.playerHands.find(hand => hand.playerId === target.playerId);
-                      if (targetPlayerHand) {
-                        targetPlayerHand.cards.push(drawnCard);
-                        addGameLogEntry(doc, {
-                          playerId: target.playerId,
-                          action: 'draw_card',
-                          cardUrl: drawnCard,
-                          description: `${targetCard.name}: Drew a card`
-                        });
-                      }
-                    }
-                  }
-                }
-              } catch (abilityError) {
-                console.error('Error executing triggered ability:', abilityError);
-              }
-            }
-            
-            // If target is a creature and has attack power, deal damage back to attacker (mutual combat)
-            if (targetCard.type === 'creature' && targetCard.attack && targetCard.attack > 0) {
-              console.log(`Target creature ${targetCard.name} deals ${targetCard.attack} damage back to attacker`);
-              
-              // Find the attacker in the document
-              const docAttackerBattlefield = doc.playerBattlefields.find(b => b.playerId === selfId);
-              const docAttackerCard = docAttackerBattlefield?.cards.find(c => c.instanceId === attackerInstanceId);
-              
-              if (docAttackerCard) {
-                console.log(`Attacker has ${docAttackerCard.currentHealth} health, taking ${targetCard.attack} damage`);
-                docAttackerCard.currentHealth -= targetCard.attack;
-                console.log(`Attacker health after counter-attack: ${docAttackerCard.currentHealth}`);
-                
-                // If attacker dies from counter-attack, remove it too
-                if (docAttackerCard.currentHealth <= 0) {
-                  console.log('Attacker destroyed by counter-attack, removing from battlefield');
-                  const attackerCardIndex = docAttackerBattlefield!.cards.findIndex(c => c.instanceId === attackerInstanceId);
-                  docAttackerBattlefield!.cards.splice(attackerCardIndex, 1);
-                  doc.graveyard.push(attackerBattlefieldCard.cardUrl);
-                }
-              }
-            }
-            
-            // If target dies, remove from battlefield and add to graveyard
-            if (docTargetCard.currentHealth <= 0) {
-              console.log('Target destroyed, removing from battlefield');
-              const cardIndex = docTargetBattlefield!.cards.findIndex(c => c.instanceId === target.instanceId);
-              docTargetBattlefield!.cards.splice(cardIndex, 1);
-              doc.graveyard.push(targetBattlefieldCard.cardUrl);
-            }
-          }
-          
-          // Add game log entry
-          const attackerDamage = attackerCard.attack || 0;
-          const targetDamage = (targetCard.type === 'creature' && targetCard.attack) ? targetCard.attack : 0;
-          
-          let combatDescription;
-          if (targetDamage > 0) {
-            combatDescription = `${attackerCard.name} and ${targetCard.name} fight! ${attackerCard.name} deals ${attackerDamage}, ${targetCard.name} deals ${targetDamage} damage`;
-          } else {
-            combatDescription = `${attackerCard.name} attacked ${targetCard.name} for ${attackerDamage} damage`;
-          }
-          
-          addGameLogEntry(doc, {
-            playerId: selfId,
-            action: 'attack',
-            targetId: target.playerId,
-            amount: attackerDamage,
-            description: combatDescription
-          });
-          
-          console.log('Creature combat changes applied synchronously');
-        });
         
       } catch (error) {
-        console.error('Error executing creature attack:', error);
+        console.error('Error executing creature combat:', error);
       }
     }
   };
@@ -472,125 +318,9 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
     }
 
     try {
-      // Pre-load card data for next player's battlefield to handle healing properly
-      console.log('Ending turn with synchronous operations...');
-      const nextPlayerIndex = (gameDoc.currentPlayerIndex + 1) % gameDoc.players.length;
-      const nextPlayerId = gameDoc.players[nextPlayerIndex];
-      
-      // Load battlefield card data for proper healing
-      const nextPlayerBattlefield = gameDoc.playerBattlefields.find(bf => bf.playerId === nextPlayerId);
-      const battlefieldCardData: Array<{ instanceId: string; cardDoc: CardDoc | null; maxHealth: number }> = [];
-      
-      if (nextPlayerBattlefield) {
-        for (const battlefieldCard of nextPlayerBattlefield.cards) {
-          const cardDoc = await loadCardDoc(battlefieldCard.cardUrl, repo);
-          battlefieldCardData.push({
-            instanceId: battlefieldCard.instanceId,
-            cardDoc,
-            maxHealth: cardDoc?.health || 1
-          });
-        }
-      }
-      
-      changeGameDoc((doc: GameDoc) => {
-        // Add to game log FIRST, before any next player actions
-        addGameLogEntry(doc, {
-          playerId: selfId,
-          action: 'end_turn',
-          description: 'Ended turn'
-        });
-
-        const nextPlayerIndex = (doc.currentPlayerIndex + 1) % doc.players.length;
-        doc.currentPlayerIndex = nextPlayerIndex;
-        const nextPlayerId = doc.players[nextPlayerIndex];
-        
-        // Draw a card for the next player (start of their turn)
-        if (doc.deck.length === 0) {
-          // Try to reshuffle graveyard into deck
-          if (doc.graveyard.length > 0) {
-            doc.deck = [...doc.graveyard];
-            doc.graveyard = [];
-            
-            // Simple shuffle (Fisher-Yates)
-            for (let i = doc.deck.length - 1; i > 0; i--) {
-              const j = Math.floor(Math.random() * (i + 1));
-              [doc.deck[i], doc.deck[j]] = [doc.deck[j], doc.deck[i]];
-            }
-            
-            addGameLogEntry(doc, {
-              playerId: nextPlayerId,
-              action: 'draw_card',
-              description: 'Reshuffled graveyard into deck'
-            });
-          }
-        }
-        
-        // Draw the top card
-        if (doc.deck.length > 0) {
-          const cardUrl = doc.deck.pop();
-          if (cardUrl) {
-            const playerHandIndex = doc.playerHands.findIndex(hand => hand.playerId === nextPlayerId);
-            if (playerHandIndex !== -1) {
-              doc.playerHands[playerHandIndex].cards.push(cardUrl);
-              
-              addGameLogEntry(doc, {
-                playerId: nextPlayerId,
-                action: 'draw_card',
-                cardUrl,
-                description: 'Drew a card'
-              });
-            }
-          }
-        }
-        
-        // Refresh creatures for the next player (unsap them)
-        const battlefieldIndex = doc.playerBattlefields.findIndex(battlefield => battlefield.playerId === nextPlayerId);
-        if (battlefieldIndex !== -1) {
-          doc.playerBattlefields[battlefieldIndex].cards.forEach(card => {
-            card.sapped = false;
-          });
-        }
-        
-        // Heal creatures for the next player (only creatures, not artifacts)
-        if (battlefieldIndex !== -1) {
-          for (const battlefieldCard of doc.playerBattlefields[battlefieldIndex].cards) {
-            // Find the corresponding card data we pre-loaded
-            const cardData = battlefieldCardData.find(cd => cd.instanceId === battlefieldCard.instanceId);
-            
-            if (cardData && cardData.cardDoc) {
-              // Only heal creatures, not artifacts
-              if (cardData.cardDoc.type === 'creature') {
-                const maxHealth = cardData.maxHealth;
-                if (battlefieldCard.currentHealth < maxHealth) {
-                  battlefieldCard.currentHealth = Math.min(maxHealth, battlefieldCard.currentHealth + 1);
-                }
-              }
-            }
-          }
-        }
-
-        // If we've gone through all players, increment turn and increase max energy
-        if (nextPlayerIndex === 0) {
-          doc.turn += 1;
-          
-          // Increase max energy for all players and restore their energy
-          doc.playerStates.forEach(playerState => {
-            if (playerState.maxEnergy < 10) {
-              playerState.maxEnergy += 1;
-            }
-            playerState.energy = playerState.maxEnergy;
-          });
-        } else {
-          // Restore energy for the next player only
-          const nextPlayerStateIndex = doc.playerStates.findIndex(state => state.playerId === nextPlayerId);
-          if (nextPlayerStateIndex !== -1) {
-            doc.playerStates[nextPlayerStateIndex].energy = doc.playerStates[nextPlayerStateIndex].maxEnergy;
-          }
-        }
-        
-        console.log('Turn ended synchronously');
-      });
-      
+      console.log('Ending turn via GameEngine...');
+      await gameEngine.endPlayerTurn(selfId);
+      console.log('Turn ended successfully');
     } catch (error) {
       console.error('Error ending turn:', error);
     }
@@ -621,7 +351,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
     }
 
     // Load the card
-    const card = await loadCardDoc(cardUrl, repo);
+    const card = await gameEngine.loadCardDoc(cardUrl);
     if (!card) {
       console.error(`handlePlayCard: Card not found: ${cardUrl}`);
       return;
@@ -639,122 +369,30 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
 
     // If it's a spell with effects, handle targeting first then cast
     if (card.type === 'spell' && card.spellEffect) {
-      // Handle spell casting asynchronously
-      (async () => {
-        try {
-          // First execute the spell effect to collect operations
-          const api = createSpellEffectAPI(gameDoc, selfId, selectTargets);
-          const success = card.spellEffect ? await executeSpellEffect(card.spellEffect, api) : false;
-
-          // Store operations for triggered abilities
-          const operationsForTriggeredAbilities = success && api.operations.length > 0 ? [...api.operations] : [];
-
-          // Now update the game state in one synchronous operation
-          changeGameDoc((doc) => {
-            // Check if we can afford the card and remove it from hand
-            if (removeCardFromHand(doc, selfId, cardUrl) && spendEnergy(doc, selfId, card.cost)) {
-              // Add to graveyard
-              addCardToGraveyard(doc, cardUrl);
-
-              // Add cast log entry FIRST
-              addGameLogEntry(doc, {
-                playerId: selfId,
-                action: 'play_card',
-                cardUrl,
-                description: `Cast ${card.name}`
-              });
-
-              // Then execute the collected spell operations synchronously
-              if (success && api.operations.length > 0) {
-                executeSpellOperations(doc, api.operations);
-              }
-            } else {
-              console.error('Failed to cast spell - insufficient resources');
-            }
-          });
-
-          // Execute triggered abilities asynchronously after document changes
-          if (operationsForTriggeredAbilities.length > 0) {
-            await executeSpellTriggeredAbilities(gameDoc, operationsForTriggeredAbilities, repo);
-          }
-        } catch (error) {
-          console.error('Error casting spell:', error);
-          changeGameDoc((doc) => {
-            addGameLogEntry(doc, {
-              playerId: selfId,
-              action: 'play_card',
-              cardUrl,
-              description: `Failed to cast ${card.name}`
-            });
-          });
-        }
-      })();
-    } else {
-      // Load card first, then make synchronous changes
+      // Use GameEngine method for spell casting
       try {
-        // Pre-load the card data
-        const cardData = await loadCardDoc(cardUrl, repo);
-        if (!cardData) {
-          console.error('handlePlayCard: Could not load card data');
-          return;
-        }
+        console.log('Casting spell via GameEngine...');
+        const success = await gameEngine.playCard(selfId, cardUrl, selectTargets);
         
-        // Now make synchronous changes to the document
-        changeGameDoc((doc) => {
-          // Remove card from hand
-          if (!removeCardFromHand(doc, selfId, cardUrl)) {
-            console.error(`handlePlayCard: Failed to remove card ${cardUrl} from player ${selfId}'s hand`);
-            return;
-          }
-
-          // Spend energy
-          if (!spendEnergy(doc, selfId, cardData.cost)) {
-            console.error(`handlePlayCard: Failed to spend energy for card ${cardUrl} (cost: ${cardData.cost}) for player ${selfId}`);
-            // Try to add the card back to hand since we couldn't spend energy
-            const playerHandIndex = doc.playerHands.findIndex(hand => hand.playerId === selfId);
-            if (playerHandIndex !== -1) {
-              doc.playerHands[playerHandIndex].cards.push(cardUrl);
-            }
-            return;
-          }
-
-          // Handle card based on type
-          if (cardData.type === 'creature' || cardData.type === 'artifact') {
-            // Add to battlefield
-            const battlefieldIndex = doc.playerBattlefields.findIndex(battlefield => battlefield.playerId === selfId);
-            if (battlefieldIndex !== -1) {
-              // Generate unique instance ID for this card copy
-              const instanceId = `instance_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-              
-              const initialHealth = cardData.health || 1;
-              console.log('Adding card to battlefield:', {
-                cardName: cardData.name,
-                cardType: cardData.type,
-                cardHealth: cardData.health,
-                initialHealth,
-                cardData
-              });
-              
-              doc.playerBattlefields[battlefieldIndex].cards.push({
-                instanceId,
-                cardUrl,
-                sapped: cardData.type === 'creature', // Only creatures start sapped (summoning sickness), artifacts do not
-                currentHealth: initialHealth
-              });
-            }
-          } else {
-            // Other card types go to graveyard
-            addCardToGraveyard(doc, cardUrl);
-          }
-
-          // Add to game log
-          addGameLogEntry(doc, {
-            playerId: selfId,
-            action: 'play_card',
-            cardUrl,
-            description: `Played ${cardData.name}`
-          });
-        });
+        if (success) {
+          console.log('Spell cast successfully');
+        } else {
+          console.error('Spell casting failed');
+        }
+      } catch (error) {
+        console.error('Error casting spell:', error);
+      }
+    } else {
+      // Use GameEngine method for non-spell cards
+      try {
+        console.log('Playing card via GameEngine...');
+        const success = await gameEngine.playCard(selfId, cardUrl);
+        
+        if (success) {
+          console.log('Card played successfully');
+        } else {
+          console.error('Card playing failed');
+        }
       } catch (error) {
         console.error('Error playing card:', error);
       }
@@ -1032,7 +670,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
                 onSelect={canTargetCreature(currentOpponent, battlefieldCard.instanceId) ?
                   async (instanceId) => {
                     // Load the card to determine its actual type
-                    const cardDoc = await loadCardDoc(battlefieldCard.cardUrl, repo);
+                    const cardDoc = await gameEngine.loadCardDoc(battlefieldCard.cardUrl);
                     const cardType = cardDoc?.type || 'creature';
                     handleTargetClick({
                       type: cardType as 'creature' | 'artifact',
@@ -1084,7 +722,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
             const handleClick = canBeTargeted
               ? async () => {
                 // Use the already loaded card doc or load it if needed
-                const loadedCardDoc = battlefieldCardDocsMap.get(battlefieldCard.cardUrl) || await loadCardDoc(battlefieldCard.cardUrl, repo);
+                const loadedCardDoc = battlefieldCardDocsMap.get(battlefieldCard.cardUrl) || await gameEngine.loadCardDoc(battlefieldCard.cardUrl);
                 const cardType = loadedCardDoc?.type || 'creature';
                 handleTargetClick({
                   type: cardType as 'creature' | 'artifact',

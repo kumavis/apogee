@@ -457,6 +457,28 @@ const Settings: React.FC<SettingsProps> = ({ rootDocUrl, selfId }) => {
         <div style={{ fontSize: 12, opacity: 0.6 }}>
           This name will be visible to other players in games.
         </div>
+        
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontSize: 14, marginBottom: 8, opacity: 0.8 }}>
+            Contact ID
+          </div>
+          <div style={{
+            padding: '12px',
+            borderRadius: 8,
+            border: '1px solid rgba(255,255,255,0.2)',
+            background: 'rgba(255,255,255,0.05)',
+            fontSize: 12,
+            fontFamily: 'monospace',
+            color: '#00ffff',
+            wordBreak: 'break-all',
+            lineHeight: 1.4
+          }}>
+            {selfId}
+          </div>
+          <div style={{ fontSize: 12, opacity: 0.6, marginTop: 6 }}>
+            This is your unique contact identifier. Share this with other players to connect.
+          </div>
+        </div>
       </div>
 
       <div style={{ marginBottom: 32 }}>
