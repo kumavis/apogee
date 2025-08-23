@@ -34,7 +34,7 @@ export type CardDoc = {
   };
 };
 
-export const create = (
+export const createCard = (
   repo: Repo, 
   cardData: Omit<CardDoc, 'createdAt'>
 ): DocHandle<CardDoc> => {

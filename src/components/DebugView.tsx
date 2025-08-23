@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useRepo, AutomergeUrl } from '@automerge/react';
 import { RootDocument } from '../docs/rootDoc';
+import { GameDoc } from '../docs/game';
+import { ContactDoc } from '../docs/contact';
+import { CardDoc } from '../docs/card';
+import { DeckDoc } from '../docs/deck';
 
 type DocumentInfo = {
   url: AutomergeUrl;
   type: 'RootDocument' | 'GameDoc' | 'ContactDoc' | 'Deck' | 'CardDoc' | 'Unknown';
   data: any;
   size: number;
-  sizeWithHistory: number;
   isOrphaned?: boolean;
   error?: string;
 };
@@ -80,19 +83,24 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
 
 
   const determineDocumentType = (doc: any): 'RootDocument' | 'GameDoc' | 'ContactDoc' | 'Deck' | 'CardDoc' | 'Unknown' => {
-    if (doc.selfId && doc.games && doc.cardLibrary && doc.decks) {
+    const maybeRootDoc = doc as RootDocument;
+    if (maybeRootDoc.selfId && maybeRootDoc.games && maybeRootDoc.cardLibrary && maybeRootDoc.decks) {
       return 'RootDocument';
     }
-    if (doc.players && doc.status && doc.deck !== undefined && doc.cardLibrary && typeof doc.cardLibrary === 'object') {
+    const maybeGameDoc = doc as GameDoc;
+    if (maybeGameDoc.players && maybeGameDoc.status && maybeGameDoc.deck !== undefined) {
       return 'GameDoc';
     }
-    if (doc.name && typeof doc.name === 'string' && Object.keys(doc).length <= 3) {
+    const maybeContactDoc = doc as ContactDoc;
+    if (maybeContactDoc.name && typeof maybeContactDoc.name === 'string') {
       return 'ContactDoc';
     }
-    if (doc.cards && Array.isArray(doc.cards) && doc.name && doc.description) {
+    const maybeDeckDoc = doc as DeckDoc;
+    if (maybeDeckDoc.cards && Array.isArray(maybeDeckDoc.cards) && maybeDeckDoc.name) {
       return 'Deck';
     }
-    if (doc.cost !== undefined && doc.type && doc.description && doc.createdAt && doc.createdBy) {
+    const maybeCardDoc = doc as CardDoc;
+    if (maybeCardDoc.cost !== undefined && maybeCardDoc.type && maybeCardDoc.description && maybeCardDoc.createdAt && maybeCardDoc.createdBy) {
       return 'CardDoc';
     }
     return 'Unknown';
@@ -240,16 +248,12 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
                   const bytesSize = new TextEncoder().encode(stringValue).length;
                   totalSize += bytesSize;
                 }
-                
-                // Add estimated IndexedDB overhead per record (~100-200 bytes)
-                totalSize += 150;
               });
               
               // Calculate breakdown for debugging
               let binarySize = 0;
               let jsonSize = 0;
               let keySize = 0;
-              let overheadSize = keys.length * 150;
               
               keys.forEach((key, index) => {
                 const value = values[index];
@@ -276,7 +280,6 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
                   binaryData: binarySize,
                   jsonData: jsonSize,
                   keys: keySize,
-                  estimatedOverhead: overheadSize
                 }
               });
               
@@ -402,15 +405,13 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
               totalSize += bytesSize;
             }
             
-            // Add estimated IndexedDB overhead per record (~100-200 bytes)
-            totalSize += 150;
+
           });
           
           // Calculate breakdown for debugging
           let binarySize = 0;
           let jsonSize = 0;
           let keySize = 0;
-          let overheadSize = keys.length * 150;
           
           keys.forEach((key, index) => {
             const value = values[index];
@@ -436,8 +437,7 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
             breakdown: {
               binaryData: binarySize,
               jsonData: jsonSize,
-              keys: keySize,
-              estimatedOverhead: overheadSize
+              keys: keySize
             }
           });
           
@@ -821,7 +821,7 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
         }
       }
 
-      // Memory usage statistics (basic estimates)
+      // Memory usage statistics
       if (typeof window !== 'undefined' && 'performance' in window && 'memory' in (window.performance as any)) {
         const memory = (window.performance as any).memory;
         stats.memoryStats = {
@@ -871,23 +871,12 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
 
       // Add the root document itself
       const rootSize = calculateSize(rootDoc);
-      let rootSizeWithHistory = rootSize;
-      try {
-        // Try to get binary representation for size with history
-        if (typeof (rootHandle as any).save === 'function') {
-          const binary = (rootHandle as any).save();
-          rootSizeWithHistory = binary ? binary.length : rootSize;
-        }
-      } catch (e) {
-        rootSizeWithHistory = rootSize;
-      }
 
       const rootDocInfo: DocumentInfo = {
         url: actualRootDocUrl,
         type: 'RootDocument',
         data: rootDoc,
-        size: rootSize,
-        sizeWithHistory: rootSizeWithHistory
+        size: rootSize
       };
       
       docInfos.push(rootDocInfo);
@@ -922,25 +911,12 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
             if (doc) {
               const type = determineDocumentType(doc);
               const size = calculateSize(doc);
-              
-              // Try to estimate size with history by getting the binary representation
-              let sizeWithHistory = size;
-              try {
-                if (typeof (handle as any).save === 'function') {
-                  const binary = (handle as any).save();
-                  sizeWithHistory = binary ? binary.length : size;
-                }
-              } catch (e) {
-                // Fallback to document size if can't get binary
-                sizeWithHistory = size;
-              }
 
               return {
                 url: docUrl,
                 type,
                 data: doc,
-                size,
-                sizeWithHistory
+                size
               };
             }
           }
@@ -951,7 +927,6 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
             type: 'Unknown',
             data: {},
             size: 0,
-            sizeWithHistory: 0,
             error: 'Document handle not found'
           };
         } catch (error) {
@@ -961,7 +936,6 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
             type: 'Unknown',
             data: {},
             size: 0,
-            sizeWithHistory: 0,
             error: error instanceof Error ? error.message : 'Unknown error'
           };
         }
@@ -990,7 +964,7 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
               if (a.type !== b.type) {
                 return a.type.localeCompare(b.type);
               }
-              return b.sizeWithHistory - a.sizeWithHistory;
+              return b.size - a.size;
             });
             setDocuments(currentDocs);
           }
@@ -1027,7 +1001,7 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
         if (a.type !== b.type) {
           return a.type.localeCompare(b.type);
         }
-        return b.sizeWithHistory - a.sizeWithHistory;
+        return b.size - a.size;
       });
 
       // Mark orphaned documents
@@ -1055,7 +1029,6 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
             type: orphanedDoc.type,
             data: orphanedDoc.data,
             size: orphanedDoc.size,
-            sizeWithHistory: orphanedDoc.size, // Use same size for orphaned docs
             isOrphaned: true,
             error: orphanedDoc.error
           });
@@ -1070,7 +1043,7 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
         if (a.type !== b.type) {
           return a.type.localeCompare(b.type);
         }
-        return b.sizeWithHistory - a.sizeWithHistory;
+        return b.size - a.size;
       });
 
       setDocuments(allDocInfos);
@@ -1096,7 +1069,6 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
   }, [repo, actualRootDocUrl]);
 
   const totalSize = documents.reduce((sum, doc) => sum + doc.size, 0);
-  const totalSizeWithHistory = documents.reduce((sum, doc) => sum + doc.sizeWithHistory, 0);
 
 
 
@@ -1193,11 +1165,7 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
           <div>
             <h3 style={{ fontSize: '16px', color: '#00ffff', margin: '0 0 12px 0' }}>📄 Documents</h3>
             <p><strong>Total Documents:</strong> {documents.length}</p>
-            <p><strong>Total Size (Data Only):</strong> {formatBytes(totalSize)}</p>
-            <p><strong>Total Size (With History):</strong> {formatBytes(totalSizeWithHistory)}</p>
-            <p style={{ color: totalSizeWithHistory > totalSize * 3 ? '#ff4444' : '#888888' }}>
-              <strong>History Overhead:</strong> {Math.round(((totalSizeWithHistory - totalSize) / totalSize) * 100)}%
-            </p>
+            <p><strong>Total Size:</strong> {formatBytes(totalSize)}</p>
             <div style={{ marginTop: '10px' }}>
               {['RootDocument', 'GameDoc', 'ContactDoc', 'Deck', 'CardDoc', 'Unknown'].map(type => {
                 const count = documents.filter(doc => doc.type === type).length;
@@ -1222,18 +1190,13 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
             <div style={{ marginTop: '16px' }}>
               <h4 style={{ fontSize: '14px', color: '#ffaa00', margin: '0 0 8px 0' }}>🔥 Largest Documents</h4>
               {documents
-                .sort((a, b) => b.sizeWithHistory - a.sizeWithHistory)
+                .sort((a, b) => b.size - a.size)
                 .slice(0, 5)
                 .map((doc, index) => (
                   <div key={doc.url} style={{ fontSize: '11px', marginBottom: '4px' }}>
                     <span style={{ color: '#888888' }}>
-                      {index + 1}. {doc.type} - {formatBytes(doc.sizeWithHistory)}
+                      {index + 1}. {doc.type} - {formatBytes(doc.size)}
                     </span>
-                    {doc.sizeWithHistory > doc.size * 2 && (
-                      <span style={{ color: '#ff4444', marginLeft: '8px' }}>
-                        (⚠️ High history)
-                      </span>
-                    )}
                   </div>
                 ))}
             </div>
@@ -1398,7 +1361,6 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
                             </div>
                             <div style={{ fontSize: '11px', marginLeft: '8px' }}>
                               IndexedDB Size: {formatBytes(repoStats.orphanedDocuments.indexedDBInfo.totalSize)}
-                              <span style={{ color: '#888888', fontSize: '10px' }}> (estimated)</span>
                             </div>
                           </>
                         )}
@@ -1451,7 +1413,7 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
                     {docInfo.isOrphaned && '🔗💔 '}{docInfo.type}
                   </span>
                   <span style={{ fontSize: '12px', color: '#888888' }}>
-                    {formatBytes(docInfo.sizeWithHistory)}
+                    {formatBytes(docInfo.size)}
                   </span>
                 </div>
                 <div style={{ fontSize: '12px', color: '#666666', wordBreak: 'break-all' }}>
@@ -1513,16 +1475,9 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
                     <strong>URL:</strong> {selectedDoc.url}
                   </p>
                   <p style={{ fontSize: '12px', color: '#888888', margin: '4px 0' }}>
-                    <strong>Size (Data):</strong> {formatBytes(selectedDoc.size)}
+                    <strong>Size:</strong> {formatBytes(selectedDoc.size)}
                   </p>
-                  <p style={{ fontSize: '12px', color: '#888888', margin: '4px 0' }}>
-                    <strong>Size (With History):</strong> {formatBytes(selectedDoc.sizeWithHistory)}
-                  </p>
-                  {selectedDoc.sizeWithHistory > selectedDoc.size * 2 && (
-                    <p style={{ fontSize: '12px', color: '#ff4444', margin: '4px 0' }}>
-                      ⚠️ High history overhead: {Math.round(((selectedDoc.sizeWithHistory - selectedDoc.size) / selectedDoc.size) * 100)}%
-                    </p>
-                  )}
+
                 </div>
                 
                 {/* Game-specific analysis */}
@@ -1535,12 +1490,7 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
                       <p><strong>Game Log Entries:</strong> {selectedDoc.data.gameLog?.length || 0}</p>
                       <p><strong>Card Library Size:</strong> {Object.keys(selectedDoc.data.cardLibrary || {}).length} cards</p>
                       <p><strong>Players:</strong> {selectedDoc.data.players?.length || 0}</p>
-                      {selectedDoc.data.gameLog?.length > 100 && (
-                        <p style={{ color: '#ff4444' }}>⚠️ Large game log ({selectedDoc.data.gameLog.length} entries) may cause memory bloat</p>
-                      )}
-                      {Object.keys(selectedDoc.data.cardLibrary || {}).length > 200 && (
-                        <p style={{ color: '#ff4444' }}>⚠️ Large card library ({Object.keys(selectedDoc.data.cardLibrary).length} cards) may cause memory bloat</p>
-                      )}
+
                     </div>
                   </div>
                 )}

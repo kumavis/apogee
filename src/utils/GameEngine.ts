@@ -1,6 +1,6 @@
 import { AutomergeUrl, DocHandle, Repo } from "@automerge/react";
-import { GameDoc, create as createGameDoc, BattlefieldCard, PlayerBattlefield } from "../docs/game";
-import { Deck } from "../docs/deck";
+import { GameDoc, createGame, BattlefieldCard, PlayerBattlefield } from "../docs/game";
+import { DeckDoc } from "../docs/deck";
 import { CardDoc } from "../docs/card";
 import { 
   executeSpellEffect, 
@@ -818,7 +818,7 @@ export class GameEngine {
    * Create a game deck from a deck document
    */
   async createGameDeckFromDeck(deckUrl: AutomergeUrl): Promise<AutomergeUrl[]> {
-    const deckHandle = await this.repo.find<Deck>(deckUrl);
+    const deckHandle = await this.repo.find<DeckDoc>(deckUrl);
     if (!deckHandle) {
       throw new Error(`GameEngine.createGameDeckFromDeck: Deck not found for URL: ${deckUrl}`);
     }
@@ -872,7 +872,7 @@ export class GameEngine {
     const currentDoc = this.gameDocHandle.doc();
     
     // Create a new game with the same players and deck
-    const rematchHandle = createGameDoc(this.repo, {
+    const rematchHandle = createGame(this.repo, {
       createdAt: Date.now(),
       players: [...currentDoc.players], // Copy players from original game
       status: 'waiting' as const,

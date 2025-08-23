@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AutomergeUrl, useDocument, useRepo } from '@automerge/react';
 import { RootDocument } from '../docs/rootDoc';
-import { Deck, createDeck } from '../docs/deck';
+import { DeckDoc, createDeck } from '../docs/deck';
 import { useGameNavigation } from '../hooks/useGameNavigation';
 
 
@@ -445,7 +445,7 @@ const LoadingDeckDisplay: React.FC<{
   onDeckSelect: (deckId: AutomergeUrl) => void;
   onRemove?: (deckUrl: AutomergeUrl) => void;
 }> = ({ deckUrl, onDeckSelect, onRemove }) => {
-  const [deck] = useDocument<Deck>(deckUrl, { suspense: false });
+  const [deck] = useDocument<DeckDoc>(deckUrl, { suspense: false });
 
   if (!deck) {
     return (

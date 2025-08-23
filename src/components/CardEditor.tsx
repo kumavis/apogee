@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AutomergeUrl, useRepo } from '@automerge/react';
-import { CardDoc, create, CardType, RendererDesc, ImageRendererDesc } from '../docs/card';
+import { CardDoc, createCard, CardType, RendererDesc, ImageRendererDesc } from '../docs/card';
 import { ArtifactAbility, ArtifactTrigger } from '../utils/spellEffects';
 import { makeCardViewUrl } from '../hooks/useGameNavigation';
 import Card from './Card';
@@ -117,7 +117,7 @@ const CardEditor: React.FC<CardEditorProps> = ({
       cardData.renderer = newCardData.renderer;
     }
 
-    const cardDefHandle = create(repo, cardData);
+    const cardDefHandle = createCard(repo, cardData);
     onSave(cardDefHandle.url);
   };
 

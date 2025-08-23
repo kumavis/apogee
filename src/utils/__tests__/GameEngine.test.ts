@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { AutomergeUrl } from '@automerge/automerge-repo';
 import { GameEngine } from '../GameEngine';
-import { create as createGame } from '../../docs/game';
+import { createGame } from '../../docs/game';
 import { CardDoc } from '../../docs/card';
-import { Deck } from '../../docs/deck';
+import { DeckDoc } from '../../docs/deck';
 import {
   createTestGameSetup,
   createTestCreature,
@@ -440,7 +440,7 @@ describe('GameEngine', () => {
       const card2 = testSetup.repo.create<CardDoc>(createCompleteCardDoc({ name: 'Card 2', cost: 2, type: 'spell', description: 'Test card 2' }));
       
       // Create a deck with multiple copies
-      const deckHandle = testSetup.repo.create<Deck>(createCompleteDeck({
+      const deckHandle = testSetup.repo.create<DeckDoc>(createCompleteDeck({
         name: 'Test Deck',
         cards: [
           { cardUrl: card1.url, quantity: 3 },

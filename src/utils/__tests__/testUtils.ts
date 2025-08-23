@@ -1,10 +1,10 @@
 import { expect } from 'vitest';
 import { Repo, AutomergeUrl } from '@automerge/automerge-repo';
 import { GameEngine } from '../GameEngine';
-import { create as createGameDoc } from '../../docs/game';
+import { createGame } from '../../docs/game';
 import { CardDoc } from '../../docs/card';
-import { Deck } from '../../docs/deck';
-import { create as createContactDoc, ContactDoc } from '../../docs/contact';
+import { DeckDoc } from '../../docs/deck';
+import { createContact as createContactDoc, ContactDoc } from '../../docs/contact';
 
 // Test configuration types
 export interface TestGameConfig {
@@ -50,7 +50,7 @@ export function createCompleteCardDoc(overrides: Partial<CardDoc> = {}): CardDoc
 /**
  * Create a complete Deck with all required fields for testing
  */
-export function createCompleteDeck(overrides: Partial<Deck> = {}): Deck {
+export function createCompleteDeck(overrides: Partial<DeckDoc> = {}): DeckDoc {
   return {
     id: `test-deck-${Date.now()}`,
     name: 'Test Deck',
@@ -92,7 +92,7 @@ export function createTestGameSetup(config: TestGameConfig = {}): TestSetup {
   const player1Contact = player1ContactHandle.doc();
   const player2Contact = player2ContactHandle.doc();
   
-  const gameHandle = createGameDoc(repo, {
+  const gameHandle = createGame(repo, {
     players: [player1Id, player2Id],
     status: 'playing',
     selectedDeckUrl: null,
@@ -236,8 +236,8 @@ export function createTestSpell(
 export function createTestDeck(
   repo: Repo, 
   cardUrls: AutomergeUrl[]
-): { deck: Deck; url: AutomergeUrl } {
-  const deckData: Deck = {
+): { deck: DeckDoc; url: AutomergeUrl } {
+  const deckData: DeckDoc = {
     id: `test-deck-${Date.now()}`,
     name: 'Test Deck',
     description: 'A test deck',
@@ -247,7 +247,7 @@ export function createTestDeck(
     updatedAt: new Date().toISOString()
   };
   
-  const deckHandle = repo.create<Deck>(deckData);
+  const deckHandle = repo.create<DeckDoc>(deckData);
   return {
     deck: deckHandle.doc(),
     url: deckHandle.url

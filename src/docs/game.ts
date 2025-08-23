@@ -65,6 +65,26 @@ export type GameDoc = {
   rematchGameId?: AutomergeUrl; // Reference to rematch game if one exists
 };
 
+export const createGame = (repo: Repo, initialState?: Partial<GameDoc>): DocHandle<GameDoc> => {
+  const gameData: GameDoc = {
+    createdAt: Date.now(),
+    players: [],
+    status: 'waiting' as const,
+    selectedDeckUrl: null, // No deck selected initially - must be selected in lobby
+    deck: [],
+    playerHands: [],
+    playerBattlefields: [],
+    playerStates: [],
+    graveyard: [],
+    currentPlayerIndex: 0,
+    turn: 0,
+    gameLog: [],
+    ...initialState
+  };
+  const handle = repo.create<GameDoc>(gameData);
+  return handle;
+};
+
 export const joinGame = (doc: GameDoc, playerId: AutomergeUrl): void => {
   if (doc.status !== 'waiting') {
     throw new Error('joinGame: Game is not in waiting state');
@@ -92,8 +112,6 @@ export const removeCardFromHand = (doc: GameDoc, playerId: AutomergeUrl, cardUrl
   doc.playerHands[playerHandIndex].cards.splice(cardIndex, 1);
   return true;
 };
-
-// addCardToBattlefield moved to utils/engine.ts
 
 export const addCardToGraveyard = (doc: GameDoc, cardUrl: AutomergeUrl): void => {
   doc.graveyard.push(cardUrl);
@@ -167,8 +185,6 @@ export const setGameDeckSelection = (doc: GameDoc, deckUrl: AutomergeUrl | null)
 export const getGameDeckSelection = (doc: GameDoc): AutomergeUrl | null => {
   return doc.selectedDeckUrl;
 };
-
-// createGameDeckFromDeck moved to utils/engine.ts
 
 // Remove creature from battlefield and add to graveyard
 export const removeCreatureFromBattlefield = (
@@ -244,12 +260,6 @@ export const dealDamageToCreature = (
   return true;
 };
 
-// castSpell moved to utils/engine.ts
-
-// playCard moved to utils/engine.ts
-
-
-
 export const drawCard = (doc: GameDoc, playerId: AutomergeUrl): boolean => {
   // Check if deck is empty
   if (doc.deck.length === 0) {
@@ -321,10 +331,7 @@ export const dealDamage = (doc: GameDoc, targetPlayerId: AutomergeUrl, damage: n
     amount: damage,
     description: `Took ${damage} damage`
   });
-  
-  // Note: take_damage abilities would need repo parameter - currently disabled
-  // TODO: executeTriggeredAbilities(doc, 'take_damage', targetPlayerId, repo);
-  
+    
   // Check for game end
   if (playerState.health <= 0) {
     doc.status = 'finished';
@@ -337,10 +344,6 @@ export const dealDamage = (doc: GameDoc, targetPlayerId: AutomergeUrl, damage: n
   
   return true;
 };
-
-// attackPlayerWithCreature moved to utils/engine.ts
-
-// attackCreatureWithCreature moved to utils/engine.ts
 
 // canCreatureTarget - utility function for targeting validation
 export const canCreatureTarget = (
@@ -428,16 +431,6 @@ export const refreshCreatures = (doc: GameDoc, playerId: AutomergeUrl): boolean 
   return true;
 };
 
-// healCreatures moved to utils/engine.ts
-
-// executeTriggeredAbilities moved to utils/engine.ts
-
-// executeTriggeredAbilitiesForCreature moved to utils/engine.ts
-
-
-
-// endPlayerTurn moved to utils/engine.ts
-
 export const initializeGame = (doc: GameDoc, shuffledDeck: AutomergeUrl[]): void => {
   const playerHands: PlayerHand[] = [];
   const playerBattlefields: PlayerBattlefield[] = [];
@@ -485,26 +478,4 @@ export const initializeGame = (doc: GameDoc, shuffledDeck: AutomergeUrl[]): void
   
   // First player draws an additional card to start
   drawCard(doc, doc.players[0]);
-};
-
-// createRematchGame moved to utils/engine.ts
-
-export const create = (repo: Repo, initialState?: Partial<GameDoc>): DocHandle<GameDoc> => {
-  const gameData: GameDoc = {
-    createdAt: Date.now(),
-    players: [],
-    status: 'waiting' as const,
-    selectedDeckUrl: null, // No deck selected initially - must be selected in lobby
-    deck: [],
-    playerHands: [],
-    playerBattlefields: [],
-    playerStates: [],
-    graveyard: [],
-    currentPlayerIndex: 0,
-    turn: 0,
-    gameLog: [],
-    ...initialState
-  };
-  const handle = repo.create<GameDoc>(gameData);
-  return handle;
 };

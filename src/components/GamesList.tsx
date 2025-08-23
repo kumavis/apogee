@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { AutomergeUrl, useDocument, useDocuments } from '@automerge/react';
 import { GameDoc, getGameDeckSelection } from '../docs/game';
 import { ContactDoc } from '../docs/contact';
-import { Deck } from '../docs/deck';
+import { DeckDoc } from '../docs/deck';
 import { getRelativeTime } from '../utils/timeUtils';
 
 // Helper component to get player name
@@ -13,7 +13,7 @@ const PlayerName: React.FC<{ playerId: AutomergeUrl }> = ({ playerId }) => {
 
 // Helper component to get deck name
 const DeckName: React.FC<{ deckUrl: AutomergeUrl }> = ({ deckUrl }) => {
-  const [deck] = useDocument<Deck>(deckUrl, { suspense: false });
+  const [deck] = useDocument<DeckDoc>(deckUrl, { suspense: false });
   
   if (!deck) {
     return <span>Loading...</span>;

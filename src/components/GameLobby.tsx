@@ -2,7 +2,7 @@ import React from 'react';
 import { AutomergeUrl, useDocument } from '@automerge/react';
 import { GameDoc, setGameDeckSelection, getGameDeckSelection } from '../docs/game';
 import { RootDocument } from '../docs/rootDoc';
-import { Deck } from '../docs/deck';
+import { DeckDoc } from '../docs/deck';
 import { getFormattedTime } from '../utils/timeUtils';
 import { useGameNavigation } from '../hooks/useGameNavigation';
 import Contact from './Contact';
@@ -441,7 +441,7 @@ const DeckSelectionCard: React.FC<{
   onSelect: () => void;
   onView: () => void;
 }> = ({ deckUrl, isSelected, onSelect, onView }) => {
-  const [deck] = useDocument<Deck>(deckUrl, { suspense: false });
+  const [deck] = useDocument<DeckDoc>(deckUrl, { suspense: false });
 
   if (!deck) {
     return (
@@ -513,7 +513,7 @@ const DeckDisplayCard: React.FC<{
   onView: (deckUrl: AutomergeUrl) => void;
   isSelected: boolean;
 }> = ({ deckUrl, onView, isSelected }) => {
-  const [deck] = useDocument<Deck>(deckUrl, { suspense: false });
+  const [deck] = useDocument<DeckDoc>(deckUrl, { suspense: false });
 
   if (!deck) {
     return (

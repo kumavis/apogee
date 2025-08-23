@@ -1,5 +1,5 @@
 import { AutomergeUrl, DocHandle, Repo } from "@automerge/react";
-import { create as createContact } from "./contact";
+import { createContact } from "./contact";
 
 const ROOT_DOC_URL_KEY = "root-doc-url";
 

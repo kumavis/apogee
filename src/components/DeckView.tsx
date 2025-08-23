@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { AutomergeUrl, useDocument, useRepo } from '@automerge/react';
-import { Deck, cloneDeck } from '../docs/deck';
+import { DeckDoc, cloneDeck } from '../docs/deck';
 import { CardDoc } from '../docs/card';
 
 import { RootDocument } from '../docs/rootDoc';
@@ -32,7 +32,7 @@ const DeckView: React.FC<DeckViewProps> = ({ rootDoc, addDeckToCollection, addCa
   const [newDescription, setNewDescription] = useState('');
 
   // Get the deck document
-  const [deck, changeDeck] = useDocument<Deck>(deckId as AutomergeUrl, { suspense: false });
+  const [deck, changeDeck] = useDocument<DeckDoc>(deckId as AutomergeUrl, { suspense: false });
 
   if (!deck) {
     return (
@@ -116,7 +116,7 @@ const DeckView: React.FC<DeckViewProps> = ({ rootDoc, addDeckToCollection, addCa
     if (!cloneName.trim()) return;
 
     const deckData = cloneDeck(deck, cloneName.trim());
-    const newDeckHandle = repo.create<Deck>({
+    const newDeckHandle = repo.create<DeckDoc>({
       ...deckData,
       id: `deck_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       createdAt: new Date().toISOString(),

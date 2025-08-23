@@ -69,7 +69,7 @@ const makeName = (): string => {
   return `${adjectives[Math.floor(Math.random() * adjectives.length)]} ${nouns[Math.floor(Math.random() * nouns.length)]}`;
 };
 
-export const create = (repo: Repo, initialState?: Partial<ContactDoc>): DocHandle<ContactDoc> => {
+export const createContact = (repo: Repo, initialState?: Partial<ContactDoc>): DocHandle<ContactDoc> => {
   const data = {
     name: makeName(),
     ...initialState,

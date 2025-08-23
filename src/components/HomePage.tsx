@@ -1,7 +1,7 @@
 import React from 'react';
 import { AutomergeUrl, useRepo } from '@automerge/react';
 import { RootDocument } from '../docs/rootDoc';
-import { create as createGame } from '../docs/game';
+import { createGame } from '../docs/game';
 import { useGameNavigation } from '../hooks/useGameNavigation';
 import MainMenu from './MainMenu';
 import GamesList from './GamesList';
