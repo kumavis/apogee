@@ -7,16 +7,14 @@ export type SpellTarget = Target;
 export type SpellTargetSelector = TargetSelector;
 
 // Artifact ability trigger types
-export type ArtifactTrigger = 'start_turn' | 'end_turn' | 'play_card' | 'take_damage' | 'deal_damage';
+export type TriggerAbilityEvent = 'start_turn' | 'end_turn' | 'play_card' | 'take_damage' | 'deal_damage';
 
 // Artifact ability definition
 export type ArtifactAbility = {
-  trigger: ArtifactTrigger;
+  trigger: TriggerAbilityEvent;
   effectCode: string; // Same code format as spells
   description?: string;
 };
-
-
 
 // Operations that spells can perform
 export type SpellOperation = {

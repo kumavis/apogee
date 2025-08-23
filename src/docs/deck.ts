@@ -22,7 +22,7 @@ export const createDeck = (
   const now = new Date().toISOString();
   const deck = repo.create<DeckDoc>({
     ...deckData,
-    id: `deck_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    id: `deck_${Math.random().toString(36).substr(2, 9)}`,
     createdAt: now,
     updatedAt: now,
   });

@@ -22,7 +22,8 @@ import {
   assertCardInHand,
   assertCardNotInHand,
   mockSelectTargets,
-  TestSetup
+  TestSetup,
+  addCardToBattlefield
 } from './testUtils';
 
 describe('GameEngine', () => {
@@ -31,6 +32,7 @@ describe('GameEngine', () => {
   let player1Id: AutomergeUrl;
   let player2Id: AutomergeUrl;
   let testCard: { card: CardDoc; url: AutomergeUrl };
+  let testCardInstanceId: string;
 
   beforeEach(() => {
     testSetup = createTestGameSetup({
@@ -52,7 +54,7 @@ describe('GameEngine', () => {
     });
     
     // Add card to player1's hand and deck
-    addCardToHand(gameEngine, player1Id, testCard.url);
+    testCardInstanceId = addCardToHand(gameEngine, player1Id, testCard.url);
     addCardsToDeck(gameEngine, [testCard.url]);
   });
 
@@ -76,7 +78,7 @@ describe('GameEngine', () => {
     it('should play a creature card successfully', async () => {
       const beforeState = captureGameState(gameEngine, player1Id, player2Id);
       
-      const success = await gameEngine.playCard(player1Id, testCard.url);
+      const success = await gameEngine.playCard(player1Id, testCardInstanceId);
       
       expect(success).toBe(true);
       
@@ -106,7 +108,7 @@ describe('GameEngine', () => {
       
       const beforeState = captureGameState(gameEngine, player1Id, player2Id);
       
-      const success = await gameEngine.playCard(player1Id, testCard.url);
+      const success = await gameEngine.playCard(player1Id, testCardInstanceId);
       
       expect(success).toBe(false);
       
@@ -134,11 +136,11 @@ describe('GameEngine', () => {
       });
       
       // Add spell to player's hand
-      addCardToHand(gameEngine, player1Id, spell.url);
+      const spellInstanceId = addCardToHand(gameEngine, player1Id, spell.url);
       
       const beforeState = captureGameState(gameEngine, player1Id, player2Id);
       
-      const success = await gameEngine.playCard(player1Id, spell.url, mockSelectTargets);
+      const success = await gameEngine.playCard(player1Id, spellInstanceId, mockSelectTargets);
       
       expect(success).toBe(true);
       
@@ -167,7 +169,7 @@ describe('GameEngine', () => {
     
     beforeEach(async () => {
       // Add a creature to player1's battlefield for combat tests
-      await gameEngine.playCard(player1Id, testCard.url);
+      await gameEngine.playCard(player1Id, testCardInstanceId);
       const gameDoc = gameEngine.getGameDoc();
       creatureInstanceId = gameDoc.playerBattlefields[0].cards[0].instanceId;
     });
@@ -214,11 +216,9 @@ describe('GameEngine', () => {
       }));
       const defenderUrl = defender.url;
       
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerHands[1].cards.push(defenderUrl);
-      });
+      const defenderHandInstanceId = addCardToHand(gameEngine, player2Id, defenderUrl);
       
-      await gameEngine.playCard(player2Id, defenderUrl);
+      await gameEngine.playCard(player2Id, defenderHandInstanceId);
       
       const gameDoc = gameEngine.getGameDoc();
       const attackerInstanceId = gameDoc.playerBattlefields[0].cards[0].instanceId;
@@ -244,7 +244,11 @@ describe('GameEngine', () => {
         expect(attackerCard.currentHealth).toBe(testCard.card.health! - defender.doc().attack!);
       } else {
         // Attacker was destroyed, should be in graveyard
-        expect(updatedGameDoc.graveyard).toContain(testCard.url);
+        // Check if the attacker card is in graveyard by checking instance mapping
+        const hasAttackerInGraveyard = updatedGameDoc.graveyard.some(instanceId => 
+          updatedGameDoc.instanceToCardUrl[instanceId] === testCard.url
+        );
+        expect(hasAttackerInGraveyard).toBe(true);
       }
       
       if (defenderStillAlive) {
@@ -252,7 +256,11 @@ describe('GameEngine', () => {
         expect(defenderCard.currentHealth).toBe(defender.doc().health! - testCard.card.attack!);
       } else {
         // Defender was destroyed, should be in graveyard
-        expect(updatedGameDoc.graveyard).toContain(defenderUrl);
+        // Check if the defender card is in graveyard by checking instance mapping
+        const hasDefenderInGraveyard = updatedGameDoc.graveyard.some(instanceId => 
+          updatedGameDoc.instanceToCardUrl[instanceId] === defenderUrl
+        );
+        expect(hasDefenderInGraveyard).toBe(true);
       }
       
       // Attacker should be sapped (if still alive)
@@ -274,11 +282,9 @@ describe('GameEngine', () => {
       }));
       const weakUrl = weakCreature.url;
       
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerHands[1].cards.push(weakUrl);
-      });
+      const weakHandInstanceId = addCardToHand(gameEngine, player2Id, weakUrl);
       
-      await gameEngine.playCard(player2Id, weakUrl);
+      await gameEngine.playCard(player2Id, weakHandInstanceId);
       
       const gameDoc = gameEngine.getGameDoc();
       const attackerInstanceId = gameDoc.playerBattlefields[0].cards[0].instanceId;
@@ -298,7 +304,11 @@ describe('GameEngine', () => {
       expect(updatedGameDoc.playerBattlefields[1].cards.length).toBe(0);
       // Weak creature should be in graveyard
       expect(updatedGameDoc.graveyard.length).toBe(initialGraveyardSize + 1);
-      expect(updatedGameDoc.graveyard).toContain(weakUrl);
+      // Check if the weak creature is in graveyard by checking instance mapping
+      const hasWeakInGraveyard = updatedGameDoc.graveyard.some(instanceId => 
+        updatedGameDoc.instanceToCardUrl[instanceId] === weakUrl
+      );
+      expect(hasWeakInGraveyard).toBe(true);
     });
   });
 
@@ -335,7 +345,7 @@ describe('GameEngine', () => {
 
     it('should heal creatures at end of turn', async () => {
       // Add a damaged creature
-      await gameEngine.playCard(player1Id, testCard.url);
+      await gameEngine.playCard(player1Id, testCardInstanceId);
       
       gameEngine.getGameDocHandle().change((doc) => {
         doc.playerBattlefields[0].cards[0].currentHealth = 1; // Damage the creature
@@ -368,14 +378,7 @@ describe('GameEngine', () => {
       const artifactUrl = artifact.url;
       
       // Add artifact to battlefield
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[0].cards.push({
-          instanceId: 'test-artifact-1',
-          cardUrl: artifactUrl,
-          sapped: false,
-          currentHealth: 1
-        });
-      });
+      addCardToBattlefield(gameEngine, player1Id, artifactUrl, undefined, { currentHealth: 1 });
       
       // Mock the card loading for the artifact
       const artifactHandle = testSetup.repo.create<CardDoc>(artifact.card);
@@ -408,14 +411,7 @@ describe('GameEngine', () => {
       const creatureUrl = creature.url;
       
       // Add creature to battlefield
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[0].cards.push({
-          instanceId: 'vampire-1',
-          cardUrl: creatureUrl,
-          sapped: false,
-          currentHealth: 2
-        });
-      });
+      addCardToBattlefield(gameEngine, player1Id, creatureUrl, 'vampire-1', { currentHealth: 2 });
       
       await gameEngine.executeTriggeredAbilitiesForCreature(
         'deal_damage',
@@ -448,11 +444,16 @@ describe('GameEngine', () => {
         ]
       }));
       
-      const gameDeck = await gameEngine.createGameDeckFromDeck(deckHandle.url);
+      const { gameDeck, instanceToCardUrl } = await gameEngine.createGameDeckFromDeck(deckHandle.url);
       
       expect(gameDeck.length).toBe(5); // 3 + 2
-      expect(gameDeck.filter(url => url === card1.url).length).toBe(3);
-      expect(gameDeck.filter(url => url === card2.url).length).toBe(2);
+      
+      // Count instances by card URL
+      const card1Instances = gameDeck.filter(instanceId => instanceToCardUrl[instanceId] === card1.url);
+      const card2Instances = gameDeck.filter(instanceId => instanceToCardUrl[instanceId] === card2.url);
+      
+      expect(card1Instances.length).toBe(3);
+      expect(card2Instances.length).toBe(2);
     });
 
     it('should create rematch game', () => {
@@ -523,8 +524,8 @@ describe('GameEngine', () => {
   });
 
   describe('Error Handling', () => {
-    it('should handle invalid card URLs gracefully', async () => {
-      const success = await gameEngine.playCard(player1Id, 'invalid-card-url' as AutomergeUrl);
+    it('should handle invalid instance IDs gracefully', async () => {
+      const success = await gameEngine.playCard(player1Id, 'invalid-instance-id');
       expect(success).toBe(false);
     });
 
@@ -548,11 +549,9 @@ describe('GameEngine', () => {
         spellEffect: 'async (api) => { throw new Error("Spell failed!"); }'
       }));
       
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerHands[0].cards.push(badSpell.url);
-      });
+      const badSpellInstanceId = addCardToHand(gameEngine, player1Id, badSpell.url);
       
-      const success = await gameEngine.playCard(player1Id, badSpell.url, mockSelectTargets);
+      const success = await gameEngine.playCard(player1Id, badSpellInstanceId, mockSelectTargets);
       expect(success).toBe(false);
     });
   });

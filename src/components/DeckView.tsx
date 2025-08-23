@@ -118,7 +118,7 @@ const DeckView: React.FC<DeckViewProps> = ({ rootDoc, addDeckToCollection, addCa
     const deckData = cloneDeck(deck, cloneName.trim());
     const newDeckHandle = repo.create<DeckDoc>({
       ...deckData,
-      id: `deck_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: `deck_${Math.random().toString(36).substr(2, 9)}`,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AutomergeUrl, useRepo } from '@automerge/react';
 import { CardDoc, createCard, CardType, RendererDesc, ImageRendererDesc } from '../docs/card';
-import { ArtifactAbility, ArtifactTrigger } from '../utils/spellEffects';
+import { ArtifactAbility, TriggerAbilityEvent } from '../utils/spellEffects';
 import { makeCardViewUrl } from '../hooks/useGameNavigation';
 import Card from './Card';
 import ImageEditor from './ImageEditor';
@@ -802,7 +802,7 @@ const CardEditor: React.FC<CardEditorProps> = ({
                         </label>
                         <select
                           value={ability.trigger}
-                          onChange={(e) => updateTriggeredAbility(index, 'trigger', e.target.value as ArtifactTrigger)}
+                          onChange={(e) => updateTriggeredAbility(index, 'trigger', e.target.value as TriggerAbilityEvent)}
                           disabled={editingCard?.isBuiltin}
                           style={{
                             width: '100%',

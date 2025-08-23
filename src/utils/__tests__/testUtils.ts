@@ -27,6 +27,10 @@ export interface TestSetup {
   player2Contact: ContactDoc;
 }
 
+export function makeInstanceId(): string {
+  return `test-instance-${Math.random().toString(36).substr(2, 9)}`;
+}
+
 // Mock target selector for testing
 export const mockSelectTargets = async () => [];
 
@@ -52,7 +56,7 @@ export function createCompleteCardDoc(overrides: Partial<CardDoc> = {}): CardDoc
  */
 export function createCompleteDeck(overrides: Partial<DeckDoc> = {}): DeckDoc {
   return {
-    id: `test-deck-${Date.now()}`,
+    id: `test-deck-${Math.random().toString(36).substr(2, 9)}`,
     name: 'Test Deck',
     description: 'A test deck',
     cards: [],
@@ -96,7 +100,8 @@ export function createTestGameSetup(config: TestGameConfig = {}): TestSetup {
     players: [player1Id, player2Id],
     status: 'playing',
     selectedDeckUrl: null,
-    deck: config.deckCards || [],
+    deck: [],
+    instanceToCardUrl: {},
     playerHands: [
       { playerId: player1Id, cards: [] },
       { playerId: player2Id, cards: [] }
@@ -238,7 +243,7 @@ export function createTestDeck(
   cardUrls: AutomergeUrl[]
 ): { deck: DeckDoc; url: AutomergeUrl } {
   const deckData: DeckDoc = {
-    id: `test-deck-${Date.now()}`,
+    id: `test-deck-${Math.random().toString(36).substr(2, 9)}`,
     name: 'Test Deck',
     description: 'A test deck',
     cards: cardUrls.map(url => ({ cardUrl: url, quantity: 1 })),
@@ -255,13 +260,51 @@ export function createTestDeck(
 }
 
 /**
- * Add a card to a player's hand
+ * Add a single card to the deck with auto-generated instance ID
  */
-export function addCardToHand(gameEngine: GameEngine, playerId: AutomergeUrl, cardUrl: AutomergeUrl): void {
+export function addCardToDeck(gameEngine: GameEngine, cardUrl: AutomergeUrl): string {
+  const instanceId = `test-instance-${Math.random().toString(36).substr(2, 9)}`;
+  gameEngine.getGameDocHandle().change((doc) => {
+    doc.deck.push(instanceId);
+    doc.instanceToCardUrl[instanceId] = cardUrl;
+  });
+  return instanceId;
+}
+
+/**
+ * Add a single card to a player's hand with auto-generated instance ID
+ */
+export function addCardToHand(gameEngine: GameEngine, playerId: AutomergeUrl, cardUrl: AutomergeUrl): string {
+  const instanceId = `test-instance-${Math.random().toString(36).substr(2, 9)}`;
   gameEngine.getGameDocHandle().change((doc) => {
     const playerHandIndex = doc.playerHands.findIndex(hand => hand.playerId === playerId);
     if (playerHandIndex !== -1) {
-      doc.playerHands[playerHandIndex].cards.push(cardUrl);
+      doc.playerHands[playerHandIndex].cards.push(instanceId);
+      doc.instanceToCardUrl[instanceId] = cardUrl;
+    } else {
+      console.error(`addCardToHand: Player hand not found for playerId: ${playerId}`);
+    }
+  });
+  return instanceId;
+}
+
+/**
+ * Add multiple cards to a player's hand and automatically register their instance mappings
+ */
+export function addCardsToHand(
+  gameEngine: GameEngine, 
+  playerId: AutomergeUrl, 
+  cards: Array<{ cardUrl: AutomergeUrl; instanceId: string }>
+): void {
+  gameEngine.getGameDocHandle().change((doc) => {
+    const playerHandIndex = doc.playerHands.findIndex(hand => hand.playerId === playerId);
+    if (playerHandIndex !== -1) {
+      cards.forEach(({ cardUrl, instanceId }) => {
+        doc.playerHands[playerHandIndex].cards.push(instanceId);
+        doc.instanceToCardUrl[instanceId] = cardUrl;
+      });
+    } else {
+      console.error(`addCardsToHand: Player hand not found for playerId: ${playerId}`);
     }
   });
 }
@@ -273,10 +316,9 @@ export function addCardToBattlefield(
   gameEngine: GameEngine, 
   playerId: AutomergeUrl, 
   cardUrl: AutomergeUrl, 
+  instanceId: string = makeInstanceId(),
   overrides: { currentHealth?: number; sapped?: boolean } = {}
 ): string {
-  const instanceId = `test-instance-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  
   gameEngine.getGameDocHandle().change((doc) => {
     const battlefieldIndex = doc.playerBattlefields.findIndex(battlefield => battlefield.playerId === playerId);
     if (battlefieldIndex !== -1) {
@@ -286,6 +328,7 @@ export function addCardToBattlefield(
         sapped: overrides.sapped ?? false,
         currentHealth: overrides.currentHealth ?? 1
       });
+      doc.instanceToCardUrl[instanceId] = cardUrl;
     }
   });
   
@@ -293,11 +336,15 @@ export function addCardToBattlefield(
 }
 
 /**
- * Add cards to deck for drawing
+ * Add cards to deck for drawing with instance IDs
  */
 export function addCardsToDeck(gameEngine: GameEngine, cardUrls: AutomergeUrl[]): void {
   gameEngine.getGameDocHandle().change((doc) => {
-    doc.deck.push(...cardUrls);
+    cardUrls.forEach(cardUrl => {
+      const instanceId = `test-instance-${Math.random().toString(36).substr(2, 9)}`;
+      doc.deck.push(instanceId);
+      doc.instanceToCardUrl[instanceId] = cardUrl;
+    });
   });
 }
 
@@ -458,29 +505,38 @@ export function assertCreatureOnBattlefield(
 }
 
 /**
- * Assert that a card is in graveyard
+ * Assert that a card is in graveyard (by checking if any instance ID maps to the cardUrl)
  */
 export function assertCardInGraveyard(gameEngine: GameEngine, cardUrl: AutomergeUrl): void {
   const gameDoc = gameEngine.getGameDoc();
-  expect(gameDoc.graveyard).toContain(cardUrl);
+  const hasCardInGraveyard = gameDoc.graveyard.some(instanceId => 
+    gameDoc.instanceToCardUrl[instanceId] === cardUrl
+  );
+  expect(hasCardInGraveyard).toBe(true);
 }
 
 /**
- * Assert that a card is in player's hand
+ * Assert that a card is in player's hand (by checking if any instance ID maps to the cardUrl)
  */
 export function assertCardInHand(gameEngine: GameEngine, playerId: AutomergeUrl, cardUrl: AutomergeUrl): void {
   const gameDoc = gameEngine.getGameDoc();
   const playerHand = gameDoc.playerHands.find(h => h.playerId === playerId);
   expect(playerHand).toBeDefined();
-  expect(playerHand!.cards).toContain(cardUrl);
+  const hasCardInHand = playerHand!.cards.some(instanceId => 
+    gameDoc.instanceToCardUrl[instanceId] === cardUrl
+  );
+  expect(hasCardInHand).toBe(true);
 }
 
 /**
- * Assert that a card is NOT in player's hand
+ * Assert that a card is NOT in player's hand (by checking if any instance ID maps to the cardUrl)
  */
 export function assertCardNotInHand(gameEngine: GameEngine, playerId: AutomergeUrl, cardUrl: AutomergeUrl): void {
   const gameDoc = gameEngine.getGameDoc();
   const playerHand = gameDoc.playerHands.find(h => h.playerId === playerId);
   expect(playerHand).toBeDefined();
-  expect(playerHand!.cards).not.toContain(cardUrl);
+  const hasCardInHand = playerHand!.cards.some(instanceId => 
+    gameDoc.instanceToCardUrl[instanceId] === cardUrl
+  );
+  expect(hasCardInHand).toBe(false);
 }

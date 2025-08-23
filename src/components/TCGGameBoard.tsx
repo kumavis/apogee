@@ -17,7 +17,7 @@ const HandCard: React.FC<{
   cardUrl: AutomergeUrl;
   currentEnergy?: number;
   isCurrentPlayer: boolean;
-  onPlay: (cardUrl: AutomergeUrl) => void;
+  onPlay: () => void;
   isTargeting: boolean;
 }> = ({ cardUrl, currentEnergy = 0, isCurrentPlayer, onPlay, isTargeting }) => {
   const [cardDoc] = useDocument<CardDoc>(cardUrl, { suspense: false });
@@ -56,7 +56,7 @@ const HandCard: React.FC<{
     >
       <Card 
         card={cardData}
-        onClick={!isTargeting && isPlayable ? () => onPlay(cardUrl) : undefined}
+        onClick={!isTargeting && isPlayable ? onPlay : undefined}
       />
     </div>
   );
@@ -180,8 +180,8 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
     return gameDoc.playerStates?.find(state => state.playerId === selfId);
   }, [gameDoc.playerStates, selfId]);
 
-  // Get player's hand card URLs
-  const playerHandCardUrls = useMemo(() => {
+  // Get player's hand card instance IDs
+  const playerHandInstanceIds = useMemo(() => {
     if (!gameDoc.playerHands) return [];
     const playerHandData = gameDoc.playerHands.find(hand => hand.playerId === selfId);
     return playerHandData ? playerHandData.cards : [];
@@ -266,7 +266,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
     if (target.type === 'player') {
       // Use GameEngine method for player attacks
       try {
-        console.log('Executing player attack via GameEngine...');
+        console.log('Executing player attack...');
         const damage = attackerCard.attack || 0;
         
         const success = await gameEngine.attackPlayerWithCreature(
@@ -288,7 +288,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
     } else if ((target.type === 'creature' || target.type === 'artifact') && target.instanceId) {
       // Use GameEngine method for creature vs creature combat
       try {
-        console.log('Executing creature combat via GameEngine...');
+        console.log('Executing creature combat...');
         
         const success = await gameEngine.attackCreatureWithCreature(
           selfId,
@@ -324,7 +324,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
     }
 
     try {
-      console.log('Ending turn via GameEngine...');
+      console.log('Ending turn...');
       await gameEngine.endPlayerTurn(selfId);
       console.log('Turn ended successfully');
     } catch (error) {
@@ -344,7 +344,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
   };
 
   // Handle card playing (updated for async spells)
-  const handlePlayCard = async (cardUrl: AutomergeUrl) => {
+  const handlePlayCard = async (instanceId: string) => {
     if (!currentPlayerState) {
       console.error('handlePlayCard: Cannot play card - missing currentPlayerState');
       return;
@@ -356,6 +356,13 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
       return;
     }
 
+    // Get the card URL from the instance ID
+    const cardUrl = gameDoc.instanceToCardUrl[instanceId];
+    if (!cardUrl) {
+      console.error(`handlePlayCard: Card URL not found for instance: ${instanceId}`);
+      return;
+    }
+
     // Load the card
     const card = await gameEngine.loadCardDoc(cardUrl);
     if (!card) {
@@ -363,7 +370,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
       return;
     }
     if (card.cost > currentPlayerState.energy) {
-      console.warn(`handlePlayCard: Cannot afford card ${cardUrl} (cost: ${card.cost}, available energy: ${currentPlayerState.energy})`);
+      console.warn(`handlePlayCard: Cannot afford card ${instanceId} (cost: ${card.cost}, available energy: ${currentPlayerState.energy})`);
       return;
     }
 
@@ -377,8 +384,8 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
     if (card.type === 'spell' && card.spellEffect) {
       // Use GameEngine method for spell casting
       try {
-        console.log('Casting spell via GameEngine...');
-        const success = await gameEngine.playCard(selfId, cardUrl, selectTargets);
+        console.log('Casting spell...');
+        const success = await gameEngine.playCard(selfId, instanceId, selectTargets);
         
         if (success) {
           console.log('Spell cast successfully');
@@ -391,8 +398,8 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
     } else {
       // Use GameEngine method for non-spell cards
       try {
-        console.log('Playing card via GameEngine...');
-        const success = await gameEngine.playCard(selfId, cardUrl);
+        console.log('Playing card...');
+        const success = await gameEngine.playCard(selfId, instanceId);
         
         if (success) {
           console.log('Card played successfully');
@@ -833,14 +840,17 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
             padding: '0 20px',
             overflowX: 'auto'
           }}>
-            {playerHandCardUrls.map((cardUrl, index) => {
+            {playerHandInstanceIds.map((instanceId, index) => {
+              const cardUrl = gameDoc.instanceToCardUrl[instanceId];
+              if (!cardUrl) return null;
+              
               return (
                 <HandCard
-                  key={`hand-${cardUrl}-${index}`}
+                  key={`hand-${instanceId}-${index}`}
                   cardUrl={cardUrl}
                   currentEnergy={currentPlayerState?.energy || 0}
                   isCurrentPlayer={isCurrentPlayer}
-                  onPlay={handlePlayCard}
+                  onPlay={() => handlePlayCard(instanceId)}
                   isTargeting={targetingState.isTargeting}
                 />
               );

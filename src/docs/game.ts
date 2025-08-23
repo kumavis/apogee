@@ -2,7 +2,7 @@ import { AutomergeUrl, DocHandle, Repo } from "@automerge/react";
 
 export type PlayerHand = {
   playerId: AutomergeUrl;
-  cards: AutomergeUrl[]; // Array of card document URLs
+  cards: string[]; // Array of card instance IDs
 };
 
 export type BattlefieldCard = {
@@ -28,7 +28,7 @@ export type GameLogEntry = {
   id: string;
   playerId: AutomergeUrl;
   action: 'play_card' | 'end_turn' | 'draw_card' | 'game_start' | 'attack' | 'take_damage' | 'game_end';
-  cardUrl?: AutomergeUrl; // Card document URL
+  instanceId?: string; // Card instance ID
   targetId?: AutomergeUrl; // For attacks/targeting
   amount?: number; // For damage/healing
   timestamp: number;
@@ -52,11 +52,12 @@ export type GameDoc = {
   selectedDeckUrl: AutomergeUrl | null; // URL of the selected deck
   
   // Game state
-  deck: AutomergeUrl[]; // Array of card document URLs in deck
+  deck: string[]; // Array of card instance IDs in deck
+  instanceToCardUrl: Record<string, AutomergeUrl>; // Mapping from instance ID to card document URL
   playerHands: PlayerHand[];
   playerBattlefields: PlayerBattlefield[];
   playerStates: PlayerState[];
-  graveyard: AutomergeUrl[]; // Array of card document URLs in graveyard
+  graveyard: string[]; // Array of card instance IDs in graveyard
   currentPlayerIndex: number;
   turn: number;
   gameLog: GameLogEntry[];
@@ -72,6 +73,7 @@ export const createGame = (repo: Repo, initialState?: Partial<GameDoc>): DocHand
     status: 'waiting' as const,
     selectedDeckUrl: null, // No deck selected initially - must be selected in lobby
     deck: [],
+    instanceToCardUrl: {},
     playerHands: [],
     playerBattlefields: [],
     playerStates: [],
@@ -96,16 +98,16 @@ export const joinGame = (doc: GameDoc, playerId: AutomergeUrl): void => {
 };
 
 // Game state mutations
-export const removeCardFromHand = (doc: GameDoc, playerId: AutomergeUrl, cardUrl: AutomergeUrl): boolean => {
+export const removeCardFromHand = (doc: GameDoc, playerId: AutomergeUrl, instanceId: string): boolean => {
   const playerHandIndex = doc.playerHands.findIndex(hand => hand.playerId === playerId);
   if (playerHandIndex === -1) {
     console.error(`removeCardFromHand: Player hand not found for playerId: ${playerId}`);
     return false;
   }
   
-  const cardIndex = doc.playerHands[playerHandIndex].cards.indexOf(cardUrl);
+  const cardIndex = doc.playerHands[playerHandIndex].cards.indexOf(instanceId);
   if (cardIndex === -1) {
-    console.error(`removeCardFromHand: Card ${cardUrl} not found in player ${playerId}'s hand`);
+    console.error(`removeCardFromHand: Card instance ${instanceId} not found in player ${playerId}'s hand`);
     return false;
   }
   
@@ -113,8 +115,8 @@ export const removeCardFromHand = (doc: GameDoc, playerId: AutomergeUrl, cardUrl
   return true;
 };
 
-export const addCardToGraveyard = (doc: GameDoc, cardUrl: AutomergeUrl): void => {
-  doc.graveyard.push(cardUrl);
+export const addCardToGraveyard = (doc: GameDoc, instanceId: string): void => {
+  doc.graveyard.push(instanceId);
 };
 
 export const spendEnergy = (doc: GameDoc, playerId: AutomergeUrl, amount: number): boolean => {
@@ -171,7 +173,7 @@ export const incrementTurn = (doc: GameDoc): void => {
 
 export const addGameLogEntry = (doc: GameDoc, entry: Omit<GameLogEntry, 'id' | 'timestamp'>): void => {
   const logEntry: GameLogEntry = {
-    id: `log_${Date.now()}_${Math.random()}`,
+    id: `log_${Math.random().toString(36).substr(2, 9)}`,
     timestamp: Date.now(),
     ...entry
   };
@@ -210,14 +212,11 @@ export const removeCreatureFromBattlefield = (
     return false;
   }
   
-  // Get the card before removing it
-  const battlefieldCard = doc.playerBattlefields[battlefieldIndex].cards[cardIndex];
-  
   // Remove from battlefield
   doc.playerBattlefields[battlefieldIndex].cards.splice(cardIndex, 1);
   
   // Add to graveyard
-  doc.graveyard.push(battlefieldCard.cardUrl);
+  doc.graveyard.push(instanceId);
   
   return true;
 };
@@ -287,8 +286,8 @@ export const drawCard = (doc: GameDoc, playerId: AutomergeUrl): boolean => {
   }
   
   // Draw the top card
-  const cardUrl = doc.deck.pop();
-  if (!cardUrl) {
+  const instanceId = doc.deck.pop();
+  if (!instanceId) {
     console.error(`drawCard: Failed to draw card for player ${playerId}`);
     return false;
   }
@@ -300,13 +299,13 @@ export const drawCard = (doc: GameDoc, playerId: AutomergeUrl): boolean => {
     return false;
   }
   
-  doc.playerHands[playerHandIndex].cards.push(cardUrl);
+  doc.playerHands[playerHandIndex].cards.push(instanceId);
   
   // Add to game log
   addGameLogEntry(doc, {
     playerId,
     action: 'draw_card',
-    cardUrl,
+    instanceId,
     description: 'Drew a card'
   });
   
@@ -431,7 +430,7 @@ export const refreshCreatures = (doc: GameDoc, playerId: AutomergeUrl): boolean 
   return true;
 };
 
-export const initializeGame = (doc: GameDoc, shuffledDeck: AutomergeUrl[]): void => {
+export const initializeGame = (doc: GameDoc, shuffledDeck: string[], instanceToCardUrl: Record<string, AutomergeUrl>): void => {
   const playerHands: PlayerHand[] = [];
   const playerBattlefields: PlayerBattlefield[] = [];
   const playerStates: PlayerState[] = [];
@@ -462,6 +461,7 @@ export const initializeGame = (doc: GameDoc, shuffledDeck: AutomergeUrl[]): void
   // Update the game document
   doc.status = 'playing';
   doc.deck = currentDeck;
+  doc.instanceToCardUrl = instanceToCardUrl;
   doc.playerHands = playerHands;
   doc.playerBattlefields = playerBattlefields;
   doc.playerStates = playerStates;

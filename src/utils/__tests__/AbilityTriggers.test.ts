@@ -6,8 +6,11 @@ import {
   createTestCreature,
   createTestArtifact,
   createTestSpell,
+  addCardToHand,
   mockSelectTargets,
-  TestSetup
+  TestSetup,
+  addCardToBattlefield,
+  addCardToDeck
 } from './testUtils';
 
 describe('Ability Triggers', () => {
@@ -184,12 +187,10 @@ describe('Ability Triggers', () => {
         spellEffect: 'async (api) => { api.log("Test spell!"); return true; }'
       });
       
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerHands[0].cards.push(testCard.url);
-      });
+      const testCardInstanceId = addCardToHand(gameEngine, player1Id, testCard.url);
       
       // Player1 plays a card, should trigger player2's artifact
-      await gameEngine.playCard(player1Id, testCard.url, mockSelectTargets);
+      await gameEngine.playCard(player1Id, testCardInstanceId, mockSelectTargets);
       
       const gameDoc = gameEngine.getGameDoc();
       
@@ -390,16 +391,20 @@ describe('Ability Triggers', () => {
           sapped: false,
           currentHealth: 3
         });
-        doc.playerHands[0].cards.push(damageAllSpell.url);
+        // Add to instance mapping for the artifact
+        doc.instanceToCardUrl['artifact-1'] = resilientArtifact.url;
         // Add a card to deck so the artifact can draw
-        doc.deck.push(resilientArtifact.url); // Just reuse the artifact URL as a dummy card
+        const deckInstanceId = `deck-instance-${Math.random().toString(36).substr(2, 9)}`;
+        doc.deck.push(deckInstanceId);
+        doc.instanceToCardUrl[deckInstanceId] = resilientArtifact.url;
       });
 
       const initialHandSize = gameEngine.getGameDoc().playerHands[0].cards.length;
       const initialArtifactHealth = gameEngine.getGameDoc().playerBattlefields[0].cards[0].currentHealth;
 
-      // Cast the damage spell
-      await gameEngine.playCard(player1Id, damageAllSpell.url, mockSelectTargets);
+      // Add spell to hand and cast it
+      const spellInstanceId = addCardToHand(gameEngine, player1Id, damageAllSpell.url);
+      await gameEngine.playCard(player1Id, spellInstanceId, mockSelectTargets);
 
       const gameDoc = gameEngine.getGameDoc();
 
@@ -416,8 +421,51 @@ describe('Ability Triggers', () => {
         entry.description.includes('Resilient Artifact draws from pain')
       )).toBe(true);
 
-      // Player should have drawn a card (hand size increased)
-      expect(gameDoc.playerHands[0].cards.length).toBe(initialHandSize); // -1 for spell cast, +1 for draw = same
+      // Player should have drawn a card from artifact ability
+      expect(gameDoc.playerHands[0].cards.length).toBe(initialHandSize + 1); // +1 for draw from artifact ability
+    });
+
+    it('should trigger artifact take_damage abilities when attacked by creature', async () => {
+      const { url: artifactUrl } = createTestArtifact(testSetup.repo, {
+        name: 'Resilient Artifact',
+        cost: 4,
+        health: 3,
+        description: 'Draws a card when damaged',
+        triggeredAbilities: [{
+          trigger: 'take_damage',
+          effectCode: 'async (api) => { api.drawCard(); api.log("Resilient Artifact draws from pain"); }',
+          description: 'Draw a card when taking damage'
+        }]
+      });
+      
+      const { url: creatureUrl } = createTestCreature(testSetup.repo, {
+        name: 'Resilient Creature',
+        cost: 4,
+        attack: 3,
+        health: 3,
+        description: 'Draws a card when damaged',
+      });
+
+      // Add some test cards to the deck so drawCard() can succeed
+      addCardToDeck(gameEngine, createTestCreature(testSetup.repo, { name: 'Deck Card 1' }).url);
+      addCardToDeck(gameEngine, createTestCreature(testSetup.repo, { name: 'Deck Card 2' }).url);
+      addCardToDeck(gameEngine, createTestCreature(testSetup.repo, { name: 'Deck Card 3' }).url);
+
+      // Add cards to battlefield
+      addCardToBattlefield(gameEngine, player1Id, artifactUrl, 'artifact-1', { currentHealth: 3 });
+      addCardToBattlefield(gameEngine, player2Id, creatureUrl, 'creature-1', { currentHealth: 3 });
+
+      const initialHandSize = gameEngine.getGameDoc().playerHands[0].cards.length;
+
+      await gameEngine.attackCreatureWithCreature(player2Id, 'creature-1', player1Id, 'artifact-1');
+      
+      const gameDoc = gameEngine.getGameDoc();
+
+      expect(gameDoc.gameLog.some(entry => 
+        entry.description.includes('Resilient Artifact draws from pain')
+      )).toBe(true);
+      
+      expect(gameDoc.playerHands[0].cards.length).toBe(initialHandSize + 1);
     });
   });
 
@@ -448,14 +496,7 @@ describe('Ability Triggers', () => {
         ]
       });
       
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[0].cards.push({
-          instanceId: 'dragon-1',
-          cardUrl: complexCreatureUrl,
-          sapped: false,
-          currentHealth: 5
-        });
-      });
+      addCardToBattlefield(gameEngine, player1Id, complexCreatureUrl, 'dragon-1', { currentHealth: 5 });
       
       // Test start_turn trigger
       await gameEngine.executeTriggeredAbilities('start_turn', player1Id);
@@ -513,24 +554,15 @@ describe('Ability Triggers', () => {
           description: 'Redirect damage when hurt'
         }]
       });
-      
-      // Add chain reactor to player2's battlefield
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[1].cards.push({
-          instanceId: 'rod-1',
-          cardUrl: chainReactorUrl,
-          sapped: false,
-          currentHealth: 2
-        });
-        // Add chain lightning to player1's hand
-        doc.playerHands[0].cards.push(chainStarterUrl);
-      });
-      
+
+      addCardToBattlefield(gameEngine, player2Id, chainReactorUrl, 'rod-1', { currentHealth: 2 });
+
       const initialP1Health = gameEngine.getGameDoc().playerStates[0].health;
       const initialP2Health = gameEngine.getGameDoc().playerStates[1].health;
       
-      // Cast the chain lightning spell
-      await gameEngine.playCard(player1Id, chainStarterUrl, mockSelectTargets);
+      // Add spell to hand and cast it
+      const chainStarterInstanceId = addCardToHand(gameEngine, player1Id, chainStarterUrl);
+      await gameEngine.playCard(player1Id, chainStarterInstanceId, mockSelectTargets);
       
       const gameDoc = gameEngine.getGameDoc();
       
@@ -568,29 +600,26 @@ describe('Ability Triggers', () => {
       });
 
       // Add artifact to player2's battlefield and spell to player1's hand
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[1].cards.push({
-          instanceId: 'dying-artifact-1',
-          cardUrl: dyingArtifactUrl,
-          sapped: false,
-          currentHealth: 1
-        });
-        doc.playerHands[0].cards.push(lethalSpellUrl);
-      });
+      addCardToBattlefield(gameEngine, player2Id, dyingArtifactUrl, 'dying-artifact-1', { currentHealth: 1 });
 
       const initialP1Health = gameEngine.getGameDoc().playerStates[0].health;
       const initialBattlefieldSize = gameEngine.getGameDoc().playerBattlefields[1].cards.length;
       const initialGraveyardSize = gameEngine.getGameDoc().graveyard.length;
 
-      // Cast the lethal spell
-      await gameEngine.playCard(player1Id, lethalSpellUrl, mockSelectTargets);
+      // Add spell to hand and cast it
+      const lethalSpellInstanceId = addCardToHand(gameEngine, player1Id, lethalSpellUrl);
+      await gameEngine.playCard(player1Id, lethalSpellInstanceId, mockSelectTargets);
 
       const gameDoc = gameEngine.getGameDoc();
 
       // Artifact should be destroyed (removed from battlefield and added to graveyard)
       expect(gameDoc.playerBattlefields[1].cards.length).toBe(initialBattlefieldSize - 1);
       expect(gameDoc.graveyard.length).toBe(initialGraveyardSize + 2); // +1 for spell, +1 for artifact
-      expect(gameDoc.graveyard).toContain(dyingArtifactUrl);
+      // Check if the dying artifact is in graveyard by checking instance mapping
+      const hasDyingArtifactInGraveyard = gameDoc.graveyard.some(instanceId => 
+        gameDoc.instanceToCardUrl[instanceId] === dyingArtifactUrl
+      );
+      expect(hasDyingArtifactInGraveyard).toBe(true);
 
       // Player1 should have taken damage from the artifact's triggered ability (even though artifact died)
       expect(gameDoc.playerStates[0].health).toBe(initialP1Health - 3);

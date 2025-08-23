@@ -36,7 +36,7 @@ describe('Damage Mechanics', () => {
         description: 'A fiery attacker'
       });
       
-      const instanceId = addCardToBattlefield(gameEngine, player1Id, attacker.url, {
+      const instanceId = addCardToBattlefield(gameEngine, player1Id, attacker.url, undefined, {
         currentHealth: 3,
         sapped: false
       });
@@ -82,14 +82,7 @@ describe('Damage Mechanics', () => {
         description: 'Game ending creature'
       });
       
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[0].cards.push({
-          instanceId: 'finisher-1',
-          cardUrl: attacker.url,
-          sapped: false,
-          currentHealth: 5
-        });
-      });
+      addCardToBattlefield(gameEngine, player1Id, attacker.url, 'finisher-1', { currentHealth: 5 });
       
       await gameEngine.attackPlayerWithCreature(player1Id, 'finisher-1', player2Id, 5);
       
@@ -117,14 +110,7 @@ describe('Damage Mechanics', () => {
         description: 'Massive damage'
       });
       
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[0].cards.push({
-          instanceId: 'overkill-1',
-          cardUrl: attacker.url,
-          sapped: false,
-          currentHealth: 4
-        });
-      });
+      addCardToBattlefield(gameEngine, player1Id, attacker.url, 'overkill-1', { currentHealth: 4 });
       
       await gameEngine.attackPlayerWithCreature(player1Id, 'overkill-1', player2Id, 10);
       
@@ -153,20 +139,8 @@ describe('Damage Mechanics', () => {
         description: 'Defending creature'
       });
       
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[0].cards.push({
-          instanceId: 'attacker-1',
-          cardUrl: attacker.url,
-          sapped: false,
-          currentHealth: 2
-        });
-        doc.playerBattlefields[1].cards.push({
-          instanceId: 'defender-1',
-          cardUrl: defender.url,
-          sapped: false,
-          currentHealth: 5
-        });
-      });
+      addCardToBattlefield(gameEngine, player1Id, attacker.url, 'attacker-1', { currentHealth: 2 });
+      addCardToBattlefield(gameEngine, player2Id, defender.url, 'defender-1', { currentHealth: 5 });
       
       await gameEngine.attackCreatureWithCreature(
         player1Id, 'attacker-1', 
@@ -200,20 +174,8 @@ describe('Damage Mechanics', () => {
         description: 'Weak creature'
       });
       
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[0].cards.push({
-          instanceId: 'strong-1',
-          cardUrl: attacker.url,
-          sapped: false,
-          currentHealth: 4
-        });
-        doc.playerBattlefields[1].cards.push({
-          instanceId: 'weak-1',
-          cardUrl: weakDefender.url,
-          sapped: false,
-          currentHealth: 2
-        });
-      });
+      addCardToBattlefield(gameEngine, player1Id, attacker.url, 'strong-1', { currentHealth: 4 });
+      addCardToBattlefield(gameEngine, player2Id, weakDefender.url, 'weak-1', { currentHealth: 2 });
       
       const initialGraveyardSize = gameEngine.getGameDoc().graveyard.length;
       
@@ -229,7 +191,11 @@ describe('Damage Mechanics', () => {
       
       // Weak defender should be in graveyard
       expect(gameDoc.graveyard.length).toBe(initialGraveyardSize + 1);
-      expect(gameDoc.graveyard).toContain(weakDefender.url);
+      // Check if the weak defender is in graveyard by checking instance mapping
+      const hasWeakDefenderInGraveyard = gameDoc.graveyard.some(instanceId => 
+        gameDoc.instanceToCardUrl[instanceId] === weakDefender.url
+      );
+      expect(hasWeakDefenderInGraveyard).toBe(true);
       
       // Strong attacker should still be alive but damaged
       expect(gameDoc.playerBattlefields[0].cards.length).toBe(1);
@@ -255,20 +221,8 @@ describe('Damage Mechanics', () => {
         description: 'Second creature'
       });
       
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[0].cards.push({
-          instanceId: 'creature1-1',
-          cardUrl: creature1.url,
-          sapped: false,
-          currentHealth: 2
-        });
-        doc.playerBattlefields[1].cards.push({
-          instanceId: 'creature2-1',
-          cardUrl: creature2.url,
-          sapped: false,
-          currentHealth: 3
-        });
-      });
+      addCardToBattlefield(gameEngine, player1Id, creature1.url, 'creature1-1', { currentHealth: 2 });
+      addCardToBattlefield(gameEngine, player2Id, creature2.url, 'creature2-1', { currentHealth: 3 });
       
       const initialGraveyardSize = gameEngine.getGameDoc().graveyard.length;
       
@@ -285,8 +239,15 @@ describe('Damage Mechanics', () => {
       
       // Both should be in graveyard
       expect(gameDoc.graveyard.length).toBe(initialGraveyardSize + 2);
-      expect(gameDoc.graveyard).toContain(creature1.url);
-      expect(gameDoc.graveyard).toContain(creature2.url);
+      // Check if both creatures are in graveyard by checking instance mapping
+      const hasCreature1InGraveyard = gameDoc.graveyard.some(instanceId => 
+        gameDoc.instanceToCardUrl[instanceId] === creature1.url
+      );
+      const hasCreature2InGraveyard = gameDoc.graveyard.some(instanceId => 
+        gameDoc.instanceToCardUrl[instanceId] === creature2.url
+      );
+      expect(hasCreature1InGraveyard).toBe(true);
+      expect(hasCreature2InGraveyard).toBe(true);
     });
 
     it('should handle artifact combat (artifacts don\'t fight back)', async () => {
@@ -320,6 +281,9 @@ describe('Damage Mechanics', () => {
           sapped: false,
           currentHealth: 3
         });
+        // Add to instance mapping
+        doc.instanceToCardUrl['attacker-1'] = attacker.url;
+        doc.instanceToCardUrl['artifact-1'] = artifact.url;
       });
       
       await gameEngine.attackCreatureWithCreature(
@@ -331,7 +295,11 @@ describe('Damage Mechanics', () => {
       
       // Artifact should be destroyed (3 health - 4 attack = destroyed)
       expect(gameDoc.playerBattlefields[1].cards.length).toBe(0);
-      expect(gameDoc.graveyard).toContain(artifact.url);
+      // Check if the artifact is in graveyard by checking instance mapping
+      const hasArtifactInGraveyard = gameDoc.graveyard.some(instanceId => 
+        gameDoc.instanceToCardUrl[instanceId] === artifact.url
+      );
+      expect(hasArtifactInGraveyard).toBe(true);
       
       // Attacker should be unharmed (artifacts don't fight back)
       expect(gameDoc.playerBattlefields[0].cards.length).toBe(1);
@@ -350,14 +318,7 @@ describe('Damage Mechanics', () => {
         description: 'A creature that can heal'
       });
       
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[0].cards.push({
-          instanceId: 'healing-1',
-          cardUrl: creature.url,
-          sapped: false,
-          currentHealth: 2 // Damaged
-        });
-      });
+      addCardToBattlefield(gameEngine, player1Id, creature.url, undefined, { currentHealth: 2 });
       
       await gameEngine.healCreatures(player1Id);
       
@@ -377,14 +338,7 @@ describe('Damage Mechanics', () => {
         description: 'A creature at full health'
       });
       
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[0].cards.push({
-          instanceId: 'full-1',
-          cardUrl: creature.url,
-          sapped: false,
-          currentHealth: 3 // Already at max
-        });
-      });
+      addCardToBattlefield(gameEngine, player1Id, creature.url, undefined, { currentHealth: 3 });
       
       await gameEngine.healCreatures(player1Id);
       
@@ -403,14 +357,7 @@ describe('Damage Mechanics', () => {
         description: 'An artifact that doesn\'t heal'
       });
       
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[0].cards.push({
-          instanceId: 'artifact-1',
-          cardUrl: artifact.url,
-          sapped: false,
-          currentHealth: 2 // Damaged
-        });
-      });
+      addCardToBattlefield(gameEngine, player1Id, artifact.url, undefined, { currentHealth: 2 });
       
       await gameEngine.healCreatures(player1Id);
       
@@ -441,20 +388,8 @@ describe('Damage Mechanics', () => {
         description: 'Normal defender'
       });
       
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[0].cards.push({
-          instanceId: 'pacifist-1',
-          cardUrl: zeroAttacker.url,
-          sapped: false,
-          currentHealth: 3
-        });
-        doc.playerBattlefields[1].cards.push({
-          instanceId: 'defender-1',
-          cardUrl: defender.url,
-          sapped: false,
-          currentHealth: 2
-        });
-      });
+      addCardToBattlefield(gameEngine, player1Id, zeroAttacker.url, 'pacifist-1', { currentHealth: 3 });
+      addCardToBattlefield(gameEngine, player2Id, defender.url, 'defender-1', { currentHealth: 2 });
       
       await gameEngine.attackCreatureWithCreature(
         player1Id, 'pacifist-1',
@@ -480,14 +415,7 @@ describe('Damage Mechanics', () => {
         description: 'Extremely powerful creature'
       });
       
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[0].cards.push({
-          instanceId: 'mega-1',
-          cardUrl: megaAttacker.url,
-          sapped: false,
-          currentHealth: 1
-        });
-      });
+      addCardToBattlefield(gameEngine, player1Id, megaAttacker.url, 'mega-1', { currentHealth: 1 });
       
       await gameEngine.attackPlayerWithCreature(player1Id, 'mega-1', player2Id, 1000);
       
