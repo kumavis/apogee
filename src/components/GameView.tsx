@@ -128,6 +128,7 @@ const GameView: React.FC<GameViewProps> = ({ rootDoc, addGame }) => {
         gameEngine={gameEngine}
         gameDoc={gameDoc}
         selfId={rootDoc.selfId}
+        gameDocHandle={gameDocHandle!}
       />
     );
   }

@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { AutomergeUrl, useDocument, useDocuments } from '@automerge/react';
+import { AutomergeUrl, useDocument, useDocuments, DocHandle } from '@automerge/react';
 import { GameDoc } from '../docs/game';
 import { GameEngine } from '../utils/GameEngine';
 import { CardDoc } from '../docs/card';
 import { useGameNavigation } from '../hooks/useGameNavigation';
 import { useCardTargeting } from '../hooks/useCardTargeting';
+import { useGameBoardClicks } from '../hooks/useGameBoardClicks';
 import Card, { CardData } from './Card';
 import Contact from './Contact';
 import GameLog from './GameLog';
@@ -117,17 +118,25 @@ type TCGGameBoardProps = {
   gameEngine: GameEngine;
   gameDoc: GameDoc;
   selfId: AutomergeUrl;
+  gameDocHandle: DocHandle<GameDoc>;
 };
 
 const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
   gameEngine,
   gameDoc,
   selfId,
+  gameDocHandle,
 }) => {
   const { navigateToHome } = useGameNavigation();
 
   const [currentOpponentIndex, setCurrentOpponentIndex] = useState(0);
   const playerList = gameDoc.players;
+
+  // Check if it's the current player's turn
+  const isCurrentPlayer = gameDoc.currentPlayerIndex === playerList.indexOf(selfId);
+
+  // Game board clicks and emoji animations
+  const [handleIdleBoardClick, emojiAnimations] = useGameBoardClicks(gameDocHandle, selfId);
 
   // Card targeting system
   const {
@@ -165,9 +174,6 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
       hookHandleTargetClick(target);
     }
   }, [hookHandleTargetClick, targetingState, confirmSelection]);
-
-  // Check if it's the current player's turn
-  const isCurrentPlayer = gameDoc.currentPlayerIndex === playerList.indexOf(selfId);
 
   // Get current player state
   const currentPlayerState = useMemo(() => {
@@ -412,15 +418,22 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
   };
 
   return (
-    <div style={{
-      width: '100%',
-      height: '100%',
-      background: 'linear-gradient(135deg, #0f0c29 0%, #24243e 50%, #2b1b17 100%)',
-      display: 'flex',
-      flexDirection: 'column',
-      overflow: 'hidden',
-      position: 'relative'
-    }}>
+    <div 
+      onClick={(event) => {
+        if (!isCurrentPlayer) {
+          handleIdleBoardClick(event);
+        }
+      }}
+      style={{
+        width: '100%',
+        height: '100%',
+        background: 'linear-gradient(135deg, #0f0c29 0%, #24243e 50%, #2b1b17 100%)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        position: 'relative',
+        cursor: !isCurrentPlayer ? 'pointer' : 'default'
+      }}>
       {/* Game Header */}
       <div style={{
         height: 60,
@@ -994,6 +1007,47 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
           </div>
         </div>
       )}
+
+      {/* Emoji Animation Overlay */}
+      {emojiAnimations.map((animation) => (
+        <div
+          key={animation.id}
+          style={{
+            position: 'absolute',
+            left: `${animation.x}%`,
+            top: `${animation.y}%`,
+            transform: 'translate(-50%, -50%)',
+            fontSize: '2rem',
+            pointerEvents: 'none',
+            zIndex: 9999,
+            animation: 'emojiPop 2s ease-out forwards'
+          }}
+        >
+          {animation.emoji}
+        </div>
+      ))}
+
+      {/* CSS Animation for emoji pop */}
+      <style>{`
+        @keyframes emojiPop {
+          0% {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(0.5);
+          }
+          20% {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1.2);
+          }
+          40% {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+          }
+          100% {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.8) translateY(-20px);
+          }
+        }
+      `}</style>
     </div>
   );
 };
