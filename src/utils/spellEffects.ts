@@ -1,4 +1,4 @@
-import { AutomergeUrl, DocHandle } from '@automerge/react';
+import { AutomergeUrl } from '@automerge/react';
 import { GameDoc, dealDamage, addGameLogEntry, removeCreatureFromBattlefield, dealDamageToCreature, drawCard } from '../docs/game';
 import { Target, TargetSelector } from './unifiedTargeting';
 
