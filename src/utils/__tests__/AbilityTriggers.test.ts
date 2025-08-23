@@ -544,6 +544,72 @@ describe('Ability Triggers', () => {
         entry.description.includes('Lightning strikes!')
       )).toBe(true);
     });
+
+    it('should trigger abilities even when creature dies from spell damage', async () => {
+      // Create an artifact with low health that will die from spell damage
+      const { url: dyingArtifactUrl } = createTestArtifact(testSetup.repo, {
+        name: 'Death Rattle Artifact',
+        cost: 2,
+        health: 1, // Will die from 2 damage
+        description: 'Triggers ability when taking damage, even if it dies',
+        triggeredAbilities: [{
+          trigger: 'take_damage',
+          effectCode: 'async (api) => { api.dealDamageToPlayer(api.getAllPlayers()[0], 3); api.log("Death rattle: Final revenge!"); return true; }',
+          description: 'Deal 3 damage to opponent when taking damage'
+        }]
+      });
+
+      // Create a spell that deals lethal damage to the artifact
+      const { url: lethalSpellUrl } = createTestSpell(testSetup.repo, {
+        name: 'Lethal Bolt',
+        cost: 2,
+        description: 'Deal 2 damage to target creature',
+        spellEffect: 'async (api) => { api.dealDamageToCreature(api.getAllPlayers()[1], "dying-artifact-1", 2); api.log("Lethal bolt strikes!"); return true; }'
+      });
+
+      // Add artifact to player2's battlefield and spell to player1's hand
+      gameEngine.getGameDocHandle().change((doc) => {
+        doc.playerBattlefields[1].cards.push({
+          instanceId: 'dying-artifact-1',
+          cardUrl: dyingArtifactUrl,
+          sapped: false,
+          currentHealth: 1
+        });
+        doc.playerHands[0].cards.push(lethalSpellUrl);
+      });
+
+      const initialP1Health = gameEngine.getGameDoc().playerStates[0].health;
+      const initialBattlefieldSize = gameEngine.getGameDoc().playerBattlefields[1].cards.length;
+      const initialGraveyardSize = gameEngine.getGameDoc().graveyard.length;
+
+      // Cast the lethal spell
+      await gameEngine.playCard(player1Id, lethalSpellUrl, mockSelectTargets);
+
+      const gameDoc = gameEngine.getGameDoc();
+
+      // Artifact should be destroyed (removed from battlefield and added to graveyard)
+      expect(gameDoc.playerBattlefields[1].cards.length).toBe(initialBattlefieldSize - 1);
+      expect(gameDoc.graveyard.length).toBe(initialGraveyardSize + 2); // +1 for spell, +1 for artifact
+      expect(gameDoc.graveyard).toContain(dyingArtifactUrl);
+
+      // Player1 should have taken damage from the artifact's triggered ability (even though artifact died)
+      expect(gameDoc.playerStates[0].health).toBe(initialP1Health - 3);
+
+      // Should have spell cast log
+      expect(gameDoc.gameLog.some(entry => 
+        entry.description.includes('Lethal bolt strikes!')
+      )).toBe(true);
+
+      // Should have triggered ability log (the key test - ability triggered even though creature died)
+      expect(gameDoc.gameLog.some(entry => 
+        entry.description.includes('Death rattle: Final revenge!')
+      )).toBe(true);
+
+      // Should have the artifact's triggered ability execution log
+      expect(gameDoc.gameLog.some(entry => 
+        entry.description.includes('Death Rattle Artifact: Deal 3 damage to opponent when taking damage')
+      )).toBe(true);
+    });
   });
 
   describe('Ability Error Handling', () => {
