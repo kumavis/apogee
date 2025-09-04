@@ -618,9 +618,6 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
                  const cardDoc = opponentBattlefieldCardDocsMap.get(gameDoc.instanceToCardUrl[instanceId]);
                  if (!cardDoc) return null;
                  const canBeTargeted = targetingState.isTargeting && canTargetCreature(currentOpponent, instanceId);
-                 const canAttack = !targetingState.isTargeting &&
-                   !battlefieldCard.sapped &&
-                   cardDoc?.type === 'creature';
                  let onClick;
                  if (canBeTargeted) {
                    onClick = () => handleTargetClick({
@@ -628,8 +625,6 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
                      playerId: currentOpponent,
                      instanceId,
                    });
-                 } else if (canAttack) {
-                   onClick = () => handleStartAttackTargeting(instanceId);
                  }
                  return (
                    <FloatingCard
