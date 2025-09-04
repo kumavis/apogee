@@ -28,10 +28,10 @@ export type CardProps = BaseCardProps & {
   glossOpacity?: number;  // 0..1 strength of the highlight
 };
 
-const Card: React.FC<CardProps> = ({ 
+const Card: React.FC<CardProps> = ({
   card,
   cardState,
-  size = 'medium', 
+  size = 'medium',
   faceDown = false,
   onClick,
   style = {},
@@ -71,21 +71,21 @@ const Card: React.FC<CardProps> = ({
     const style: React.CSSProperties = {
       overflow: 'hidden',
       border: `2px solid ${onClick ? getTypeColor(card.type) : '#404040'}`,
-      boxShadow: onClick 
+      boxShadow: onClick
         ? `0 4px 8px ${getTypeColor(card.type)}40`
         : '0 4px 8px rgba(0,0,0,0.2)',
       color: onClick ? '#ffffff' : '#888888',
     }
-    
+
     if (isImageRenderer(card.renderer)) {
       return style;
     } else {
-      style.background = onClick 
+      style.background = onClick
         ? 'linear-gradient(135deg, #001122 0%, #002244 100%)'
         : 'linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%)';
       return style;
     }
-    
+
   };
 
   const getHoverEffects = () => {
@@ -156,7 +156,7 @@ const Card: React.FC<CardProps> = ({
               e.currentTarget.style.display = 'none';
             }}
           />
-          
+
           {/* Sapped Overlay */}
           {cardState?.sapped && (
             <div style={{
@@ -179,7 +179,7 @@ const Card: React.FC<CardProps> = ({
               😴 SAPPED
             </div>
           )}
-          
+
           {/* Cost (top-left) */}
           <div style={{
             position: 'absolute',
@@ -308,7 +308,7 @@ const Card: React.FC<CardProps> = ({
           left: 4,
           right: 4,
           height: size === 'small' ? 40 : size === 'medium' ? 60 : 80,
-          background: onClick 
+          background: onClick
             ? 'linear-gradient(135deg, #003366 0%, #0066aa 100%)'
             : 'linear-gradient(135deg, #2a2a2a 0%, #404040 100%)',
           borderRadius: 4,

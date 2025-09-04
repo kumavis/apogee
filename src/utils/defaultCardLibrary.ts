@@ -28,12 +28,12 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
         autoTarget: false, // Multi-type targeting needs manual selection
         description: 'Choose a target to deal 3 damage'
       });
-      
+
       if (targets.length === 0) {
         api.log('No target selected for Plasma Burst');
         return false;
       }
-      
+
       const target = targets[0];
       if (target.type === 'player') {
         api.dealDamageToPlayer(target.playerId, 3);
@@ -42,7 +42,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
         api.dealDamageToCreature(target.playerId, target.instanceId, 3);
         api.log(`Plasma Burst destroys target creature`);
       }
-      
+
       return true;
     })
   },
@@ -76,12 +76,12 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
         autoTarget: true,
         description: 'Choose an opponent to hack for 1 damage'
       });
-      
+
       if (targets.length === 0) {
         api.log('No target selected for Data Spike');
         return false;
       }
-      
+
       api.dealDamageToPlayer(targets[0].playerId, 1);
       api.log(`Data Spike hacks opponent for 1 damage`);
       return true;
@@ -99,12 +99,12 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
       effectCode: functionToString(async (api) => {
         const creatures = api.getOwnCreatures();
         let healedCount = 0;
-        
-        creatures.forEach((creature: {instanceId: string, cardId: string}) => {
+
+        creatures.forEach((creature: { instanceId: string, cardId: string }) => {
           api.healCreature(api.ownerId, creature.instanceId, 1);
           healedCount++;
         });
-        
+
         if (healedCount > 0) {
           api.log(`Bio-Mech Guardian protected ${healedCount} creature(s)`);
         }
@@ -127,12 +127,12 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
         const battlefield = api.doc.playerBattlefields.find((b: any) => b.playerId === api.ownerId);
         const battlefieldCard = battlefield?.cards.find((c: any) => c.instanceId === api.instanceId);
         const creatureCard = api.doc.cardLibrary[battlefieldCard?.cardId || ''];
-        
+
         if (battlefieldCard && creatureCard && battlefieldCard.currentHealth < (creatureCard.health || 1)) {
           api.healCreature(api.ownerId, api.instanceId, 1);
           api.log('Energy Shield regenerated 1 health');
         }
-        
+
         return true;
       }),
       description: 'Regenerate 1 health if damaged'
@@ -196,12 +196,12 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
           });
         }
       }
-      
+
       if (allCreatures.length === 0) {
         api.log('No creatures to destroy');
         return false;
       }
-      
+
       const targets = await api.selectTargets({
         targetCount: 1,
         targetType: 'creature',
@@ -209,18 +209,18 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
         autoTarget: false, // Destruction spell needs manual selection
         description: 'Choose a creature to destroy'
       });
-      
+
       if (targets.length === 0) {
         api.log('No target selected for System Crash');
         return false;
       }
-      
+
       const target = targets[0];
       if (target.instanceId) {
         api.destroyCreature(target.playerId, target.instanceId);
         api.log(`System Crash destroys target creature`);
       }
-      
+
       return true;
     })
   },
@@ -235,7 +235,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
       trigger: 'start_turn',
       effectCode: functionToString(async (api) => {
         const creatures = api.getOwnCreatures();
-        
+
         // Find damaged creatures (excluding itself)
         for (const creature of creatures) {
           if (creature.instanceId !== api.instanceId) {
@@ -244,7 +244,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
               // Find the battlefield card to check current health
               const battlefield = api.doc.playerBattlefields.find((b: any) => b.playerId === api.ownerId);
               const battlefieldCard = battlefield?.cards.find((c: any) => c.instanceId === creature.instanceId);
-              
+
               if (battlefieldCard && battlefieldCard.currentHealth < (creatureCard.health || 1)) {
                 api.healCreature(api.ownerId, creature.instanceId, 2);
                 api.log(`Repair Drone healed ${creatureCard.name} for 2`);
@@ -253,7 +253,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
             }
           }
         }
-        
+
         return true; // Return true even if no healing was done
       }),
       description: 'Heal a damaged creature for 2'
@@ -273,12 +273,12 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
         autoTarget: false, // Multi-type targeting needs manual selection
         description: 'Choose a target to deal 5 damage'
       });
-      
+
       if (targets.length === 0) {
         api.log('No target selected for Photon Cannon');
         return false;
       }
-      
+
       const target = targets[0];
       if (target.type === 'player') {
         api.dealDamageToPlayer(target.playerId, 5);
@@ -287,7 +287,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
         api.dealDamageToCreature(target.playerId, target.instanceId, 5);
         api.log(`Photon Cannon destroys target creature`);
       }
-      
+
       return true;
     })
   },
@@ -304,27 +304,27 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
         // Check if this creature attacked this turn by checking if it's sapped
         const battlefield = api.doc.playerBattlefields.find((b: any) => b.playerId === api.ownerId);
         const battlefieldCard = battlefield?.cards.find((c: any) => c.instanceId === api.instanceId);
-        
+
         if (battlefieldCard && battlefieldCard.sapped) {
           // Find all enemy creatures
           const allPlayers = api.getAllPlayers();
           const enemies = allPlayers.filter((p: any) => p !== api.ownerId);
           const enemyCreatures = [];
-          
+
           for (const enemyId of enemies) {
             const creatures = api.getCreaturesForPlayer(enemyId);
             for (const creature of creatures) {
               enemyCreatures.push({ playerId: enemyId, instanceId: creature.instanceId });
             }
           }
-          
+
           if (enemyCreatures.length > 0) {
             const randomTarget = enemyCreatures[Math.floor(Math.random() * enemyCreatures.length)];
             api.dealDamageToCreature(randomTarget.playerId, randomTarget.instanceId, 1);
             api.log('Stealth Infiltrator strikes from the shadows');
           }
         }
-        
+
         return true;
       }),
       description: 'Strike a random enemy creature after attacking'
@@ -343,12 +343,12 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
         autoTarget: false, // Multi-target spell needs manual selection
         description: 'Choose up to 3 targets for Chain Lightning (2 damage each)'
       });
-      
+
       if (targets.length === 0) {
         api.log('No targets selected for Chain Lightning');
         return false;
       }
-      
+
       targets.forEach((target: any) => {
         if (target.type === 'player') {
           api.dealDamageToPlayer(target.playerId, 2);
@@ -356,7 +356,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
           api.dealDamageToCreature(target.playerId, target.instanceId, 2);
         }
       });
-      
+
       api.log(`Chain Lightning strikes ${targets.length} target(s) for 2 damage each`);
       return true;
     })
@@ -368,11 +368,11 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
     description: 'Restore 3 health to yourself and all your creatures.',
     spellEffect: functionToString(async (api) => {
       let healed = 0;
-      
+
       // Heal the caster
       api.healPlayer(api.casterId, 3);
       healed++;
-      
+
       // Heal all own creatures
       const ownCreatures = api.getCreaturesForPlayer(api.casterId);
       ownCreatures.forEach((creature: any) => {
@@ -382,7 +382,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
           healed++;
         }
       });
-      
+
       api.log(`Mass Heal restores 3 health to ${healed} target(s)`);
       return true;
     })
@@ -400,12 +400,12 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
         autoTarget: false, // Mind control needs manual selection
         description: 'Choose a creature for neural disruption'
       });
-      
+
       if (targets.length === 0) {
         api.log('No target selected for Neural Disruption');
         return false;
       }
-      
+
       const target = targets[0];
       if (target.instanceId) {
         // Damage the creature
@@ -414,7 +414,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
         api.dealDamageToPlayer(target.playerId, 1);
         api.log(`Neural Disruption damages creature and its owner`);
       }
-      
+
       return true;
     })
   },
@@ -426,7 +426,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
     spellEffect: functionToString(async (api) => {
       const allPlayers = api.getAllPlayers();
       let destroyedCount = 0;
-      
+
       allPlayers.forEach((playerId: any) => {
         const creatures = api.getCreaturesForPlayer(playerId);
         creatures.forEach((creature: any) => {
@@ -434,13 +434,13 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
           destroyedCount++;
         });
       });
-      
+
       if (destroyedCount > 0) {
         api.log(`Electromagnetic Pulse destroys ${destroyedCount} creature(s)`);
       } else {
         api.log('Electromagnetic Pulse finds no creatures to destroy');
       }
-      
+
       return true;
     })
   },
@@ -457,19 +457,19 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
         autoTarget: false, // Targeted spell needs manual selection
         description: 'Choose a creature for Targeted Strike'
       });
-      
+
       if (targets.length === 0) {
         api.log('No target selected for Targeted Strike');
         return false;
       }
-      
+
       const target = targets[0];
       if (target.instanceId) {
         api.dealDamageToCreature(target.playerId, target.instanceId, 2);
         api.dealDamageToPlayer(target.playerId, 1);
         api.log(`Targeted Strike hits creature for 2 and owner for 1 damage`);
       }
-      
+
       return true;
     })
   },
@@ -497,12 +497,12 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
         autoTarget: false, // Multi-target spell needs manual selection
         description: 'Choose 2 targets for Twin Missiles (2 damage each)'
       });
-      
+
       if (targets.length === 0) {
         api.log('No targets selected for Twin Missiles');
         return false;
       }
-      
+
       targets.forEach((target: any) => {
         if (target.type === 'player') {
           api.dealDamageToPlayer(target.playerId, 2);
@@ -510,7 +510,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
           api.dealDamageToCreature(target.playerId, target.instanceId, 2);
         }
       });
-      
+
       api.log(`Twin Missiles hit ${targets.length} target(s) for 2 damage each`);
       return true;
     })
@@ -524,11 +524,11 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
       const allPlayers = api.getAllPlayers();
       const enemies = allPlayers.filter((p: any) => p !== api.casterId);
       let damagedCount = 0;
-      
+
       enemies.forEach((enemyId: any) => {
         api.dealDamageToPlayer(enemyId, 1);
         damagedCount++;
-        
+
         // Also damage all enemy creatures
         const creatures = api.getCreaturesForPlayer(enemyId);
         creatures.forEach((creature: any) => {
@@ -536,7 +536,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
           damagedCount++;
         });
       });
-      
+
       api.log(`Overcharge damages ${damagedCount} target(s) for 1 damage each`);
       return true;
     })
@@ -604,7 +604,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
     description: 'Restore all your artifacts to full health.',
     spellEffect: functionToString(async (api) => {
       let repaired = 0;
-      
+
       // Repair all own artifacts
       const ownCreatures = api.getCreaturesForPlayer(api.casterId);
       ownCreatures.forEach((creature: any) => {
@@ -613,7 +613,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
           // Find the battlefield card to check current health
           const battlefield = api.doc.playerBattlefields.find((b: any) => b.playerId === api.casterId);
           const battlefieldCard = battlefield?.cards.find((c: any) => c.instanceId === creature.instanceId);
-          
+
           if (battlefieldCard && battlefieldCard.currentHealth < (creatureCard.health || 1)) {
             const healAmount = (creatureCard.health || 1) - battlefieldCard.currentHealth;
             api.healCreature(api.casterId, creature.instanceId, healAmount);
@@ -621,7 +621,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
           }
         }
       });
-      
+
       if (repaired > 0) {
         api.log(`Artifact Repair restored ${repaired} artifact(s) to full health`);
       } else {
@@ -657,12 +657,12 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
       effectCode: functionToString(async (api) => {
         const creatures = api.getOwnCreatures();
         let healedCount = 0;
-        
-        creatures.forEach((creature: {instanceId: string, cardId: string}) => {
+
+        creatures.forEach((creature: { instanceId: string, cardId: string }) => {
           api.healCreature(api.ownerId, creature.instanceId, 1);
           healedCount++;
         });
-        
+
         if (healedCount > 0) {
           api.log(`Shield Generator healed ${healedCount} creature(s)`);
         }
@@ -682,7 +682,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
       effectCode: functionToString(async (api) => {
         const allPlayers = api.getAllPlayers();
         const enemies = allPlayers.filter((p: any) => p !== api.ownerId);
-        
+
         if (enemies.length > 0) {
           // Pick a random enemy
           const randomEnemy = enemies[Math.floor(Math.random() * enemies.length)];
@@ -716,12 +716,12 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
         effectCode: functionToString(async (api) => {
           const creatures = api.getOwnCreatures();
           let healedCount = 0;
-          
-          creatures.forEach((creature: {instanceId: string, cardId: string}) => {
+
+          creatures.forEach((creature: { instanceId: string, cardId: string }) => {
             api.healCreature(api.ownerId, creature.instanceId, 1);
             healedCount++;
           });
-          
+
           if (healedCount > 0) {
             api.log(`Quantum Processor healed ${healedCount} creature(s)`);
           }
@@ -744,14 +744,14 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
         // For now, implement as start of turn healing for simplicity
         const creatures = api.getOwnCreatures();
         let healedCount = 0;
-        
-        creatures.forEach((creature: {instanceId: string, cardId: string}) => {
+
+        creatures.forEach((creature: { instanceId: string, cardId: string }) => {
           if (creature.instanceId !== api.instanceId) {
             const creatureCard = api.doc.cardLibrary[creature.cardId];
             if (creatureCard && creatureCard.type === 'creature') {
               const battlefield = api.doc.playerBattlefields.find((b: any) => b.playerId === api.ownerId);
               const battlefieldCard = battlefield?.cards.find((c: any) => c.instanceId === creature.instanceId);
-              
+
               if (battlefieldCard && battlefieldCard.currentHealth < (creatureCard.health || 1)) {
                 api.healCreature(api.ownerId, creature.instanceId, 1);
                 healedCount++;
@@ -759,7 +759,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
             }
           }
         });
-        
+
         if (healedCount > 0) {
           api.log(`Cyber Medic healed ${healedCount} damaged creature(s)`);
         }
@@ -781,11 +781,11 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
         // Deal damage to all opponents when any card is played
         const allPlayers = api.getAllPlayers();
         const enemies = allPlayers.filter((p: any) => p !== api.ownerId);
-        
+
         enemies.forEach((enemyId: any) => {
           api.dealDamageToPlayer(enemyId, 1);
         });
-        
+
         if (enemies.length > 0) {
           api.log('Energy Vampire drains life force from opponent activity');
         }
@@ -806,7 +806,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
       effectCode: functionToString(async (api) => {
         const allPlayers = api.getAllPlayers();
         const enemies = allPlayers.filter((p: any) => p !== api.ownerId);
-        
+
         if (enemies.length > 0) {
           // Pick a random enemy
           const randomEnemy = enemies[Math.floor(Math.random() * enemies.length)];
@@ -830,14 +830,14 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
       effectCode: functionToString(async (api) => {
         const creatures = api.getOwnCreatures();
         let healedCount = 0;
-        
-        creatures.forEach((creature: {instanceId: string, cardId: string}) => {
+
+        creatures.forEach((creature: { instanceId: string, cardId: string }) => {
           if (creature.instanceId !== api.instanceId) {
             api.healCreature(api.ownerId, creature.instanceId, 1);
             healedCount++;
           }
         });
-        
+
         if (healedCount > 0) {
           api.log(`Shield Drone reinforced ${healedCount} creature(s)`);
         }
@@ -916,11 +916,11 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
         const allPlayers = api.getAllPlayers();
         const enemies = allPlayers.filter((p: any) => p !== api.ownerId);
         let damagedCount = 0;
-        
+
         enemies.forEach((enemyId: any) => {
           api.dealDamageToPlayer(enemyId, 1);
           damagedCount++;
-          
+
           // Also damage all enemy creatures
           const creatures = api.getCreaturesForPlayer(enemyId);
           creatures.forEach((creature: any) => {
@@ -928,7 +928,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
             damagedCount++;
           });
         });
-        
+
         if (damagedCount > 0) {
           api.log(`Volatile Core exploded, damaging ${damagedCount} target(s)`);
         }
@@ -979,11 +979,11 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
           const allPlayers = api.getAllPlayers();
           const enemies = allPlayers.filter((p: any) => p !== api.ownerId);
           let damagedCount = 0;
-          
+
           enemies.forEach((enemyId: any) => {
             api.dealDamageToPlayer(enemyId, 3);
             damagedCount++;
-            
+
             // Also damage all enemy creatures
             const creatures = api.getCreaturesForPlayer(enemyId);
             creatures.forEach((creature: any) => {
@@ -991,7 +991,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
               damagedCount++;
             });
           });
-          
+
           if (damagedCount > 0) {
             api.log(`Omega Destroyer's arrival devastates ${damagedCount} target(s)`);
           }
@@ -1005,18 +1005,18 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
           const allPlayers = api.getAllPlayers();
           const enemies = allPlayers.filter((p: any) => p !== api.ownerId);
           let damagedCount = 0;
-          
+
           enemies.forEach((enemyId: any) => {
             api.dealDamageToPlayer(enemyId, 2);
             damagedCount++;
-            
+
             const creatures = api.getCreaturesForPlayer(enemyId);
             creatures.forEach((creature: any) => {
               api.dealDamageToCreature(enemyId, creature.instanceId, 2);
               damagedCount++;
             });
           });
-          
+
           if (damagedCount > 0) {
             api.log(`Omega Destroyer continues its rampage against ${damagedCount} target(s)`);
           }
@@ -1050,14 +1050,14 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
         effectCode: functionToString(async (api) => {
           const creatures = api.getOwnCreatures();
           let healedCount = 0;
-          
-          creatures.forEach((creature: {instanceId: string, cardId: string}) => {
+
+          creatures.forEach((creature: { instanceId: string, cardId: string }) => {
             const creatureCard = api.doc.cardLibrary[creature.cardId];
             if (creatureCard && creatureCard.type === 'creature') {
               // Find the battlefield card to check current health
               const battlefield = api.doc.playerBattlefields.find((b: any) => b.playerId === api.ownerId);
               const battlefieldCard = battlefield?.cards.find((c: any) => c.instanceId === creature.instanceId);
-              
+
               if (battlefieldCard && battlefieldCard.currentHealth < (creatureCard.health || 1)) {
                 const healAmount = (creatureCard.health || 1) - battlefieldCard.currentHealth;
                 api.healCreature(api.ownerId, creature.instanceId, healAmount);
@@ -1065,7 +1065,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
               }
             }
           });
-          
+
           if (healedCount > 0) {
             api.log(`Titan Forge restored ${healedCount} creature(s) to full health`);
           }
@@ -1089,7 +1089,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
           const allPlayers = api.getAllPlayers();
           const enemies = allPlayers.filter((p: any) => p !== api.ownerId);
           let damagedCount = 0;
-          
+
           enemies.forEach((enemyId: any) => {
             const creatures = api.getCreaturesForPlayer(enemyId);
             creatures.forEach((creature: any) => {
@@ -1097,7 +1097,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
               damagedCount++;
             });
           });
-          
+
           if (damagedCount > 0) {
             api.log(`Mind Dominator destroys ${damagedCount} enemy creature(s)`);
           }
@@ -1125,7 +1125,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
       const allPlayers = api.getAllPlayers();
       const enemies = allPlayers.filter((p: any) => p !== api.casterId);
       let totalDestroyed = 0;
-      
+
       // Destroy all enemy creatures and artifacts
       enemies.forEach((enemyId: any) => {
         const creatures = api.getCreaturesForPlayer(enemyId);
@@ -1133,11 +1133,11 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
           api.destroyCreature(enemyId, creature.instanceId);
           totalDestroyed++;
         });
-        
+
         // Deal 5 damage to enemy players
         api.dealDamageToPlayer(enemyId, 5);
       });
-      
+
       api.log(`Reality Shatter destroys ${totalDestroyed} enemy unit(s) and deals 5 damage to all enemies`);
       return true;
     })
@@ -1155,18 +1155,18 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
           const allPlayers = api.getAllPlayers();
           const enemies = allPlayers.filter((p: any) => p !== api.ownerId);
           let damagedCount = 0;
-          
+
           enemies.forEach((enemyId: any) => {
             api.dealDamageToPlayer(enemyId, 2);
             damagedCount++;
-            
+
             const creatures = api.getCreaturesForPlayer(enemyId);
             creatures.forEach((creature: any) => {
               api.dealDamageToCreature(enemyId, creature.instanceId, 2);
               damagedCount++;
             });
           });
-          
+
           api.healPlayer(api.ownerId, 2);
           api.log(`Apocalypse Engine's dawn phase damages ${damagedCount} enemies and heals owner`);
           return true;
@@ -1179,18 +1179,18 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
           const allPlayers = api.getAllPlayers();
           const enemies = allPlayers.filter((p: any) => p !== api.ownerId);
           let damagedCount = 0;
-          
+
           enemies.forEach((enemyId: any) => {
             api.dealDamageToPlayer(enemyId, 2);
             damagedCount++;
-            
+
             const creatures = api.getCreaturesForPlayer(enemyId);
             creatures.forEach((creature: any) => {
               api.dealDamageToCreature(enemyId, creature.instanceId, 2);
               damagedCount++;
             });
           });
-          
+
           api.healPlayer(api.ownerId, 2);
           api.log(`Apocalypse Engine's dusk phase damages ${damagedCount} enemies and heals owner`);
           return true;
@@ -1199,7 +1199,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
       }
     ]
   },
-  
+
   'card_048': {
     name: 'Void Assassin',
     cost: 4,
@@ -1213,7 +1213,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
         // Use the context to get information about the damage target
         if (context?.damageTarget) {
           const { playerId, instanceId } = context.damageTarget;
-          
+
           if (instanceId) {
             // If targeting a creature, destroy it directly
             api.destroyCreature(playerId, instanceId);
@@ -1221,7 +1221,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
             return true;
           }
         }
-        
+
         api.log('Void Assassin ability triggered but no valid target found');
         return false;
       }),
@@ -1236,7 +1236,7 @@ export const CARD_LIBRARY: { [cardId: string]: CardTemplate } = {
 // Create a standard deck with multiple copies of cards
 export const createStandardDeck = (): string[] => {
   const deck: string[] = [];
-  
+
   // Add multiple copies of each card (varying amounts for balance)
   const cardCopies: { [cardId: string]: number } = {
     'card_001': 3, // Cyber Drone
@@ -1287,20 +1287,20 @@ export const createStandardDeck = (): string[] => {
     'card_047': 1, // Apocalypse Engine (legendary)
     'card_048': 10, // Void Assassin (rare)
   };
-  
+
   // Validate that all cards in cardCopies exist in CARD_LIBRARY
   const missingCards = Object.keys(cardCopies).filter(cardId => !CARD_LIBRARY[cardId]);
   if (missingCards.length > 0) {
     throw new Error(`createStandardDeck: Cards in deck but not in library: ${missingCards.join(', ')}`);
   }
-  
+
   // Add cards to deck based on copy counts
   Object.entries(cardCopies).forEach(([cardId, count]) => {
     for (let i = 0; i < count; i++) {
       deck.push(cardId);
     }
   });
-  
+
   return deck;
 };
 

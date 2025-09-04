@@ -112,8 +112,8 @@ function App({ rootDocUrl }: { rootDocUrl: AutomergeUrl }) {
   return (
     <div className="App">
       <ErrorBoundary>
-        <div style={{ 
-          flex: 1, 
+        <div style={{
+          flex: 1,
           overflow: 'auto',
           width: '100%'
         }}>

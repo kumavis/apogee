@@ -30,26 +30,26 @@ export type SpellEffectAPI = {
   // Document manipulation (read-only)
   doc: GameDoc;
   casterId: AutomergeUrl;
-  
+
   // Targeting functions (async) - unified targeting
   selectTargets: (selector: SpellTargetSelector) => Promise<SpellTarget[]>;
-  
+
   // Operation collection (instead of immediate execution)
   operations: SpellOperation[];
-  
+
   // Damage and healing (queues operations)
   dealDamageToPlayer: (playerId: AutomergeUrl, damage: number) => void;
   dealDamageToCreature: (playerId: AutomergeUrl, instanceId: string, damage: number) => void;
   healPlayer: (playerId: AutomergeUrl, amount: number) => void;
   healCreature: (playerId: AutomergeUrl, instanceId: string, amount: number) => void;
-  
+
   // Creature manipulation (queues operations)
   destroyCreature: (playerId: AutomergeUrl, instanceId: string) => void;
-  
+
   // Utility functions
   log: (description: string) => void;
   getAllPlayers: () => AutomergeUrl[];
-  getCreaturesForPlayer: (playerId: AutomergeUrl) => Array<{instanceId: string, cardUrl: AutomergeUrl}>;
+  getCreaturesForPlayer: (playerId: AutomergeUrl) => Array<{ instanceId: string, cardUrl: AutomergeUrl }>;
 };
 
 // Utility function to convert a function to a string for storage
@@ -65,7 +65,7 @@ export const executeSpellEffect = async (
   try {
     // Create the function from the string
     const effectFunction = new Function('api', `return (${effectCode})(api);`);
-    
+
     // Execute the effect function with the API
     const result = await effectFunction(api);
     return result !== false; // Consider undefined/null as success
@@ -82,32 +82,32 @@ export type ArtifactEffectAPI = {
   doc: GameDoc;
   ownerId: AutomergeUrl; // The player who owns this artifact
   instanceId: string; // The specific artifact instance
-  
+
   // Targeting functions (async) - unified targeting
   selectTargets: (selector: SpellTargetSelector) => Promise<SpellTarget[]>;
-  
+
   // Operation collection (instead of immediate execution)
   operations: SpellOperation[];
-  
+
   // Damage and healing (queues operations)
   dealDamageToPlayer: (playerId: AutomergeUrl, damage: number) => void;
   dealDamageToCreature: (playerId: AutomergeUrl, instanceId: string, damage: number) => void;
   healPlayer: (playerId: AutomergeUrl, amount: number) => void;
   healCreature: (playerId: AutomergeUrl, instanceId: string, amount: number) => void;
-  
+
   // Creature manipulation (queues operations)
   destroyCreature: (playerId: AutomergeUrl, instanceId: string) => void;
-  
+
   // Utility functions
   log: (description: string) => void;
   getAllPlayers: () => AutomergeUrl[];
-  getCreaturesForPlayer: (playerId: AutomergeUrl) => Array<{instanceId: string, cardUrl: AutomergeUrl}>;
-  
+  getCreaturesForPlayer: (playerId: AutomergeUrl) => Array<{ instanceId: string, cardUrl: AutomergeUrl }>;
+
   // Artifact-specific functions
-  getOwnCreatures: () => Array<{instanceId: string, cardUrl: AutomergeUrl}>;
+  getOwnCreatures: () => Array<{ instanceId: string, cardUrl: AutomergeUrl }>;
   drawCard: () => void;
   gainEnergy: (amount: number) => void;
-  
+
   // Trigger-specific context
   triggerContext?: {
     damageTarget?: {
@@ -127,7 +127,7 @@ export const executeArtifactAbility = async (
   try {
     // Create the function from the string
     const effectFunction = new Function('api', 'context', `return (${effectCode})(api, context);`);
-    
+
     // Execute the effect function with the API and context
     const result = await effectFunction(api, context);
     return result !== false; // Consider undefined/null as success
@@ -158,9 +158,9 @@ export const createSpellEffectAPI = (
     doc,
     casterId,
     operations,
-    
+
     selectTargets: wrappedSelectTargets,
-    
+
     dealDamageToPlayer: (playerId: AutomergeUrl, damage: number): void => {
       operations.push({
         type: 'damage_player',
@@ -168,7 +168,7 @@ export const createSpellEffectAPI = (
         amount: damage
       });
     },
-    
+
     dealDamageToCreature: (playerId: AutomergeUrl, instanceId: string, damage: number): void => {
       console.log('dealDamageToCreature', playerId, instanceId, damage);
       operations.push({
@@ -178,7 +178,7 @@ export const createSpellEffectAPI = (
         amount: damage
       });
     },
-    
+
     healPlayer: (playerId: AutomergeUrl, amount: number): void => {
       operations.push({
         type: 'heal_player',
@@ -186,7 +186,7 @@ export const createSpellEffectAPI = (
         amount
       });
     },
-    
+
     healCreature: (playerId: AutomergeUrl, instanceId: string, amount: number): void => {
       operations.push({
         type: 'heal_creature',
@@ -195,7 +195,7 @@ export const createSpellEffectAPI = (
         amount
       });
     },
-    
+
     destroyCreature: (playerId: AutomergeUrl, instanceId: string): void => {
       operations.push({
         type: 'destroy_creature',
@@ -203,7 +203,7 @@ export const createSpellEffectAPI = (
         instanceId
       });
     },
-    
+
     log: (description: string): void => {
       operations.push({
         type: 'log',
@@ -211,18 +211,18 @@ export const createSpellEffectAPI = (
         description
       });
     },
-    
+
     getAllPlayers: (): AutomergeUrl[] => {
       return [...doc.players];
     },
-    
-    getCreaturesForPlayer: (playerId: AutomergeUrl): Array<{instanceId: string, cardUrl: AutomergeUrl}> => {
+
+    getCreaturesForPlayer: (playerId: AutomergeUrl): Array<{ instanceId: string, cardUrl: AutomergeUrl }> => {
       const battlefield = doc.playerBattlefields.find(
         battlefield => battlefield.playerId === playerId
       );
-      
+
       if (!battlefield) return [];
-      
+
       return battlefield.cards.map(card => ({
         instanceId: card.instanceId,
         cardUrl: doc.instanceToCardUrl[card.instanceId]
@@ -253,9 +253,9 @@ export const createArtifactEffectAPI = (
     instanceId,
     operations,
     triggerContext,
-    
+
     selectTargets: wrappedSelectTargets,
-    
+
     dealDamageToPlayer: (playerId: AutomergeUrl, damage: number): void => {
       operations.push({
         type: 'damage_player',
@@ -263,7 +263,7 @@ export const createArtifactEffectAPI = (
         amount: damage
       });
     },
-    
+
     dealDamageToCreature: (playerId: AutomergeUrl, instanceId: string, damage: number): void => {
       operations.push({
         type: 'damage_creature',
@@ -272,7 +272,7 @@ export const createArtifactEffectAPI = (
         amount: damage
       });
     },
-    
+
     healPlayer: (playerId: AutomergeUrl, amount: number): void => {
       operations.push({
         type: 'heal_player',
@@ -280,7 +280,7 @@ export const createArtifactEffectAPI = (
         amount
       });
     },
-    
+
     healCreature: (playerId: AutomergeUrl, instanceId: string, amount: number): void => {
       operations.push({
         type: 'heal_creature',
@@ -289,7 +289,7 @@ export const createArtifactEffectAPI = (
         amount
       });
     },
-    
+
     destroyCreature: (playerId: AutomergeUrl, instanceId: string): void => {
       operations.push({
         type: 'destroy_creature',
@@ -297,7 +297,7 @@ export const createArtifactEffectAPI = (
         instanceId
       });
     },
-    
+
     log: (description: string): void => {
       operations.push({
         type: 'log',
@@ -305,31 +305,31 @@ export const createArtifactEffectAPI = (
         description
       });
     },
-    
+
     getAllPlayers: (): AutomergeUrl[] => {
       return [...doc.players];
     },
-    
-    getCreaturesForPlayer: (playerId: AutomergeUrl): Array<{instanceId: string, cardUrl: AutomergeUrl}> => {
+
+    getCreaturesForPlayer: (playerId: AutomergeUrl): Array<{ instanceId: string, cardUrl: AutomergeUrl }> => {
       const battlefield = doc.playerBattlefields.find(
         battlefield => battlefield.playerId === playerId
       );
-      
+
       if (!battlefield) return [];
-      
+
       return battlefield.cards.map(card => ({
         instanceId: card.instanceId,
         cardUrl: doc.instanceToCardUrl[card.instanceId]
       }));
     },
-    
-    getOwnCreatures: (): Array<{instanceId: string, cardUrl: AutomergeUrl}> => {
+
+    getOwnCreatures: (): Array<{ instanceId: string, cardUrl: AutomergeUrl }> => {
       const battlefield = doc.playerBattlefields.find(
         battlefield => battlefield.playerId === ownerId
       );
-      
+
       if (!battlefield) return [];
-      
+
       return battlefield.cards
         .filter(_card => {
           // Note: We can't load cards synchronously anymore, so we'll assume all battlefield cards are targetable
@@ -341,7 +341,7 @@ export const createArtifactEffectAPI = (
           cardUrl: doc.instanceToCardUrl[card.instanceId]
         }));
     },
-    
+
     drawCard: (): void => {
       operations.push({
         type: 'log', // We'll handle draw card as a special operation
@@ -349,7 +349,7 @@ export const createArtifactEffectAPI = (
         description: 'ARTIFACT_DRAW_CARD' // Special marker for draw card operation
       });
     },
-    
+
     gainEnergy: (amount: number): void => {
       operations.push({
         type: 'log', // We'll handle energy gain as a special operation
@@ -370,7 +370,7 @@ export const executeSpellOperations = (doc: GameDoc, operations: SpellOperation[
           dealDamage(doc, op.playerId, op.amount);
         }
         break;
-        
+
       case 'damage_creature':
         if (op.instanceId && op.amount !== undefined) {
           // Use new health-based damage system
@@ -378,17 +378,17 @@ export const executeSpellOperations = (doc: GameDoc, operations: SpellOperation[
           // Note: take_damage triggered abilities need to be handled outside this synchronous function
         }
         break;
-        
+
       case 'heal_player':
         if (op.amount !== undefined) {
           const playerStateIndex = doc.playerStates.findIndex(
             state => state.playerId === op.playerId
           );
-          
+
           if (playerStateIndex !== -1) {
             const playerState = doc.playerStates[playerStateIndex];
             playerState.health = Math.min(playerState.maxHealth, playerState.health + op.amount);
-            
+
             addGameLogEntry(doc, {
               playerId: op.playerId,
               action: 'take_damage',
@@ -398,25 +398,25 @@ export const executeSpellOperations = (doc: GameDoc, operations: SpellOperation[
           }
         }
         break;
-        
+
       case 'heal_creature':
         if (op.instanceId && op.amount !== undefined) {
           const battlefieldIndex = doc.playerBattlefields.findIndex(
             battlefield => battlefield.playerId === op.playerId
           );
-          
+
           if (battlefieldIndex !== -1) {
             const cardIndex = doc.playerBattlefields[battlefieldIndex].cards.findIndex(
               card => card.instanceId === op.instanceId
             );
-            
+
             if (cardIndex !== -1) {
               const battlefieldCard = doc.playerBattlefields[battlefieldIndex].cards[cardIndex];
               // Note: We can't load cards synchronously, so we'll just heal by the amount
               // without checking max health limits for now
               const newHealth = battlefieldCard.currentHealth + op.amount;
               battlefieldCard.currentHealth = newHealth;
-              
+
               addGameLogEntry(doc, {
                 playerId: op.playerId,
                 action: 'take_damage',
@@ -427,13 +427,13 @@ export const executeSpellOperations = (doc: GameDoc, operations: SpellOperation[
           }
         }
         break;
-        
+
       case 'destroy_creature':
         if (op.instanceId) {
           removeCreatureFromBattlefield(doc, op.playerId, op.instanceId);
         }
         break;
-        
+
       case 'log':
         if (op.description) {
           // Handle special artifact operations
@@ -445,11 +445,11 @@ export const executeSpellOperations = (doc: GameDoc, operations: SpellOperation[
               const playerStateIndex = doc.playerStates.findIndex(
                 state => state.playerId === op.playerId
               );
-              
+
               if (playerStateIndex !== -1) {
                 const playerState = doc.playerStates[playerStateIndex];
                 playerState.energy = Math.min(playerState.maxEnergy, playerState.energy + amount);
-                
+
                 addGameLogEntry(doc, {
                   playerId: op.playerId,
                   action: 'play_card',

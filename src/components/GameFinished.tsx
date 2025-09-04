@@ -13,9 +13,9 @@ type GameFinishedProps = {
   onCreateRematch: () => void;
 };
 
-const GameFinished: React.FC<GameFinishedProps> = ({ 
+const GameFinished: React.FC<GameFinishedProps> = ({
   gameDoc,
-  selfId, 
+  selfId,
   onReturnToMenu,
   onCreateRematch
 }) => {
@@ -32,11 +32,11 @@ const GameFinished: React.FC<GameFinishedProps> = ({
       playSound('playerDied');
     }
   }, [isWinner]);
-  
+
   // Get game statistics
   const totalTurns = gameDoc.turn || 1;
   const totalActions = gameDoc.gameLog?.length || 0;
-  const gameDuration = gameDoc.gameLog?.length > 0 ? 
+  const gameDuration = gameDoc.gameLog?.length > 0 ?
     gameDoc.gameLog[gameDoc.gameLog.length - 1].timestamp - gameDoc.gameLog[0].timestamp : 0;
 
   const formatDuration = (ms: number): string => {
@@ -93,7 +93,7 @@ const GameFinished: React.FC<GameFinishedProps> = ({
         }}>
           {isWinner ? '🎉' : '💀'}
         </div>
-        
+
         <div style={{
           fontSize: 36,
           fontWeight: 700,
@@ -121,8 +121,8 @@ const GameFinished: React.FC<GameFinishedProps> = ({
           marginBottom: 30,
           lineHeight: 1.5
         }}>
-          {isWinner ? 
-            'You have emerged victorious in this epic battle!' : 
+          {isWinner ?
+            'You have emerged victorious in this epic battle!' :
             'A valiant effort, but victory eluded you this time!'
           }
         </div>
@@ -173,7 +173,7 @@ const GameFinished: React.FC<GameFinishedProps> = ({
           >
             📋 {showGameLog ? 'Hide' : 'Show'} Game Log
           </button>
-          
+
           {/* Rematch Button Logic */}
           {gameDoc.rematchGameId ? (
             <button
@@ -212,7 +212,7 @@ const GameFinished: React.FC<GameFinishedProps> = ({
               🔥 Rematch!
             </button>
           )}
-          
+
           <button
             onClick={onReturnToMenu}
             style={{
@@ -249,7 +249,7 @@ const GameFinished: React.FC<GameFinishedProps> = ({
             }}>
               📋 Complete Game History
             </div>
-            
+
             <GameLog
               gameLog={gameDoc.gameLog || []}
               isExpanded={true}

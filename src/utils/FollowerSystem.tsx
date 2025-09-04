@@ -46,7 +46,7 @@ const FollowerCtx = createContext<FollowerCtxType | null>(null);
 const useFollowerContent = (id: string, subscribeToFollowerContent: SubscribeToFollowerContent) => {
   // Subscribe to content changes
   const [content, setContent] = useState<FollowerContent>(null);
-  
+
   useEffect(() => {
     const unsubscribe = subscribeToFollowerContent(id, (newContent) => {
       setContent(newContent);
@@ -62,16 +62,16 @@ export const useFollowerState = (id: string) => {
   const context = useContext(FollowerCtx);
   if (!context) throw new Error("Wrap your app with <FollowerProvider/>");
   const { getFollowerState, subscribeFollowerState } = context;
-  
+
   const [state, setState] = useState<FollowerState>(() => getFollowerState(id));
-  
+
   useEffect(() => {
     const unsubscribe = subscribeFollowerState(id, (newState) => {
       setState(newState);
     });
     return unsubscribe;
   }, [id, subscribeFollowerState]);
-  
+
   return state;
 };
 
@@ -80,7 +80,7 @@ const useFollowerStateInternal = (id: string, subscribeToTarget: SubscribeToTarg
   const followerContext = useContext(FollowerCtx);
   if (!followerContext) throw new Error("Wrap your app with <FollowerProvider/>");
   const { getFollowerState } = followerContext;
-  
+
   const followerState = getFollowerState(id);
   const useInertial = followerState.inertialMode || false;
   const isInitiallyPositioned = useRef(false);
@@ -259,7 +259,7 @@ export const FollowerProvider: React.FC<FollowerProviderProps> = ({ children }) 
   // console.log("FollowerProvider rendered");
   // Store follower state data (inertialMode, springConfig) in a ref Map to avoid rerenders
   const followerStates = useRef<Map<string, FollowerState>>(new Map());
-  
+
   // Store other data separately since they have special side effects
   const followTargets = useRef<Map<string, FollowTarget>>(new Map());
   const altTargets = useRef<Map<string, AltTarget>>(new Map());
@@ -284,12 +284,12 @@ export const FollowerProvider: React.FC<FollowerProviderProps> = ({ children }) 
   // setFollowerState function - accepts object or updater function like React useState
   const setFollowerState: SetFollowerState = useCallback((id: string, stateOrUpdater: FollowerState | FollowerStateUpdater) => {
     const currentState = followerStates.current.get(id) || {};
-    const newState = typeof stateOrUpdater === 'function' 
+    const newState = typeof stateOrUpdater === 'function'
       ? stateOrUpdater(currentState)
       : stateOrUpdater; // React useState replaces the entire state, doesn't merge
-    
+
     followerStates.current.set(id, newState);
-    
+
     // Notify subscribers of the state change
     const subscribers = followerStateSubscribers.current.get(id);
     if (subscribers) {
@@ -569,7 +569,7 @@ export const FollowerProvider: React.FC<FollowerProviderProps> = ({ children }) 
                 id={id}
                 subscribeToTarget={subscribeToTarget}
                 subscribeToAltTarget={contextValue.subscribeToAltTarget}
-                subscribeToFollowerContent={contextValue.subscribeToFollowerContent}/>
+                subscribeToFollowerContent={contextValue.subscribeToFollowerContent} />
             );
           })}
         </div>,

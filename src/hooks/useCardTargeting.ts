@@ -2,9 +2,9 @@ import { useState, useCallback } from 'react';
 import { AutomergeUrl } from '@automerge/react';
 import { GameDoc } from '../docs/game';
 import { CardDoc } from '../docs/card';
-import { 
-  Target, 
-  TargetSelector, 
+import {
+  Target,
+  TargetSelector,
   getAutoTargets,
   validateTarget
 } from '../utils/unifiedTargeting';
@@ -39,7 +39,7 @@ export const useCardTargeting = (gameDoc: GameDoc, selfId: AutomergeUrl) => {
     context: TargetingContext
   ): Promise<Target[]> => {
     const enhancedSelector = { ...selector, sourcerId: selfId };
-    
+
     // Check for auto-targeting first
     if (selector.autoTarget) {
       const autoTargets = getAutoTargets(enhancedSelector, gameDoc, selfId);
@@ -70,8 +70,8 @@ export const useCardTargeting = (gameDoc: GameDoc, selfId: AutomergeUrl) => {
     const newSelectedTargets = [...selectedTargets];
 
     // Check if target is already selected
-    const targetIndex = newSelectedTargets.findIndex(t => 
-      t.playerId === target.playerId && 
+    const targetIndex = newSelectedTargets.findIndex(t =>
+      t.playerId === target.playerId &&
       t.instanceId === target.instanceId &&
       t.type === target.type
     );
@@ -101,11 +101,11 @@ export const useCardTargeting = (gameDoc: GameDoc, selfId: AutomergeUrl) => {
   // Confirm current selection
   const confirmSelection = useCallback((targets?: Target[]) => {
     const finalTargets = targets || state.selectedTargets;
-    
+
     if (state.resolve) {
       state.resolve(finalTargets);
     }
-    
+
     setState({
       isTargeting: false,
       selector: null,
@@ -120,7 +120,7 @@ export const useCardTargeting = (gameDoc: GameDoc, selfId: AutomergeUrl) => {
     if (state.resolve) {
       state.resolve([]);
     }
-    
+
     setState({
       isTargeting: false,
       selector: null,
@@ -133,15 +133,15 @@ export const useCardTargeting = (gameDoc: GameDoc, selfId: AutomergeUrl) => {
   // Check if a target can be targeted
   const canTarget = useCallback((target: Target): boolean => {
     if (!state.isTargeting || !state.selector) return false;
-    
+
     const validation = validateTarget(target, state.selector, gameDoc, selfId);
     return validation.isValid;
   }, [state]);
 
   // Check if a target is selected
   const isTargetSelected = useCallback((target: Target): boolean => {
-    return state.selectedTargets.some(t => 
-      t.playerId === target.playerId && 
+    return state.selectedTargets.some(t =>
+      t.playerId === target.playerId &&
       t.instanceId === target.instanceId &&
       t.type === target.type
     );
@@ -158,17 +158,17 @@ export const useCardTargeting = (gameDoc: GameDoc, selfId: AutomergeUrl) => {
     // Get the target's type from the game state
     const targetBattlefield = gameDoc.playerBattlefields.find(b => b.playerId === playerId);
     const targetCard = targetBattlefield?.cards.find(c => c.instanceId === instanceId);
-    
+
     // Note: We can't load the card synchronously anymore, so we'll assume it's a creature/artifact for targeting
     // The actual card loading and validation will happen when the target is selected
     if (!targetCard) return false;
-    
+
     // Since we can't load the card synchronously, we'll default to 'creature' type
     // The actual type validation will happen during target selection
-    const target: Target = { 
+    const target: Target = {
       type: 'creature', // Default assumption - will be validated async during selection
-      playerId, 
-      instanceId 
+      playerId,
+      instanceId
     };
     return canTarget(target);
   }, [canTarget]);
@@ -182,15 +182,15 @@ export const useCardTargeting = (gameDoc: GameDoc, selfId: AutomergeUrl) => {
   return {
     // State
     targetingState: state,
-    
+
     // Core targeting function
     startTargeting,
-    
+
     // Actions
     selectTarget,
     confirmSelection,
     cancelTargeting,
-    
+
     // Helpers
     canTarget,
     isTargetSelected,

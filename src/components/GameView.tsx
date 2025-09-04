@@ -36,7 +36,7 @@ const GameView: React.FC<GameViewProps> = ({ rootDoc, addGame }) => {
       console.error('Failed to preload sounds:', error);
     });
   }, []);
- 
+
   const handleJoinGame = () => {
     if (!gameDoc) {
       throw new Error('handleJoinGame: Cannot join game - no game doc');
@@ -45,7 +45,7 @@ const GameView: React.FC<GameViewProps> = ({ rootDoc, addGame }) => {
     changeGameDoc((doc) => {
       joinGame(doc, rootDoc.selfId);
     });
-      
+
     // Add game to user's games list when joining
     addGame(gameDocUrl as AutomergeUrl);
   };
@@ -55,7 +55,7 @@ const GameView: React.FC<GameViewProps> = ({ rootDoc, addGame }) => {
       if (!gameDoc || !gameEngine) {
         throw new Error('handleStartGame: Cannot start game - missing gameDoc or gameEngine');
       }
-      
+
       // Get the deck selection for the game (required)
       const selectedDeckUrl = getGameDeckSelection(gameDoc);
       if (!selectedDeckUrl) {
@@ -109,9 +109,9 @@ const GameView: React.FC<GameViewProps> = ({ rootDoc, addGame }) => {
         textAlign: 'center'
       }}>
         <h2 style={{ marginBottom: 16 }}>Loading Game...</h2>
-        <div style={{ 
-          fontSize: 14, 
-          opacity: 0.6 
+        <div style={{
+          fontSize: 14,
+          opacity: 0.6
         }}>
           Please wait while we load the game data...
         </div>

@@ -20,7 +20,7 @@ type Quadrant = 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
 const useAlternateTarget = () => {
   const [alternateTarget, setCurrentAlternateTarget] = useState<{ x: number, y: number } | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
+
   const setAlternateTarget = useCallback((event: React.MouseEvent) => {
     const x = event.clientX;
     const y = event.clientY;
@@ -42,8 +42,8 @@ const CardSlotTestInner: React.FC = () => {
   const [cards, setCards] = useState<Map<string, { quadrant: Quadrant; cardData: CardDoc; faceDown: boolean; size: 'small' | 'medium' | 'large' }>>(() => {
     // Start with one card
     const initialCards = new Map();
-    initialCards.set('card-1', { 
-      quadrant: 'topLeft', 
+    initialCards.set('card-1', {
+      quadrant: 'topLeft',
       cardData: { ...sampleCard, name: 'Test Card 1' },
       faceDown: false,
       size: 'medium'
@@ -160,7 +160,7 @@ const CardSlotTestInner: React.FC = () => {
 
   const handleQuadrantsClick = useCallback((event: React.MouseEvent) => {
     if (cards.size === 0) return;
-    
+
     // Get the first card (card-1)
     const firstCardId = 'card-1';
     if (!cards.has(firstCardId)) return;
@@ -169,7 +169,7 @@ const CardSlotTestInner: React.FC = () => {
   }, [cards.size]);
 
   const renderQuadrant = (quadrant: Quadrant, title: string) => (
-    <div 
+    <div
       style={{
         flex: 1,
         border: '2px solid #333',
@@ -192,7 +192,7 @@ const CardSlotTestInner: React.FC = () => {
         {getCardsInQuadrant(quadrant).map(cardId => {
           const card = cards.get(cardId);
           if (!card) return null;
-          
+
           return (
             <FloatingCard
               key={cardId}
@@ -302,7 +302,7 @@ const CardSlotTestInner: React.FC = () => {
       )}
 
       {/* Quadrants */}
-      <div 
+      <div
         style={{
           flex: 1,
           display: 'flex',
@@ -319,13 +319,13 @@ const CardSlotTestInner: React.FC = () => {
           {renderQuadrant('topLeft', 'Top Left')}
           {renderQuadrant('topRight', 'Top Right')}
         </div>
-        
+
         {/* Bottom Row */}
         <div style={{ flex: 1, display: 'flex' }}>
           {renderQuadrant('bottomLeft', 'Bottom Left')}
           {renderQuadrant('bottomRight', 'Bottom Right')}
         </div>
-        
+
         {/* Visual indicator for alternate target */}
         {alternateTarget && (
           <div style={{

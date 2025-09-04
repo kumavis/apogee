@@ -47,9 +47,9 @@ export const useGameBoardClicks = (
           emoji: '👆',
           timestamp: Date.now()
         };
-        
+
         setEmojiAnimations(prev => [...prev, newAnimation]);
-        
+
         // Remove animation after specified duration
         setTimeout(() => {
           setEmojiAnimations(prev => prev.filter(anim => anim.id !== newAnimation.id));
@@ -58,7 +58,7 @@ export const useGameBoardClicks = (
     };
 
     gameDocHandle.on("ephemeral-message", handleEphemeralMessage);
-    
+
     return () => {
       gameDocHandle.off("ephemeral-message", handleEphemeralMessage);
     };
@@ -71,14 +71,14 @@ export const useGameBoardClicks = (
     if (target.closest('button') || target.closest('[role="button"]') || target.closest('.card') || target.closest('[data-interactive]')) {
       return;
     }
-    
+
     // Play click sound immediately when board is clicked
     playSound('click');
-    
+
     const rect = event.currentTarget.getBoundingClientRect();
     const x = ((event.clientX - rect.left) / rect.width) * 100;
     const y = ((event.clientY - rect.top) / rect.height) * 100;
-    
+
     // Broadcast the click
     gameDocHandle.broadcast({
       type: 'board-click',
@@ -87,7 +87,7 @@ export const useGameBoardClicks = (
       y,
       timestamp: Date.now()
     } as BoardClickMessage);
-    
+
     // Show local animation for the clicking player
     const newAnimation: EmojiAnimation = {
       id: `self-${Date.now()}`,
@@ -96,9 +96,9 @@ export const useGameBoardClicks = (
       emoji: '👆',
       timestamp: Date.now()
     };
-    
+
     setEmojiAnimations(prev => [...prev, newAnimation]);
-    
+
     // Remove animation after specified duration
     setTimeout(() => {
       setEmojiAnimations(prev => prev.filter(anim => anim.id !== newAnimation.id));

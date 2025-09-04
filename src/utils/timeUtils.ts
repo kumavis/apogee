@@ -24,12 +24,12 @@ export const getRelativeTime = (fromTimestamp: number, {
   // choose best unit
   let value: number;
   let unit: Intl.RelativeTimeFormatUnit;
-  if (absMs < 45 * sec)        { value = Math.round(diffMs / sec);  unit = 'second'; }
-  else if (absMs < 45 * min)   { value = Math.round(diffMs / min);  unit = 'minute'; }
-  else if (absMs < 22 * hour)  { value = Math.round(diffMs / hour); unit = 'hour'; }
-  else if (absMs < 26 * day)   { value = Math.round(diffMs / day);  unit = 'day'; }
-  else if (absMs < 320 * day)  { value = Math.round(diffMs / month);unit = 'month'; }
-  else                         { value = Math.round(diffMs / year); unit = 'year'; }
+  if (absMs < 45 * sec) { value = Math.round(diffMs / sec); unit = 'second'; }
+  else if (absMs < 45 * min) { value = Math.round(diffMs / min); unit = 'minute'; }
+  else if (absMs < 22 * hour) { value = Math.round(diffMs / hour); unit = 'hour'; }
+  else if (absMs < 26 * day) { value = Math.round(diffMs / day); unit = 'day'; }
+  else if (absMs < 320 * day) { value = Math.round(diffMs / month); unit = 'month'; }
+  else { value = Math.round(diffMs / year); unit = 'year'; }
 
   return rtf.format(value, unit);
 }
@@ -42,7 +42,7 @@ export const getRelativeTime = (fromTimestamp: number, {
 export const getFormattedTime = (timestamp: number) => {
   const date = new Date(timestamp);
   const relative = getRelativeTime(timestamp);
-  
+
   if (!timestamp || isNaN(timestamp) || timestamp <= 0) {
     return {
       relative: 'Unknown time',

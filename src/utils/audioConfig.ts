@@ -3,7 +3,7 @@
  * This centralizes all audio file references for easy maintenance
  */
 
-export type SoundName = 
+export type SoundName =
   | 'click'
   | 'playCard'
   | 'playerDied'

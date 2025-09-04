@@ -199,7 +199,7 @@ export const CardSlot: React.FC<CardSlotProps> = ({
         ...style
       }}
     >
-      {debugMode ? `slot:${debugKey}` : null} 
+      {debugMode ? `slot:${debugKey}` : null}
     </div>
   );
 };

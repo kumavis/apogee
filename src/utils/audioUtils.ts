@@ -20,7 +20,7 @@ const DEFAULT_PLAYBACK_RATE = 1.0;
 export async function preloadSound(soundName: SoundName): Promise<void> {
   const assetPath = getSoundPath(soundName);
   const fullPath = getAssetPath(assetPath);
-  
+
   // Return early if already cached
   if (audioCache.has(fullPath)) {
     return;
@@ -30,17 +30,17 @@ export async function preloadSound(soundName: SoundName): Promise<void> {
     const audio = new Audio(fullPath);
     audio.preload = 'auto';
     audio.volume = DEFAULT_VOLUME;
-    
+
     audio.addEventListener('canplaythrough', () => {
       audioCache.set(fullPath, audio);
       resolve();
     }, { once: true });
-    
+
     audio.addEventListener('error', (error) => {
       console.error(`Failed to preload sound ${soundName}:`, error);
       reject(error);
     }, { once: true });
-    
+
     // Start loading
     audio.load();
   });
@@ -52,7 +52,7 @@ export async function preloadSound(soundName: SoundName): Promise<void> {
  */
 export async function preloadAllSounds(): Promise<void> {
   const soundNames = Object.keys(AUDIO_CONFIG) as SoundName[];
-  
+
   try {
     await Promise.all(soundNames.map(preloadSound));
     console.log('All game sounds preloaded successfully');
@@ -68,7 +68,7 @@ export async function preloadAllSounds(): Promise<void> {
  * @param options - Optional playback options
  */
 export function playSound(
-  soundName: SoundName, 
+  soundName: SoundName,
   options: {
     volume?: number;
     playbackRate?: number;
@@ -77,25 +77,25 @@ export function playSound(
 ): void {
   const assetPath = getSoundPath(soundName);
   const fullPath = getAssetPath(assetPath);
-  
+
   // Try to get from cache first
   let audio = audioCache.get(fullPath);
-  
+
   if (!audio) {
     // Create new audio element if not cached
     audio = new Audio(fullPath);
     audio.volume = options.volume ?? DEFAULT_VOLUME;
     audioCache.set(fullPath, audio);
   }
-  
+
   // Apply options
   audio.volume = options.volume ?? DEFAULT_VOLUME;
   audio.playbackRate = options.playbackRate ?? DEFAULT_PLAYBACK_RATE;
   audio.loop = options.loop ?? false;
-  
+
   // Reset to beginning and play
   audio.currentTime = 0;
-  
+
   audio.play().catch((error) => {
     console.error(`Failed to play sound ${soundName}:`, error);
     // Don't throw - game should continue even if sounds fail to play
@@ -132,6 +132,6 @@ export function isSoundPlaying(soundName: SoundName): boolean {
   const assetPath = getSoundPath(soundName);
   const fullPath = getAssetPath(assetPath);
   const audio = audioCache.get(fullPath);
-  
+
   return audio ? !audio.paused && audio.currentTime > 0 : false;
 }

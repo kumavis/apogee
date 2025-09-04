@@ -12,19 +12,19 @@ export type Target = {
 export type TargetSelector = {
   targetCount: number;
   targetType: 'player' | 'creature' | 'artifact' | 'any';
-  
+
   // Self-targeting rule
   canTargetSelf?: boolean;
-  
+
   // Attack-style rules (type-specific)
   canTargetPlayers?: boolean;
   canTargetCreatures?: boolean;
   canTargetArtifacts?: boolean;
   restrictedTypes?: ('creature' | 'artifact')[];
-  
+
   description: string;
   autoTarget?: boolean; // Enable auto-targeting behavior
-  
+
   // Context for targeting
   sourcerId?: AutomergeUrl; // Who is doing the targeting (for self-targeting validation)
 };
@@ -42,25 +42,25 @@ export const validateTarget = (
   sourcerId?: AutomergeUrl
 ): TargetValidationResult => {
   const actualSourceId = sourcerId || selector.sourcerId;
-  
+
   // Type-based validation first
   if (selector.targetType !== 'any' && target.type !== selector.targetType) {
     return { isValid: false, reason: `Cannot target ${target.type}, expected ${selector.targetType}` };
   }
-  
+
   // Attack-style validation (type-specific rules)
-  if (selector.canTargetPlayers !== undefined || 
-      selector.canTargetCreatures !== undefined || 
-      selector.canTargetArtifacts !== undefined ||
-      selector.restrictedTypes) {
-    
+  if (selector.canTargetPlayers !== undefined ||
+    selector.canTargetCreatures !== undefined ||
+    selector.canTargetArtifacts !== undefined ||
+    selector.restrictedTypes) {
+
     switch (target.type) {
       case 'player':
         if (selector.canTargetPlayers === false) {
           return { isValid: false, reason: 'Cannot target players' };
         }
         break;
-        
+
       case 'creature':
         if (selector.canTargetCreatures === false) {
           return { isValid: false, reason: 'Cannot target creatures' };
@@ -69,7 +69,7 @@ export const validateTarget = (
           return { isValid: false, reason: 'Creature type not in allowed targets' };
         }
         break;
-        
+
       case 'artifact':
         if (selector.canTargetArtifacts === false) {
           return { isValid: false, reason: 'Cannot target artifacts' };
@@ -80,11 +80,11 @@ export const validateTarget = (
         break;
     }
   }
-  
+
   // Own/enemy targeting validation
   if (actualSourceId && selector.canTargetSelf !== undefined) {
     const isTargetingOwnSide = target.playerId === actualSourceId;
-    
+
     if (isTargetingOwnSide && selector.canTargetSelf === false) {
       // For player targets, this means "cannot target yourself"
       // For creature/artifact targets, this means "cannot target your own units"
@@ -92,7 +92,7 @@ export const validateTarget = (
       return { isValid: false, reason };
     }
   }
-  
+
   // Validate that the target actually exists in the game state
   if (target.type === 'player') {
     if (!doc.players.includes(target.playerId)) {
@@ -102,19 +102,19 @@ export const validateTarget = (
     if (!target.instanceId) {
       return { isValid: false, reason: 'Creature/artifact target missing instanceId' };
     }
-    
+
     const battlefield = doc.playerBattlefields.find(b => b.playerId === target.playerId);
     const battlefieldCard = battlefield?.cards.find(c => c.instanceId === target.instanceId);
-    
+
     if (!battlefieldCard) {
       return { isValid: false, reason: 'Creature/artifact not found on battlefield' };
     }
-    
+
     // Note: We can't easily validate card type here without async card loading
     // The calling code should handle card type validation if needed
     // For now, we'll trust the target.type provided by the targeting system
   }
-  
+
   return { isValid: true };
 };
 
@@ -126,7 +126,7 @@ export const getValidTargets = (
 ): Target[] => {
   const validTargets: Target[] = [];
   const actualSourceId = sourcerId || selector.sourcerId;
-  
+
   // Add player targets
   if (selector.targetType === 'player' || selector.targetType === 'any') {
     for (const playerId of doc.players) {
@@ -137,7 +137,7 @@ export const getValidTargets = (
       }
     }
   }
-  
+
   // Add creature/artifact targets
   if (selector.targetType === 'creature' || selector.targetType === 'artifact' || selector.targetType === 'any') {
     for (const battlefield of doc.playerBattlefields) {
@@ -149,7 +149,7 @@ export const getValidTargets = (
           playerId: battlefield.playerId,
           instanceId: battlefieldCard.instanceId
         };
-        
+
         const validation = validateTarget(target, selector, doc, actualSourceId);
         if (validation.isValid) {
           validTargets.push(target);
@@ -157,7 +157,7 @@ export const getValidTargets = (
       }
     }
   }
-  
+
   return validTargets;
 };
 
@@ -170,14 +170,14 @@ export const getAutoTargets = (
   if (!selector.autoTarget) {
     return [];
   }
-  
+
   const validTargets = getValidTargets(selector, doc, sourcerId);
 
   // For single target selectors, auto-target if only one option
   if (selector.targetCount === 1 && validTargets.length === 1) {
     return validTargets;
   }
-  
+
   return [];
 };
 
@@ -187,7 +187,7 @@ export const getTargetingSelectorForAttack = (
   sourcerId: AutomergeUrl
 ): TargetSelector => {
   const attackTargeting = creatureCard.attackTargeting;
-  
+
   if (!attackTargeting) {
     // Default: can attack enemy units only (not self/own units)
     return {
@@ -202,7 +202,7 @@ export const getTargetingSelectorForAttack = (
       sourcerId
     };
   }
-  
+
   return {
     targetCount: 1,
     targetType: 'any',

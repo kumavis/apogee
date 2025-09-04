@@ -123,7 +123,7 @@ const CardEditor: React.FC<CardEditorProps> = ({
 
   const handleUpdateCard = async () => {
     if (!editingCard || editingCard.isBuiltin) return;
-    
+
     if (!newCardData.name.trim()) {
       alert('Please fill in the card name');
       return;
@@ -157,13 +157,13 @@ const CardEditor: React.FC<CardEditorProps> = ({
               hasSpellEffect: 'spellEffect' in doc,
               hasTriggeredAbilities: 'triggeredAbilities' in doc
             });
-            
+
             // Update basic properties - ensure we're setting primitive values
             doc.name = newCardData.name.trim();
             doc.cost = newCardData.cost;
             doc.type = newCardData.type;
             doc.description = newCardData.description;
-            
+
             // Handle creature-specific properties
             if (newCardData.type === 'creature') {
               doc.attack = newCardData.attack || 0;
@@ -171,7 +171,7 @@ const CardEditor: React.FC<CardEditorProps> = ({
               // Remove attack for non-creatures
               delete doc.attack;
             }
-            
+
             // Handle health for creatures and artifacts
             if (newCardData.type === 'creature' || newCardData.type === 'artifact') {
               doc.health = newCardData.health || 0;
@@ -179,14 +179,14 @@ const CardEditor: React.FC<CardEditorProps> = ({
               // Remove health for spells
               delete doc.health;
             }
-            
+
             // Handle spell effect
             if (newCardData.spellEffect?.trim()) {
               doc.spellEffect = newCardData.spellEffect.trim();
             } else {
               delete doc.spellEffect;
             }
-            
+
             // Handle triggered abilities - ensure we create completely new objects
             if (newCardData.triggeredAbilities.length > 0) {
               // Create a completely new array with new objects to avoid any reference issues
@@ -202,14 +202,14 @@ const CardEditor: React.FC<CardEditorProps> = ({
             } else {
               delete doc.triggeredAbilities;
             }
-            
+
             // Handle renderer
             if (newCardData.renderer) {
               doc.renderer = newCardData.renderer;
             } else {
               delete doc.renderer;
             }
-            
+
             console.log('Document updated successfully');
           } catch (updateError) {
             console.error('Error during document update:', updateError);
@@ -225,7 +225,7 @@ const CardEditor: React.FC<CardEditorProps> = ({
         console.log('Card update completed successfully');
         // Reset form on successful update
         onCancel();
-      } catch (error) { 
+      } catch (error) {
         console.error('Error updating card:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         alert(`Error updating card: ${errorMessage}`);
@@ -248,7 +248,7 @@ const CardEditor: React.FC<CardEditorProps> = ({
 
   const handleCloneCard = () => {
     if (!editingCard) return;
-    
+
     // Clear the editing state and create a new card based on current form values
     onClone({
       name: `${newCardData.name} (Copy)`,
@@ -281,7 +281,7 @@ const CardEditor: React.FC<CardEditorProps> = ({
   const updateTriggeredAbility = (index: number, field: keyof ArtifactAbility, value: string) => {
     setNewCardData(prev => ({
       ...prev,
-      triggeredAbilities: prev.triggeredAbilities.map((ability, i) => 
+      triggeredAbilities: prev.triggeredAbilities.map((ability, i) =>
         i === index ? { ...ability, [field]: value } : ability
       )
     }));
@@ -302,22 +302,22 @@ const CardEditor: React.FC<CardEditorProps> = ({
       padding: 24,
       marginBottom: 32
     }}>
-      <h3 style={{ 
-        margin: '0 0 24px 0', 
-        color: '#00ffff', 
+      <h3 style={{
+        margin: '0 0 24px 0',
+        color: '#00ffff',
         fontSize: 24,
         textAlign: 'center'
       }}>
-        {editingCard ? 
-          (editingCard.isBuiltin ? '🔍 View Builtin Card' : '✏️ Edit Card') : 
+        {editingCard ?
+          (editingCard.isBuiltin ? '🔍 View Builtin Card' : '✏️ Edit Card') :
           '🎨 Create New Card'
         }
       </h3>
-      
+
       {/* Card Designer Layout */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: '400px 1fr', 
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '400px 1fr',
         gap: 32,
         alignItems: 'start'
       }}>
@@ -328,8 +328,8 @@ const CardEditor: React.FC<CardEditorProps> = ({
           alignItems: 'center',
           justifyContent: 'center'
         }}>
-          <div style={{ 
-            transform: 'scale(3.2)', 
+          <div style={{
+            transform: 'scale(3.2)',
             top: 184,
             position: 'relative'
           }}>
@@ -356,8 +356,8 @@ const CardEditor: React.FC<CardEditorProps> = ({
           borderRadius: 12,
           padding: 24
         }}>
-          <h4 style={{ 
-            margin: '0 0 20px 0', 
+          <h4 style={{
+            margin: '0 0 20px 0',
             color: '#00ffff',
             fontSize: 18,
             borderBottom: '1px solid rgba(0,255,255,0.3)',
@@ -370,10 +370,10 @@ const CardEditor: React.FC<CardEditorProps> = ({
           <div style={{ marginBottom: 24 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 4fr', gap: 16, marginBottom: 16 }}>
               <div>
-                <label style={{ 
-                  display: 'block', 
-                  marginBottom: 6, 
-                  fontSize: 14, 
+                <label style={{
+                  display: 'block',
+                  marginBottom: 6,
+                  fontSize: 14,
                   opacity: 0.9,
                   color: '#00ffff',
                   fontWeight: 600
@@ -413,10 +413,10 @@ const CardEditor: React.FC<CardEditorProps> = ({
                 />
               </div>
               <div>
-                <label style={{ 
-                  display: 'block', 
-                  marginBottom: 6, 
-                  fontSize: 14, 
+                <label style={{
+                  display: 'block',
+                  marginBottom: 6,
+                  fontSize: 14,
                   opacity: 0.9,
                   color: '#00ffff',
                   fontWeight: 600
@@ -431,9 +431,9 @@ const CardEditor: React.FC<CardEditorProps> = ({
                     const start = target.selectionStart;
                     const end = target.selectionEnd;
                     const value = target.value;
-                    
+
                     setNewCardData(prev => ({ ...prev, name: value }));
-                    
+
                     // Preserve cursor position after state update
                     setTimeout(() => {
                       target.setSelectionRange(start, end);
@@ -470,10 +470,10 @@ const CardEditor: React.FC<CardEditorProps> = ({
 
             {/* Card Type Selection */}
             <div style={{ marginBottom: 16 }}>
-              <label style={{ 
-                display: 'block', 
-                marginBottom: 8, 
-                fontSize: 14, 
+              <label style={{
+                display: 'block',
+                marginBottom: 8,
+                fontSize: 14,
                 opacity: 0.9,
                 color: '#00ffff',
                 fontWeight: 600
@@ -490,11 +490,11 @@ const CardEditor: React.FC<CardEditorProps> = ({
                       flex: 1,
                       padding: '12px 16px',
                       borderRadius: 8,
-                      border: newCardData.type === type ? 
-                        '2px solid rgba(0,255,255,0.8)' : 
+                      border: newCardData.type === type ?
+                        '2px solid rgba(0,255,255,0.8)' :
                         '2px solid rgba(255,255,255,0.2)',
-                      background: newCardData.type === type ? 
-                        'rgba(0,255,255,0.2)' : 
+                      background: newCardData.type === type ?
+                        'rgba(0,255,255,0.2)' :
                         'rgba(0,0,0,0.3)',
                       color: newCardData.type === type ? '#00ffff' : '#fff',
                       cursor: editingCard?.isBuiltin ? 'not-allowed' : 'pointer',
@@ -515,18 +515,18 @@ const CardEditor: React.FC<CardEditorProps> = ({
                       }
                     }}
                   >
-                  {type === 'creature' ? '🐲' : type === 'spell' ? '⚡' : '🔧'} {type}
-                </button>
+                    {type === 'creature' ? '🐲' : type === 'spell' ? '⚡' : '🔧'} {type}
+                  </button>
                 ))}
               </div>
             </div>
 
             {/* Description */}
             <div style={{ marginBottom: 16 }}>
-              <label style={{ 
-                display: 'block', 
-                marginBottom: 6, 
-                fontSize: 14, 
+              <label style={{
+                display: 'block',
+                marginBottom: 6,
+                fontSize: 14,
                 opacity: 0.9,
                 color: '#00ffff',
                 fontWeight: 600
@@ -540,9 +540,9 @@ const CardEditor: React.FC<CardEditorProps> = ({
                   const start = target.selectionStart;
                   const end = target.selectionEnd;
                   const value = target.value;
-                  
+
                   setNewCardData(prev => ({ ...prev, description: value }));
-                  
+
                   // Preserve cursor position after state update
                   setTimeout(() => {
                     target.setSelectionRange(start, end);
@@ -579,10 +579,10 @@ const CardEditor: React.FC<CardEditorProps> = ({
 
             {/* Creature/Artifact Stats */}
             {(newCardData.type === 'creature' || newCardData.type === 'artifact') && (
-              <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: newCardData.type === 'creature' ? '1fr 1fr' : '1fr', 
-                gap: 16, 
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: newCardData.type === 'creature' ? '1fr 1fr' : '1fr',
+                gap: 16,
                 marginBottom: 16,
                 padding: 16,
                 background: 'rgba(255,100,100,0.1)',
@@ -591,54 +591,54 @@ const CardEditor: React.FC<CardEditorProps> = ({
               }}>
                 {newCardData.type === 'creature' && (
                   <div>
-                    <label style={{ 
-                      display: 'block', 
-                      marginBottom: 6, 
-                      fontSize: 14, 
+                    <label style={{
+                      display: 'block',
+                      marginBottom: 6,
+                      fontSize: 14,
                       opacity: 0.9,
                       color: '#ff6666',
                       fontWeight: 600
                     }}>
                       ⚔️ Attack
                     </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="20"
-                    value={newCardData.attack || 1}
-                    onChange={(e) => setNewCardData(prev => ({ ...prev, attack: parseInt(e.target.value) || 1 }))}
-                    disabled={editingCard?.isBuiltin}
-                    style={{
-                      width: '100%',
-                      padding: '12px 16px',
-                      borderRadius: 8,
-                      border: '2px solid rgba(255,100,100,0.3)',
-                      background: editingCard?.isBuiltin ? 'rgba(100,100,100,0.4)' : 'rgba(0,0,0,0.4)',
-                      color: editingCard?.isBuiltin ? '#999' : '#fff',
-                      fontSize: 16,
-                      fontWeight: 600,
-                      textAlign: 'center',
-                      outline: 'none',
-                      cursor: editingCard?.isBuiltin ? 'not-allowed' : 'text'
-                    }}
-                    onFocus={(e) => {
-                      if (!editingCard?.isBuiltin) {
-                        e.target.style.borderColor = 'rgba(255,100,100,0.6)';
-                      }
-                    }}
-                    onBlur={(e) => {
-                      if (!editingCard?.isBuiltin) {
-                        e.target.style.borderColor = 'rgba(255,100,100,0.3)';
-                      }
-                    }}
-                  />
+                    <input
+                      type="number"
+                      min="0"
+                      max="20"
+                      value={newCardData.attack || 1}
+                      onChange={(e) => setNewCardData(prev => ({ ...prev, attack: parseInt(e.target.value) || 1 }))}
+                      disabled={editingCard?.isBuiltin}
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        borderRadius: 8,
+                        border: '2px solid rgba(255,100,100,0.3)',
+                        background: editingCard?.isBuiltin ? 'rgba(100,100,100,0.4)' : 'rgba(0,0,0,0.4)',
+                        color: editingCard?.isBuiltin ? '#999' : '#fff',
+                        fontSize: 16,
+                        fontWeight: 600,
+                        textAlign: 'center',
+                        outline: 'none',
+                        cursor: editingCard?.isBuiltin ? 'not-allowed' : 'text'
+                      }}
+                      onFocus={(e) => {
+                        if (!editingCard?.isBuiltin) {
+                          e.target.style.borderColor = 'rgba(255,100,100,0.6)';
+                        }
+                      }}
+                      onBlur={(e) => {
+                        if (!editingCard?.isBuiltin) {
+                          e.target.style.borderColor = 'rgba(255,100,100,0.3)';
+                        }
+                      }}
+                    />
                   </div>
                 )}
                 <div>
-                  <label style={{ 
-                    display: 'block', 
-                    marginBottom: 6, 
-                    fontSize: 14, 
+                  <label style={{
+                    display: 'block',
+                    marginBottom: 6,
+                    fontSize: 14,
                     opacity: 0.9,
                     color: '#66ff66',
                     fontWeight: 600
@@ -682,21 +682,21 @@ const CardEditor: React.FC<CardEditorProps> = ({
 
             {/* Triggered Abilities Section */}
             {(newCardData.type === 'creature' || newCardData.type === 'artifact') && (
-              <div style={{ 
+              <div style={{
                 padding: 16,
                 background: 'rgba(128,0,128,0.05)',
                 border: '1px solid rgba(128,0,128,0.3)',
                 borderRadius: 8,
                 marginBottom: 16
               }}>
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
                   alignItems: 'center',
                   marginBottom: 16
                 }}>
-                  <label style={{ 
-                    fontSize: 14, 
+                  <label style={{
+                    fontSize: 14,
                     opacity: 0.9,
                     color: '#bb88ff',
                     fontWeight: 600
@@ -890,17 +890,17 @@ const CardEditor: React.FC<CardEditorProps> = ({
 
             {/* Advanced Spell Effects */}
             {newCardData.type === 'spell' && (
-              <div style={{ 
+              <div style={{
                 padding: 16,
                 background: 'rgba(255,255,0,0.05)',
                 border: '1px solid rgba(255,255,0,0.3)',
                 borderRadius: 8,
                 marginBottom: 16
               }}>
-                <label style={{ 
-                  display: 'block', 
-                  marginBottom: 6, 
-                  fontSize: 14, 
+                <label style={{
+                  display: 'block',
+                  marginBottom: 6,
+                  fontSize: 14,
                   opacity: 0.9,
                   color: '#ffff66',
                   fontWeight: 600
@@ -917,36 +917,36 @@ const CardEditor: React.FC<CardEditorProps> = ({
                   Leave empty for basic spells. Example: api.dealDamageToPlayer(targetPlayerId, 3);
                 </div>
                 <MonacoCodeEditor
-                 value={newCardData.spellEffect || ''}
-                 defaultHeight="400px"
-                 onChange={(value) => {
-                   setNewCardData(prev => ({ ...prev, spellEffect: value }));
-                 }}
-                 disabled={editingCard?.isBuiltin}
-                 resizable={true}
-                 collapsible={true}
-                 title="Spell Effect Code"
-               />
+                  value={newCardData.spellEffect || ''}
+                  defaultHeight="400px"
+                  onChange={(value) => {
+                    setNewCardData(prev => ({ ...prev, spellEffect: value }));
+                  }}
+                  disabled={editingCard?.isBuiltin}
+                  resizable={true}
+                  collapsible={true}
+                  title="Spell Effect Code"
+                />
               </div>
             )}
 
             {/* Renderer Section - Only show for non-builtin cards */}
             {!editingCard?.isBuiltin && (
-              <div style={{ 
+              <div style={{
                 padding: 16,
                 background: 'rgba(255,165,0,0.05)',
                 border: '1px solid rgba(255,165,0,0.3)',
                 borderRadius: 8,
                 marginBottom: 16
               }}>
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
                   alignItems: 'center',
                   marginBottom: 16
                 }}>
-                  <label style={{ 
-                    fontSize: 14, 
+                  <label style={{
+                    fontSize: 14,
                     opacity: 0.9,
                     color: '#ffaa00',
                     fontWeight: 600
@@ -960,9 +960,9 @@ const CardEditor: React.FC<CardEditorProps> = ({
                       if (value === 'default') {
                         setNewCardData(prev => ({ ...prev, renderer: null }));
                       } else if (value === 'image') {
-                        setNewCardData(prev => ({ 
-                          ...prev, 
-                          renderer: { type: 'image', url: '' } as ImageRendererDesc 
+                        setNewCardData(prev => ({
+                          ...prev,
+                          renderer: { type: 'image', url: '' } as ImageRendererDesc
                         }));
                       }
                     }}
@@ -1000,9 +1000,9 @@ const CardEditor: React.FC<CardEditorProps> = ({
                       }
                     }}
                     initialImage={
-                      newCardData.renderer?.type === 'image' && (newCardData.renderer as ImageRendererDesc).url ? 
-                      (newCardData.renderer as ImageRendererDesc).url : 
-                      null
+                      newCardData.renderer?.type === 'image' && (newCardData.renderer as ImageRendererDesc).url ?
+                        (newCardData.renderer as ImageRendererDesc).url :
+                        null
                     }
                     width={240}
                     height={336}
@@ -1029,9 +1029,9 @@ const CardEditor: React.FC<CardEditorProps> = ({
             )}
 
             {/* Action Buttons */}
-            <div style={{ 
-              display: 'flex', 
-              gap: 16, 
+            <div style={{
+              display: 'flex',
+              gap: 16,
               justifyContent: 'center',
               marginTop: 24,
               paddingTop: 20,

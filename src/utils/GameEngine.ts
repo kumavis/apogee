@@ -3,11 +3,11 @@ import { GameDoc, createGame, BattlefieldCardState, PlayerBattlefield } from "..
 import { DeckDoc } from "../docs/deck";
 import { CardDoc } from "../docs/card";
 import { playSound } from "./audioUtils";
-import { 
-  executeSpellEffect, 
-  createSpellEffectAPI, 
-  SpellTargetSelector, 
-  SpellTarget, 
+import {
+  executeSpellEffect,
+  createSpellEffectAPI,
+  SpellTargetSelector,
+  SpellTarget,
   executeArtifactAbility as executeTriggeredAbility,
   createArtifactEffectAPI as createTriggeredAbilityApi,
   executeSpellOperations,
@@ -80,7 +80,7 @@ export class GameEngine {
       if (cachedHandle) {
         return cachedHandle.doc();
       }
-      
+
       // If not in cache, load it and cache the handle
       const cardHandle = await this.repo.find<CardDoc>(cardUrl);
       const cardDoc = cardHandle.doc();
@@ -104,14 +104,14 @@ export class GameEngine {
    */
   async loadCardDocs(cardUrls: AutomergeUrl[]): Promise<Map<AutomergeUrl, CardDoc>> {
     const cardMap = new Map<AutomergeUrl, CardDoc>();
-    
+
     await Promise.all(cardUrls.map(async (cardUrl) => {
       const cardDoc = await this.getCardFromMap(cardUrl);
       if (cardDoc) {
         cardMap.set(cardUrl, cardDoc);
       }
     }));
-    
+
     return cardMap;
   }
 
@@ -140,14 +140,14 @@ export class GameEngine {
           console.error(`GameEngine.addCardToBattlefield: Battlefield not found for playerId: ${playerId}`);
           return;
         }
-        
+
         doc.playerBattlefields[battlefieldIndex].cards.push({
           instanceId,
           sapped: cardDoc!.type === 'creature', // Only creatures start sapped (summoning sickness), artifacts do not
           currentHealth: cardDoc!.health || 1 // Set initial health from card definition, default to 1
         });
       });
-      
+
       return true;
     } catch (error) {
       console.error(`GameEngine.addCardToBattlefield: Error adding card ${instanceId}:`, error);
@@ -159,7 +159,7 @@ export class GameEngine {
    * Cast a spell
    */
   async castSpell(
-    playerId: AutomergeUrl, 
+    playerId: AutomergeUrl,
     instanceId: string,
     selectTargetsImpl: (selector: SpellTargetSelector) => Promise<SpellTarget[]>
   ): Promise<boolean> {
@@ -190,15 +190,15 @@ export class GameEngine {
 
       // Create the spell effect API with current game state
       const api = createSpellEffectAPI(currentDoc, playerId, selectTargetsImpl);
-      
+
       // Execute the spell effect
       const success = await executeSpellEffect(cardDoc.spellEffect, api);
-      
+
       if (success) {
         // Apply operations to the game document
         this.gameDocHandle.change((doc) => {
           executeSpellOperations(doc, api.operations);
-          
+
           // Add to game log
           addGameLogEntry(doc, {
             playerId,
@@ -208,7 +208,7 @@ export class GameEngine {
           });
         });
       }
-      
+
       return success;
     } catch (error) {
       console.error(`GameEngine.castSpell: Error casting spell ${instanceId}:`, error);
@@ -228,7 +228,7 @@ export class GameEngine {
    * Play a card (main entry point for card playing)
    */
   async playCard(
-    playerId: AutomergeUrl, 
+    playerId: AutomergeUrl,
     instanceId: string,
     selectTargetsImpl?: (selector: SpellTargetSelector) => Promise<SpellTarget[]>
   ): Promise<boolean> {
@@ -250,7 +250,7 @@ export class GameEngine {
       // Check if card is in hand
       const playerHandIndex = currentDoc.playerHands.findIndex(hand => hand.playerId === playerId);
       const cardInHand = playerHandIndex !== -1 ? currentDoc.playerHands[playerHandIndex].cards.includes(instanceId) : false;
-      
+
       // Check if player can afford the card
       const playerStateIndex = currentDoc.playerStates.findIndex(state => state.playerId === playerId);
       const canAfford = playerStateIndex !== -1 ? currentDoc.playerStates[playerStateIndex].energy >= cardDoc!.cost : false;
@@ -283,7 +283,7 @@ export class GameEngine {
           console.error(`GameEngine.playCard: Failed to add card ${instanceId} to battlefield for player ${playerId}`);
           return false;
         }
-        
+
         // Execute play_card abilities for all players (artifacts and creatures)
         const currentDoc = this.gameDocHandle.doc();
         for (const p of currentDoc.players) {
@@ -291,7 +291,7 @@ export class GameEngine {
             await this.executeTriggeredAbilities('play_card', p, currentDoc, selectTargetsImpl);
           }
         }
-        
+
         // Add to game log
         this.gameDocHandle.change((doc) => {
           addGameLogEntry(doc, {
@@ -306,18 +306,18 @@ export class GameEngine {
         this.gameDocHandle.change((doc) => {
           addCardToGraveyard(doc, instanceId);
         });
-        
+
         // Execute play_card abilities for all players (spells also trigger this)
         const currentDoc = this.gameDocHandle.doc();
         for (const p of currentDoc.players) {
           await this.executeTriggeredAbilities('play_card', p, currentDoc, selectTargetsImpl);
         }
-        
+
         // Execute spell effect if it has one
         if (cardDoc.spellEffect && selectTargetsImpl) {
           const api = createSpellEffectAPI(currentDoc, playerId, selectTargetsImpl);
           const success = await executeSpellEffect(cardDoc.spellEffect, api);
-          
+
           if (success) {
             // Execute triggered abilities for creatures/artifacts that took damage
             await this.executeSpellTriggeredAbilities(api.operations);
@@ -326,9 +326,9 @@ export class GameEngine {
             this.gameDocHandle.change((doc) => {
               executeSpellOperations(doc, api.operations);
             });
-            
+
           }
-          
+
           if (!success) {
             console.error(`GameEngine.playCard: Spell effect failed for card ${instanceId}`);
             // Add failure log entry
@@ -357,7 +357,7 @@ export class GameEngine {
         // Other card types go to graveyard
         this.gameDocHandle.change((doc) => {
           addCardToGraveyard(doc, instanceId);
-          
+
           addGameLogEntry(doc, {
             playerId,
             action: 'play_card',
@@ -370,7 +370,7 @@ export class GameEngine {
       return true;
     } catch (error) {
       console.error(`GameEngine.playCard: Error playing card ${instanceId}:`, error);
-      
+
       // Try to get card name for error logging
       let cardName = 'Unknown Card';
       try {
@@ -385,7 +385,7 @@ export class GameEngine {
       } catch (nameError) {
         // Ignore errors when trying to get card name
       }
-      
+
       // Add error log entry
       this.gameDocHandle.change((doc) => {
         addGameLogEntry(doc, {
@@ -395,7 +395,7 @@ export class GameEngine {
           description: `Failed to play ${cardName}`
         });
       });
-      
+
       return false;
     }
   }
@@ -404,9 +404,9 @@ export class GameEngine {
    * Attack a player with a creature
    */
   async attackPlayerWithCreature(
-    attackerId: AutomergeUrl, 
-    instanceId: string, 
-    targetPlayerId: AutomergeUrl, 
+    attackerId: AutomergeUrl,
+    instanceId: string,
+    targetPlayerId: AutomergeUrl,
     damage: number,
     gameDoc: any
   ): Promise<boolean> {
@@ -415,7 +415,7 @@ export class GameEngine {
       const currentDoc = this.gameDocHandle.doc();
       const battlefield = currentDoc.playerBattlefields.find(b => b.playerId === attackerId);
       const battlefieldCard = battlefield?.cards.find(c => c.instanceId === instanceId);
-      
+
       let creatureName = 'Unknown Creature';
       if (battlefieldCard) {
         const creatureCard = await this.getCardFromMap(gameDoc.instanceToCardUrl[battlefieldCard.instanceId]);
@@ -449,14 +449,14 @@ export class GameEngine {
       if (!attackSucceeded) {
         return false;
       }
-      
+
       // Trigger deal_damage abilities for the attacking creature
       await this.executeTriggeredAbilitiesForCreature('deal_damage', attackerId, instanceId, currentDoc, undefined, {
         damageTarget: { playerId: targetPlayerId },
         damageAmount: damage
       });
-      
-      
+
+
       return true;
     } catch (error) {
       console.error(`GameEngine.attackPlayerWithCreature: Error during attack:`, error);
@@ -468,25 +468,25 @@ export class GameEngine {
    * Attack a creature with another creature
    */
   async attackCreatureWithCreature(
-    attackerId: AutomergeUrl, 
-    attackerInstanceId: string, 
-    targetPlayerId: AutomergeUrl, 
+    attackerId: AutomergeUrl,
+    attackerInstanceId: string,
+    targetPlayerId: AutomergeUrl,
     targetInstanceId: string,
     gameDoc: GameDoc,
     selectTargetsImpl?: (selector: SpellTargetSelector) => Promise<SpellTarget[]>
   ): Promise<boolean> {
     try {
       const currentDoc = this.gameDocHandle.doc();
-      
+
       // Find the attacker
       const attackerBattlefield = currentDoc.playerBattlefields.find(b => b.playerId === attackerId);
       const attackerCard = attackerBattlefield?.cards.find(c => c.instanceId === attackerInstanceId);
-      
+
       let attackerGameCard: CardDoc | null = null;
       if (attackerCard) {
         attackerGameCard = await this.getCardFromMap(gameDoc.instanceToCardUrl[attackerCard.instanceId]);
       }
-      
+
       if (!attackerCard || !attackerGameCard) {
         console.error(`GameEngine.attackCreatureWithCreature: Invalid attacker ${attackerInstanceId}`);
         return false;
@@ -495,12 +495,12 @@ export class GameEngine {
       // Find the target
       const targetBattlefield = currentDoc.playerBattlefields.find(b => b.playerId === targetPlayerId);
       const targetCard = targetBattlefield?.cards.find(c => c.instanceId === targetInstanceId);
-      
+
       let targetGameCard: CardDoc | null = null;
       if (targetCard) {
         targetGameCard = await this.getCardFromMap(gameDoc.instanceToCardUrl[targetCard.instanceId]);
       }
-      
+
       if (!targetCard || !targetGameCard) {
         console.error(`GameEngine.attackCreatureWithCreature: Invalid target ${targetInstanceId}`);
         return false;
@@ -582,7 +582,7 @@ export class GameEngine {
           const stillExistsAttacker = doc.playerBattlefields
             .find(b => b.playerId === attackerId)?.cards
             .find(c => c.instanceId === attackerInstanceId);
-          
+
           if (stillExistsAttacker) {
             dealDamageToCreature(doc, attackerId, attackerInstanceId, targetDamage);
           }
@@ -607,13 +607,13 @@ export class GameEngine {
         console.error(`GameEngine.healCreatures: Battlefield not found for playerId: ${playerId}`);
         return false;
       }
-      
+
       let healedCount = 0;
-      
+
       // Heal all creatures by 1 health (not artifacts)
       for (const battlefieldCard of currentDoc.playerBattlefields[battlefieldIndex].cards) {
         const card = await this.getCardFromMap(gameDoc.instanceToCardUrl[battlefieldCard.instanceId]);
-        
+
         if (card && card.type === 'creature') {
           const maxHealth = card.health || 1;
           if (battlefieldCard.currentHealth < maxHealth) {
@@ -628,7 +628,7 @@ export class GameEngine {
           }
         }
       }
-      
+
       if (healedCount > 0) {
         this.gameDocHandle.change((doc) => {
           addGameLogEntry(doc, {
@@ -638,7 +638,7 @@ export class GameEngine {
           });
         });
       }
-      
+
       return true;
     } catch (error) {
       console.error(`GameEngine.healCreatures: Error healing creatures:`, error);
@@ -662,29 +662,29 @@ export class GameEngine {
 
       for (const battlefieldCard of playerBattlefield.cards) {
         const card = await this.getCardFromMap(gameDoc.instanceToCardUrl[battlefieldCard.instanceId]);
-        
+
         // Process both artifacts and creatures with abilities
         if (card?.triggeredAbilities) {
           const abilitiesToExecute = card.triggeredAbilities;
-          
+
           // Execute each ability that matches the trigger
           for (const ability of abilitiesToExecute) {
             if (ability.trigger === trigger) {
               try {
                 // Create a no-op target selector if none provided
                 const targetSelector = selectTargetsImpl || (async () => []);
-                
+
                 // Create the effect API (same API works for both artifacts and creatures)
                 const api = createTriggeredAbilityApi(currentDoc, playerId, battlefieldCard.instanceId, targetSelector);
-                
+
                 // Execute the ability with context
                 const success = await executeTriggeredAbility(ability.effectCode, api);
-                
+
                 if (success) {
                   // Execute collected operations
                   this.gameDocHandle.change((doc) => {
                     executeSpellOperations(doc, api.operations);
-                    
+
                     // Add to game log
                     addGameLogEntry(doc, {
                       playerId,
@@ -692,7 +692,7 @@ export class GameEngine {
                       description: `${card!.name}: ${ability.description || 'triggered ability'}`
                     });
                   });
-                  
+
                 }
               } catch (error) {
                 console.error(`GameEngine.executeTriggeredAbilities: Error executing ability for ${card.name}:`, error);
@@ -717,7 +717,7 @@ export class GameEngine {
     playerId: AutomergeUrl;
   } | null {
     const currentDoc = this.gameDocHandle.doc();
-    
+
     for (const playerBattlefield of currentDoc.playerBattlefields) {
       const battlefieldCard = playerBattlefield.cards.find(card => card.instanceId === instanceId);
       if (battlefieldCard) {
@@ -728,7 +728,7 @@ export class GameEngine {
         };
       }
     }
-    
+
     return null;
   }
 
@@ -766,7 +766,7 @@ export class GameEngine {
           try {
             // Create a no-op target selector if none provided
             const targetSelector = selectTargetsImpl || (async () => []);
-            
+
             // Execute the ability with context
             const api = createTriggeredAbilityApi(currentDoc, playerId, instanceId, targetSelector, triggerContext);
             const success = await executeTriggeredAbility(ability.effectCode, api, triggerContext);
@@ -775,7 +775,7 @@ export class GameEngine {
               // Execute collected operations
               this.gameDocHandle.change((doc) => {
                 executeSpellOperations(doc, api.operations);
-                
+
                 // Add to game log
                 addGameLogEntry(doc, {
                   playerId,
@@ -783,7 +783,7 @@ export class GameEngine {
                   description: `${card!.name}: ${ability.description || 'triggered ability'}`
                 });
               });
-              
+
             }
           } catch (error) {
             console.error(`GameEngine.executeTriggeredAbilitiesForCreature: Error executing ability for ${card.name}:`, error);
@@ -810,10 +810,10 @@ export class GameEngine {
   async endPlayerTurn(playerId: AutomergeUrl, currentPlayerId?: AutomergeUrl): Promise<void> {
     try {
       const currentDoc = this.gameDocHandle.doc();
-      
+
       // Play turn over sound when ending turn
       playSound('turnOver');
-      
+
       // Add to game log FIRST, before any next player actions
       this.gameDocHandle.change((doc) => {
         addGameLogEntry(doc, {
@@ -831,34 +831,34 @@ export class GameEngine {
         const nextPlayerIndex = advanceToNextPlayer(doc);
         nextPlayerId = doc.players[nextPlayerIndex];
       });
-      
+
       // Play turn start sound if the next player is the current player viewing the game
       if (currentPlayerId && nextPlayerId && nextPlayerId === currentPlayerId) {
         playSound('turnStart');
       }
-      
+
       // Execute start-of-turn abilities for next player BEFORE drawing
       await this.executeTriggeredAbilities('start_turn', nextPlayerId!, currentDoc);
-      
+
       // Draw a card for the next player (start of their turn)
       this.gameDocHandle.change((doc) => {
         drawCard(doc, nextPlayerId!);
-        
+
         // Refresh creatures for the next player (unsap them)
         refreshCreatures(doc, nextPlayerId!);
       });
-      
+
       // Heal creatures for the next player (only creatures, not artifacts)
       await this.healCreatures(nextPlayerId!, currentDoc);
-      
+
       // If we've gone through all players, increment turn and increase max energy
       this.gameDocHandle.change((doc) => {
         const currentDoc = this.gameDocHandle.doc();
         const nextPlayerIndex = currentDoc.players.indexOf(nextPlayerId!);
-        
+
         if (nextPlayerIndex === 0) {
           incrementTurn(doc);
-          
+
           // Increase max energy for all players and restore their energy
           doc.playerStates.forEach(playerState => {
             increaseMaxEnergy(doc, playerState.playerId);
@@ -882,11 +882,11 @@ export class GameEngine {
     if (!deckHandle) {
       throw new Error(`GameEngine.createGameDeckFromDeck: Deck not found for URL: ${deckUrl}`);
     }
-    
+
     const deckDoc = deckHandle.doc();
     const gameDeck: string[] = [];
     const instanceToCardUrl: Record<string, AutomergeUrl> = {};
-    
+
     // Expand each deck card according to its quantity, creating unique instance IDs
     for (const deckCard of deckDoc.cards) {
       for (let i = 0; i < deckCard.quantity; i++) {
@@ -896,7 +896,7 @@ export class GameEngine {
         instanceToCardUrl[instanceId] = deckCard.cardUrl;
       }
     }
-    
+
     return { gameDeck, instanceToCardUrl };
   }
 
@@ -907,19 +907,19 @@ export class GameEngine {
     try {
       // Create game deck from the selected deck
       const { gameDeck, instanceToCardUrl } = await this.createGameDeckFromDeck(deckUrl);
-      
+
       // Shuffle the deck (Fisher-Yates shuffle)
       const shuffledDeck = [...gameDeck];
       for (let i = shuffledDeck.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [shuffledDeck[i], shuffledDeck[j]] = [shuffledDeck[j], shuffledDeck[i]];
       }
-      
+
       // Initialize the game state with the shuffled deck
       this.gameDocHandle.change((doc) => {
         initializeGame(doc, shuffledDeck, instanceToCardUrl);
       });
-      
+
       console.log(`GameEngine.startGameWithDeck: Started game with ${shuffledDeck.length} cards`);
       return true;
     } catch (error) {
@@ -933,7 +933,7 @@ export class GameEngine {
    */
   createRematchGame(): DocHandle<GameDoc> {
     const currentDoc = this.gameDocHandle.doc();
-    
+
     // Create a new game with the same players and deck
     const rematchHandle = createGame(this.repo, {
       createdAt: Date.now(),
@@ -950,14 +950,14 @@ export class GameEngine {
       turn: 0,
       gameLog: []
     });
-    
+
     const rematchId = rematchHandle.url;
-    
+
     // Update the original game to reference the rematch
     this.gameDocHandle.change((doc) => {
       doc.rematchGameId = rematchId;
     });
-    
+
     console.log(`GameEngine.createRematchGame: Created rematch game: ${rematchId}`);
     return rematchHandle;
   }

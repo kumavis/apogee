@@ -13,12 +13,12 @@
 export function getAssetPath(assetPath: string): string {
   // Remove leading slash if present to normalize the path
   const normalizedPath = assetPath.startsWith('/') ? assetPath.slice(1) : assetPath;
-  
+
   // In development, use the direct path
   if (import.meta.env.DEV) {
     return `/${normalizedPath}`;
   }
-  
+
   // In production, use the base path configured in vite.config.ts
   const base = import.meta.env.BASE_URL || '/';
   return `${base}${normalizedPath}`;
