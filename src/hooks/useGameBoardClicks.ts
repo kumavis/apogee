@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { AutomergeUrl, DocHandle, DocHandleEphemeralMessagePayload } from '@automerge/react';
 import { GameDoc } from '../docs/game';
+import { playSound } from '../utils/audioUtils';
 
 type BoardClickMessage = {
   type: 'board-click';
@@ -70,6 +71,9 @@ export const useGameBoardClicks = (
     if (target.closest('button') || target.closest('[role="button"]') || target.closest('.card') || target.closest('[data-interactive]')) {
       return;
     }
+    
+    // Play click sound immediately when board is clicked
+    playSound('click');
     
     const rect = event.currentTarget.getBoundingClientRect();
     const x = ((event.clientX - rect.left) / rect.width) * 100;

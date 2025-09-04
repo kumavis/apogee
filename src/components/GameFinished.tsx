@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AutomergeUrl, useDocument } from '@automerge/react';
 import { GameDoc } from '../docs/game';
 import { ContactDoc } from '../docs/contact';
 import { useGameNavigation } from '../hooks/useGameNavigation';
 import GameLog from './GameLog';
+import { playSound } from '../utils/audioUtils';
 
 type GameFinishedProps = {
   gameDoc: GameDoc;
@@ -24,6 +25,13 @@ const GameFinished: React.FC<GameFinishedProps> = ({
   // Find the winner (player with health > 0)
   const winner = gameDoc.playerStates?.find(state => state.health > 0);
   const isWinner = winner?.playerId === selfId;
+
+  // Play death sound if player lost
+  useEffect(() => {
+    if (!isWinner) {
+      playSound('playerDied');
+    }
+  }, [isWinner]);
   
   // Get game statistics
   const totalTurns = gameDoc.turn || 1;

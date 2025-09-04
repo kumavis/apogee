@@ -261,7 +261,7 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
 
     try {
       console.log('Ending turn...');
-      await gameEngine.endPlayerTurn(selfId);
+      await gameEngine.endPlayerTurn(selfId, selfId);
       console.log('Turn ended successfully');
     } catch (error) {
       console.error('Error ending turn:', error);

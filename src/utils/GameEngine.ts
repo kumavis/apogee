@@ -2,6 +2,7 @@ import { AutomergeUrl, DocHandle, Repo } from "@automerge/react";
 import { GameDoc, createGame, BattlefieldCardState, PlayerBattlefield } from "../docs/game";
 import { DeckDoc } from "../docs/deck";
 import { CardDoc } from "../docs/card";
+import { playSound } from "./audioUtils";
 import { 
   executeSpellEffect, 
   createSpellEffectAPI, 
@@ -273,6 +274,9 @@ export class GameEngine {
         return false;
       }
 
+      // Play card sound when successfully played
+      playSound('playCard');
+
       // Handle card based on type
       if (cardDoc.type === 'creature' || cardDoc.type === 'artifact') {
         if (!(await this.addCardToBattlefield(playerId, instanceId))) {
@@ -322,6 +326,7 @@ export class GameEngine {
             this.gameDocHandle.change((doc) => {
               executeSpellOperations(doc, api.operations);
             });
+            
           }
           
           if (!success) {
@@ -450,6 +455,7 @@ export class GameEngine {
         damageTarget: { playerId: targetPlayerId },
         damageAmount: damage
       });
+      
       
       return true;
     } catch (error) {
@@ -686,6 +692,7 @@ export class GameEngine {
                       description: `${card!.name}: ${ability.description || 'triggered ability'}`
                     });
                   });
+                  
                 }
               } catch (error) {
                 console.error(`GameEngine.executeTriggeredAbilities: Error executing ability for ${card.name}:`, error);
@@ -776,6 +783,7 @@ export class GameEngine {
                   description: `${card!.name}: ${ability.description || 'triggered ability'}`
                 });
               });
+              
             }
           } catch (error) {
             console.error(`GameEngine.executeTriggeredAbilitiesForCreature: Error executing ability for ${card.name}:`, error);
@@ -799,9 +807,12 @@ export class GameEngine {
   /**
    * End the current player's turn
    */
-  async endPlayerTurn(playerId: AutomergeUrl): Promise<void> {
+  async endPlayerTurn(playerId: AutomergeUrl, currentPlayerId?: AutomergeUrl): Promise<void> {
     try {
       const currentDoc = this.gameDocHandle.doc();
+      
+      // Play turn over sound when ending turn
+      playSound('turnOver');
       
       // Add to game log FIRST, before any next player actions
       this.gameDocHandle.change((doc) => {
@@ -815,11 +826,16 @@ export class GameEngine {
       // Execute end-of-turn abilities for current player
       await this.executeTriggeredAbilities('end_turn', playerId, currentDoc);
 
-      let nextPlayerId: AutomergeUrl;
+      let nextPlayerId: AutomergeUrl | undefined;
       this.gameDocHandle.change((doc) => {
         const nextPlayerIndex = advanceToNextPlayer(doc);
         nextPlayerId = doc.players[nextPlayerIndex];
       });
+      
+      // Play turn start sound if the next player is the current player viewing the game
+      if (currentPlayerId && nextPlayerId && nextPlayerId === currentPlayerId) {
+        playSound('turnStart');
+      }
       
       // Execute start-of-turn abilities for next player BEFORE drawing
       await this.executeTriggeredAbilities('start_turn', nextPlayerId!, currentDoc);

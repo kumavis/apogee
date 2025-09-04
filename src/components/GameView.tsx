@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { AutomergeUrl, useDocHandle, useRepo } from '@automerge/react';
 import { GameDoc, getGameDeckSelection, joinGame } from '../docs/game';
@@ -10,6 +10,7 @@ import TCGGameBoard from './TCGGameBoard';
 import GameFinished from './GameFinished';
 import { useDocFromHandle } from '../hooks/useDocFromHandle';
 import { FollowerProvider } from '../utils/FollowerSystem';
+import { preloadAllSounds } from '../utils/audioUtils';
 
 type GameViewProps = {
   rootDoc: RootDocument;
@@ -28,6 +29,13 @@ const GameView: React.FC<GameViewProps> = ({ rootDoc, addGame }) => {
     }
     return GameEngine.create(gameDocHandle, repo);
   }, [gameDocHandle, repo]);
+
+  // Preload all sounds when component mounts
+  useEffect(() => {
+    preloadAllSounds().catch((error) => {
+      console.error('Failed to preload sounds:', error);
+    });
+  }, []);
  
   const handleJoinGame = () => {
     if (!gameDoc) {
