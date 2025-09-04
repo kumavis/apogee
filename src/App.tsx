@@ -12,6 +12,9 @@ import DeckLibrary from './components/DeckLibrary';
 import DeckView from './components/DeckView';
 import DebugView from './components/DebugView';
 import DebugOverlay from './components/DebugOverlay';
+import CardSlotTest from './components/testbenches/CardSlotTest';
+import TestBenchIndex from './components/testbenches/TestBenchIndex';
+import AudioTest from './components/testbenches/AudioTest';
 import { RootDocument } from './docs/rootDoc';
 import { useCallback, useState, useEffect } from 'react';
 
@@ -124,6 +127,9 @@ function App({ rootDocUrl }: { rootDocUrl: AutomergeUrl }) {
             <Route path="/decks" element={<DeckLibrary rootDoc={rootDoc} addDeckToCollection={addDeckToCollection} addCardsToLibrary={addCardsToLibrary} removeDeckFromCollection={removeDeckFromCollection} />} />
             <Route path="/deck/:deckId" element={<DeckView rootDoc={rootDoc} addDeckToCollection={addDeckToCollection} addCardsToLibrary={addCardsToLibrary} />} />
             <Route path="/debug" element={<DebugView rootDocUrl={rootDocUrl} />} />
+            <Route path="/tests" element={<TestBenchIndex />} />
+            <Route path="/tests/cardslot" element={<CardSlotTest />} />
+            <Route path="/tests/audio" element={<AudioTest />} />
           </Routes>
         </div>
       </ErrorBoundary>

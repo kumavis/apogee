@@ -58,7 +58,7 @@ export const useCardTargeting = (gameDoc: GameDoc, selfId: AutomergeUrl) => {
         resolve
       });
     });
-  }, [gameDoc, selfId]);
+  }, []);
 
 
 
@@ -136,7 +136,7 @@ export const useCardTargeting = (gameDoc: GameDoc, selfId: AutomergeUrl) => {
     
     const validation = validateTarget(target, state.selector, gameDoc, selfId);
     return validation.isValid;
-  }, [state, gameDoc, selfId]);
+  }, [state]);
 
   // Check if a target is selected
   const isTargetSelected = useCallback((target: Target): boolean => {
@@ -171,7 +171,7 @@ export const useCardTargeting = (gameDoc: GameDoc, selfId: AutomergeUrl) => {
       instanceId 
     };
     return canTarget(target);
-  }, [canTarget, gameDoc]);
+  }, [canTarget]);
 
   // Handle target click (always uses normal selection logic)
   const handleTargetClick = useCallback((target: Target) => {

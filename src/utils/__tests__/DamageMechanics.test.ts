@@ -6,6 +6,7 @@ import {
   createTestCreature,
   createTestArtifact,
   addCardToBattlefield,
+  addCardToBattlefieldWithInstance,
   captureGameState,
   assertStateChange,
   assertLogEntry,
@@ -43,7 +44,7 @@ describe('Damage Mechanics', () => {
       
       const beforeState = captureGameState(gameEngine, player1Id, player2Id);
       
-      const success = await gameEngine.attackPlayerWithCreature(player1Id, instanceId, player2Id, 4);
+      const success = await gameEngine.attackPlayerWithCreature(player1Id, instanceId, player2Id, 4, gameEngine.getGameDoc());
       
       expect(success).toBe(true);
       
@@ -84,7 +85,7 @@ describe('Damage Mechanics', () => {
       
       addCardToBattlefield(gameEngine, player1Id, attacker.url, 'finisher-1', { currentHealth: 5 });
       
-      await gameEngine.attackPlayerWithCreature(player1Id, 'finisher-1', player2Id, 5);
+      await gameEngine.attackPlayerWithCreature(player1Id, 'finisher-1', player2Id, 5, gameEngine.getGameDoc());
       
       const gameDoc = gameEngine.getGameDoc();
       expect(gameDoc.playerStates[1].health).toBe(0);
@@ -112,7 +113,7 @@ describe('Damage Mechanics', () => {
       
       addCardToBattlefield(gameEngine, player1Id, attacker.url, 'overkill-1', { currentHealth: 4 });
       
-      await gameEngine.attackPlayerWithCreature(player1Id, 'overkill-1', player2Id, 10);
+      await gameEngine.attackPlayerWithCreature(player1Id, 'overkill-1', player2Id, 10, gameEngine.getGameDoc());
       
       const gameDoc = gameEngine.getGameDoc();
       expect(gameDoc.playerStates[1].health).toBe(0); // Should be 0, not negative
@@ -144,7 +145,8 @@ describe('Damage Mechanics', () => {
       
       await gameEngine.attackCreatureWithCreature(
         player1Id, 'attacker-1', 
-        player2Id, 'defender-1'
+        player2Id, 'defender-1',
+        gameEngine.getGameDoc()
       );
       
       const gameDoc = gameEngine.getGameDoc();
@@ -181,7 +183,8 @@ describe('Damage Mechanics', () => {
       
       await gameEngine.attackCreatureWithCreature(
         player1Id, 'strong-1',
-        player2Id, 'weak-1'
+        player2Id, 'weak-1',
+        gameEngine.getGameDoc()
       );
       
       const gameDoc = gameEngine.getGameDoc();
@@ -228,7 +231,8 @@ describe('Damage Mechanics', () => {
       
       await gameEngine.attackCreatureWithCreature(
         player1Id, 'creature1-1',
-        player2Id, 'creature2-1'
+        player2Id, 'creature2-1',
+        gameEngine.getGameDoc()
       );
       
       const gameDoc = gameEngine.getGameDoc();
@@ -268,27 +272,19 @@ describe('Damage Mechanics', () => {
         description: 'Artifact with no attack'
       });
       
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[0].cards.push({
-          instanceId: 'attacker-1',
-          cardUrl: attacker.url,
-          sapped: false,
-          currentHealth: 3
-        });
-        doc.playerBattlefields[1].cards.push({
-          instanceId: 'artifact-1',
-          cardUrl: artifact.url,
-          sapped: false,
-          currentHealth: 3
-        });
-        // Add to instance mapping
-        doc.instanceToCardUrl['attacker-1'] = attacker.url;
-        doc.instanceToCardUrl['artifact-1'] = artifact.url;
+      addCardToBattlefieldWithInstance(gameEngine, player1Id, 'attacker-1', attacker.url, {
+        currentHealth: 3,
+        sapped: false
+      });
+      addCardToBattlefieldWithInstance(gameEngine, player2Id, 'artifact-1', artifact.url, {
+        currentHealth: 3,
+        sapped: false
       });
       
       await gameEngine.attackCreatureWithCreature(
         player1Id, 'attacker-1',
-        player2Id, 'artifact-1'
+        player2Id, 'artifact-1',
+        gameEngine.getGameDoc()
       );
       
       const gameDoc = gameEngine.getGameDoc();
@@ -320,7 +316,7 @@ describe('Damage Mechanics', () => {
       
       addCardToBattlefield(gameEngine, player1Id, creature.url, undefined, { currentHealth: 2 });
       
-      await gameEngine.healCreatures(player1Id);
+      await gameEngine.healCreatures(player1Id, gameEngine.getGameDoc());
       
       const gameDoc = gameEngine.getGameDoc();
       const healedCreature = gameDoc.playerBattlefields[0].cards[0];
@@ -340,7 +336,7 @@ describe('Damage Mechanics', () => {
       
       addCardToBattlefield(gameEngine, player1Id, creature.url, undefined, { currentHealth: 3 });
       
-      await gameEngine.healCreatures(player1Id);
+      await gameEngine.healCreatures(player1Id, gameEngine.getGameDoc());
       
       const gameDoc = gameEngine.getGameDoc();
       const creature1 = gameDoc.playerBattlefields[0].cards[0];
@@ -359,7 +355,7 @@ describe('Damage Mechanics', () => {
       
       addCardToBattlefield(gameEngine, player1Id, artifact.url, undefined, { currentHealth: 2 });
       
-      await gameEngine.healCreatures(player1Id);
+      await gameEngine.healCreatures(player1Id, gameEngine.getGameDoc());
       
       const gameDoc = gameEngine.getGameDoc();
       const artifactCard = gameDoc.playerBattlefields[0].cards[0];
@@ -393,7 +389,8 @@ describe('Damage Mechanics', () => {
       
       await gameEngine.attackCreatureWithCreature(
         player1Id, 'pacifist-1',
-        player2Id, 'defender-1'
+        player2Id, 'defender-1',
+        gameEngine.getGameDoc()
       );
       
       const gameDoc = gameEngine.getGameDoc();
@@ -417,7 +414,7 @@ describe('Damage Mechanics', () => {
       
       addCardToBattlefield(gameEngine, player1Id, megaAttacker.url, 'mega-1', { currentHealth: 1 });
       
-      await gameEngine.attackPlayerWithCreature(player1Id, 'mega-1', player2Id, 1000);
+      await gameEngine.attackPlayerWithCreature(player1Id, 'mega-1', player2Id, 1000, gameEngine.getGameDoc());
       
       const gameDoc = gameEngine.getGameDoc();
       expect(gameDoc.playerStates[1].health).toBe(0); // Should be 0, not negative

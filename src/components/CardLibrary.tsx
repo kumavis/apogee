@@ -4,7 +4,7 @@ import { RootDocument } from '../docs/rootDoc';
 import { CardDoc } from '../docs/card';
 import { useGameNavigation } from '../hooks/useGameNavigation';
 import { CARD_LIBRARY } from '../utils/defaultCardLibrary';
-import Card from './Card';
+import Card from './cards/Card';
 import CardEditor, { NewCardForm } from './CardEditor';
 
 type CardLibraryProps = {

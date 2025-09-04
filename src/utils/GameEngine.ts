@@ -1,5 +1,5 @@
 import { AutomergeUrl, DocHandle, Repo } from "@automerge/react";
-import { GameDoc, createGame, BattlefieldCard, PlayerBattlefield } from "../docs/game";
+import { GameDoc, createGame, BattlefieldCardState, PlayerBattlefield } from "../docs/game";
 import { DeckDoc } from "../docs/deck";
 import { CardDoc } from "../docs/card";
 import { 
@@ -142,7 +142,6 @@ export class GameEngine {
         
         doc.playerBattlefields[battlefieldIndex].cards.push({
           instanceId,
-          cardUrl,
           sapped: cardDoc!.type === 'creature', // Only creatures start sapped (summoning sickness), artifacts do not
           currentHealth: cardDoc!.health || 1 // Set initial health from card definition, default to 1
         });
@@ -285,7 +284,7 @@ export class GameEngine {
         const currentDoc = this.gameDocHandle.doc();
         for (const p of currentDoc.players) {
           if (p !== playerId) { // Only trigger for opponents (for cards like Energy Collector)
-            await this.executeTriggeredAbilities('play_card', p, selectTargetsImpl);
+            await this.executeTriggeredAbilities('play_card', p, currentDoc, selectTargetsImpl);
           }
         }
         
@@ -307,7 +306,7 @@ export class GameEngine {
         // Execute play_card abilities for all players (spells also trigger this)
         const currentDoc = this.gameDocHandle.doc();
         for (const p of currentDoc.players) {
-          await this.executeTriggeredAbilities('play_card', p, selectTargetsImpl);
+          await this.executeTriggeredAbilities('play_card', p, currentDoc, selectTargetsImpl);
         }
         
         // Execute spell effect if it has one
@@ -403,7 +402,8 @@ export class GameEngine {
     attackerId: AutomergeUrl, 
     instanceId: string, 
     targetPlayerId: AutomergeUrl, 
-    damage: number
+    damage: number,
+    gameDoc: any
   ): Promise<boolean> {
     try {
       // Find the creature to get its name
@@ -413,7 +413,7 @@ export class GameEngine {
       
       let creatureName = 'Unknown Creature';
       if (battlefieldCard) {
-        const creatureCard = await this.getCardFromMap(battlefieldCard.cardUrl);
+        const creatureCard = await this.getCardFromMap(gameDoc.instanceToCardUrl[battlefieldCard.instanceId]);
         if (creatureCard) {
           creatureName = creatureCard.name;
         }
@@ -446,7 +446,7 @@ export class GameEngine {
       }
       
       // Trigger deal_damage abilities for the attacking creature
-      await this.executeTriggeredAbilitiesForCreature('deal_damage', attackerId, instanceId, undefined, {
+      await this.executeTriggeredAbilitiesForCreature('deal_damage', attackerId, instanceId, currentDoc, undefined, {
         damageTarget: { playerId: targetPlayerId },
         damageAmount: damage
       });
@@ -466,6 +466,7 @@ export class GameEngine {
     attackerInstanceId: string, 
     targetPlayerId: AutomergeUrl, 
     targetInstanceId: string,
+    gameDoc: GameDoc,
     selectTargetsImpl?: (selector: SpellTargetSelector) => Promise<SpellTarget[]>
   ): Promise<boolean> {
     try {
@@ -477,7 +478,7 @@ export class GameEngine {
       
       let attackerGameCard: CardDoc | null = null;
       if (attackerCard) {
-        attackerGameCard = await this.getCardFromMap(attackerCard.cardUrl);
+        attackerGameCard = await this.getCardFromMap(gameDoc.instanceToCardUrl[attackerCard.instanceId]);
       }
       
       if (!attackerCard || !attackerGameCard) {
@@ -491,7 +492,7 @@ export class GameEngine {
       
       let targetGameCard: CardDoc | null = null;
       if (targetCard) {
-        targetGameCard = await this.getCardFromMap(targetCard.cardUrl);
+        targetGameCard = await this.getCardFromMap(gameDoc.instanceToCardUrl[targetCard.instanceId]);
       }
       
       if (!targetCard || !targetGameCard) {
@@ -537,28 +538,28 @@ export class GameEngine {
       });
 
       // Trigger deal_damage abilities for the attacking creature
-      await this.executeTriggeredAbilitiesForCreature('deal_damage', attackerId, attackerInstanceId, selectTargetsImpl, {
+      await this.executeTriggeredAbilitiesForCreature('deal_damage', attackerId, attackerInstanceId, currentDoc, selectTargetsImpl, {
         damageTarget: { playerId: targetPlayerId, instanceId: targetInstanceId },
         damageAmount: attackerDamage
       });
 
       // Trigger deal_damage abilities for the target creature (if it fought back)
       if (targetCanAttackBack) {
-        await this.executeTriggeredAbilitiesForCreature('deal_damage', targetPlayerId, targetInstanceId, selectTargetsImpl, {
+        await this.executeTriggeredAbilitiesForCreature('deal_damage', targetPlayerId, targetInstanceId, currentDoc, selectTargetsImpl, {
           damageTarget: { playerId: attackerId, instanceId: attackerInstanceId },
           damageAmount: targetDamage
         });
       }
 
       // Trigger take_damage abilities for the target (artifact or creature)
-      await this.executeTriggeredAbilitiesForCreature('take_damage', targetPlayerId, targetInstanceId, selectTargetsImpl, {
+      await this.executeTriggeredAbilitiesForCreature('take_damage', targetPlayerId, targetInstanceId, currentDoc, selectTargetsImpl, {
         damageTarget: { playerId: attackerId, instanceId: attackerInstanceId },
         damageAmount: attackerDamage
       });
 
       // Trigger take_damage abilities for the attacking creature
       if (targetCanAttackBack) {
-        await this.executeTriggeredAbilitiesForCreature('take_damage', attackerId, attackerInstanceId, selectTargetsImpl, {
+        await this.executeTriggeredAbilitiesForCreature('take_damage', attackerId, attackerInstanceId, currentDoc, selectTargetsImpl, {
           damageTarget: { playerId: targetPlayerId, instanceId: targetInstanceId },
           damageAmount: targetDamage
         });
@@ -592,7 +593,7 @@ export class GameEngine {
   /**
    * Heal creatures at end of turn (not artifacts)
    */
-  async healCreatures(playerId: AutomergeUrl): Promise<boolean> {
+  async healCreatures(playerId: AutomergeUrl, gameDoc: any): Promise<boolean> {
     try {
       const currentDoc = this.gameDocHandle.doc();
       const battlefieldIndex = currentDoc.playerBattlefields.findIndex(battlefield => battlefield.playerId === playerId);
@@ -605,7 +606,7 @@ export class GameEngine {
       
       // Heal all creatures by 1 health (not artifacts)
       for (const battlefieldCard of currentDoc.playerBattlefields[battlefieldIndex].cards) {
-        const card = await this.getCardFromMap(battlefieldCard.cardUrl);
+        const card = await this.getCardFromMap(gameDoc.instanceToCardUrl[battlefieldCard.instanceId]);
         
         if (card && card.type === 'creature') {
           const maxHealth = card.health || 1;
@@ -645,6 +646,7 @@ export class GameEngine {
   async executeTriggeredAbilities(
     trigger: TriggerAbilityEvent,
     playerId: AutomergeUrl,
+    gameDoc: GameDoc,
     selectTargetsImpl?: (selector: SpellTargetSelector) => Promise<SpellTarget[]>
   ): Promise<void> {
     try {
@@ -653,7 +655,7 @@ export class GameEngine {
       if (!playerBattlefield) return;
 
       for (const battlefieldCard of playerBattlefield.cards) {
-        const card = await this.getCardFromMap(battlefieldCard.cardUrl);
+        const card = await this.getCardFromMap(gameDoc.instanceToCardUrl[battlefieldCard.instanceId]);
         
         // Process both artifacts and creatures with abilities
         if (card?.triggeredAbilities) {
@@ -703,7 +705,7 @@ export class GameEngine {
    * @returns Object containing the battlefield card, player battlefield, and playerId, or null if not found
    */
   findCardByInstanceId(instanceId: string): {
-    battlefieldCard: BattlefieldCard;
+    battlefieldCard: BattlefieldCardState;
     playerBattlefield: PlayerBattlefield;
     playerId: AutomergeUrl;
   } | null {
@@ -730,6 +732,7 @@ export class GameEngine {
     trigger: TriggerAbilityEvent,
     playerId: AutomergeUrl,
     instanceId: string,
+    gameDoc: GameDoc,
     selectTargetsImpl?: (selector: SpellTargetSelector) => Promise<SpellTarget[]>,
     triggerContext?: { damageTarget?: { playerId: AutomergeUrl; instanceId?: string }; damageAmount?: number }
   ): Promise<void> {
@@ -747,7 +750,7 @@ export class GameEngine {
         return;
       }
 
-      const card = await this.getCardFromMap(battlefieldCard.cardUrl);
+      const card = await this.getCardFromMap(gameDoc.instanceToCardUrl[battlefieldCard.instanceId]);
       if (!card?.triggeredAbilities) return;
 
       // Execute each ability that matches the trigger
@@ -785,9 +788,10 @@ export class GameEngine {
   }
 
   async executeSpellTriggeredAbilities(operations: SpellOperation[]): Promise<void> {
+    const currentDoc = this.gameDocHandle.doc();
     for (const op of operations) {
       if (op.type === 'damage_creature' && op.instanceId && op.amount !== undefined) {
-        await this.executeTriggeredAbilitiesForCreature('take_damage', op.playerId, op.instanceId, undefined, { damageAmount: op.amount });
+        await this.executeTriggeredAbilitiesForCreature('take_damage', op.playerId, op.instanceId, currentDoc, undefined, { damageAmount: op.amount });
       }
     }
   }
@@ -797,6 +801,8 @@ export class GameEngine {
    */
   async endPlayerTurn(playerId: AutomergeUrl): Promise<void> {
     try {
+      const currentDoc = this.gameDocHandle.doc();
+      
       // Add to game log FIRST, before any next player actions
       this.gameDocHandle.change((doc) => {
         addGameLogEntry(doc, {
@@ -807,7 +813,7 @@ export class GameEngine {
       });
 
       // Execute end-of-turn abilities for current player
-      await this.executeTriggeredAbilities('end_turn', playerId);
+      await this.executeTriggeredAbilities('end_turn', playerId, currentDoc);
 
       let nextPlayerId: AutomergeUrl;
       this.gameDocHandle.change((doc) => {
@@ -816,7 +822,7 @@ export class GameEngine {
       });
       
       // Execute start-of-turn abilities for next player BEFORE drawing
-      await this.executeTriggeredAbilities('start_turn', nextPlayerId!);
+      await this.executeTriggeredAbilities('start_turn', nextPlayerId!, currentDoc);
       
       // Draw a card for the next player (start of their turn)
       this.gameDocHandle.change((doc) => {
@@ -827,7 +833,7 @@ export class GameEngine {
       });
       
       // Heal creatures for the next player (only creatures, not artifacts)
-      await this.healCreatures(nextPlayerId!);
+      await this.healCreatures(nextPlayerId!, currentDoc);
       
       // If we've gone through all players, increment turn and increase max energy
       this.gameDocHandle.change((doc) => {

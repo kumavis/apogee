@@ -4,7 +4,7 @@ import { useDocument } from '@automerge/react';
 import { AutomergeUrl } from '@automerge/react';
 import { CardDoc } from '../docs/card';
 import { useGameNavigation } from '../hooks/useGameNavigation';
-import Card from './Card';
+import Card from './cards/Card';
 
 type CardViewProps = {
   rootDoc: any; // RootDocument type

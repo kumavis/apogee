@@ -9,6 +9,7 @@ import GameLobby from './GameLobby';
 import TCGGameBoard from './TCGGameBoard';
 import GameFinished from './GameFinished';
 import { useDocFromHandle } from '../hooks/useDocFromHandle';
+import { FollowerProvider } from '../utils/FollowerSystem';
 
 type GameViewProps = {
   rootDoc: RootDocument;
@@ -123,13 +124,16 @@ const GameView: React.FC<GameViewProps> = ({ rootDoc, addGame }) => {
   }
 
   if (gameDoc.status === 'playing') {
+    // We render the FollowerProvider here to avoid re-rendering the floating cards
     return (
-      <TCGGameBoard
-        gameEngine={gameEngine}
-        gameDoc={gameDoc}
-        selfId={rootDoc.selfId}
-        gameDocHandle={gameDocHandle!}
-      />
+      <FollowerProvider>
+        <TCGGameBoard
+          gameEngine={gameEngine}
+          gameDoc={gameDoc}
+          selfId={rootDoc.selfId}
+          gameDocHandle={gameDocHandle!}
+        />
+      </FollowerProvider>
     );
   }
 

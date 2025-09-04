@@ -3,7 +3,7 @@ import { AutomergeUrl, useRepo } from '@automerge/react';
 import { CardDoc, createCard, CardType, RendererDesc, ImageRendererDesc } from '../docs/card';
 import { ArtifactAbility, TriggerAbilityEvent } from '../utils/spellEffects';
 import { makeCardViewUrl } from '../hooks/useGameNavigation';
-import Card from './Card';
+import Card from './cards/Card';
 import ImageEditor from './ImageEditor';
 import MonacoCodeEditor from './MonacoCodeEditor';
 
@@ -344,8 +344,7 @@ const CardEditor: React.FC<CardEditorProps> = ({
               triggeredAbilities: newCardData.triggeredAbilities,
               renderer: newCardData.renderer,
               createdAt: new Date().toISOString(),
-              createdBy: 'preview' as AutomergeUrl,
-              isPlayable: false
+              createdBy: 'preview' as AutomergeUrl
             }} />
           </div>
         </div>

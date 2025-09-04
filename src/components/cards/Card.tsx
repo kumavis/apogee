@@ -1,16 +1,25 @@
 import React from 'react';
-import { CardDoc } from '../docs/card';
-import { RendererDesc, ImageRendererDesc } from '../docs/card';
+import { CardDoc } from '../../docs/card';
+import { RendererDesc, ImageRendererDesc } from '../../docs/card';
+import { BattlefieldCardState } from '../../docs/game';
 
-export type CardData = CardDoc & {
-  isPlayable?: boolean;
-  currentHealth?: number; // For battlefield cards
-};
+const { freeze } = Object;
 
-type CardProps = {
-  card: CardData;
+export const sizeMap = freeze({
+  small: freeze({ width: 80, height: 112 }),
+  medium: freeze({ width: 120, height: 168 }),
+  large: freeze({ width: 160, height: 224 }),
+});
+
+export type BaseCardProps = {
   size?: 'small' | 'medium' | 'large';
   faceDown?: boolean;
+};
+
+export type CardProps = BaseCardProps & {
+  card: CardDoc;
+  cardState?: BattlefieldCardState;
+  debugKey?: string;
   onClick?: () => void;
   style?: React.CSSProperties;
   // Optional glossy overlay controls
@@ -20,21 +29,16 @@ type CardProps = {
 };
 
 const Card: React.FC<CardProps> = ({ 
-  card, 
+  card,
+  cardState,
   size = 'medium', 
-  faceDown = false, 
+  faceDown = false,
   onClick,
   style = {},
   showGloss = false,
   glossAngleDeg = 0,
-  glossOpacity = 0.35
+  glossOpacity = 0.35,
 }) => {
-  const sizeMap = {
-    small: { width: 80, height: 112 },
-    medium: { width: 120, height: 168 },
-    large: { width: 160, height: 224 }
-  };
-
   const cardSize = sizeMap[size];
 
   // Helper function to check if renderer is an ImageRendererDesc
@@ -66,17 +70,17 @@ const Card: React.FC<CardProps> = ({
 
     const style: React.CSSProperties = {
       overflow: 'hidden',
-      border: `2px solid ${card.isPlayable ? getTypeColor(card.type) : '#404040'}`,
-      boxShadow: card.isPlayable 
+      border: `2px solid ${onClick ? getTypeColor(card.type) : '#404040'}`,
+      boxShadow: onClick 
         ? `0 4px 8px ${getTypeColor(card.type)}40`
         : '0 4px 8px rgba(0,0,0,0.2)',
-      color: card.isPlayable ? '#ffffff' : '#888888',
+      color: onClick ? '#ffffff' : '#888888',
     }
     
     if (isImageRenderer(card.renderer)) {
       return style;
     } else {
-      style.background = card.isPlayable 
+      style.background = onClick 
         ? 'linear-gradient(135deg, #001122 0%, #002244 100%)'
         : 'linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%)';
       return style;
@@ -105,13 +109,13 @@ const Card: React.FC<CardProps> = ({
     // Regular card hover effects
     return {
       onMouseEnter: (e: React.MouseEvent<HTMLDivElement>) => {
-        if (onClick && card.isPlayable) {
+        if (onClick) {
           e.currentTarget.style.transform = 'translateY(-2px)';
           e.currentTarget.style.boxShadow = `0 6px 12px ${getTypeColor(card.type)}60`;
         }
       },
       onMouseLeave: (e: React.MouseEvent<HTMLDivElement>) => {
-        if (onClick && card.isPlayable) {
+        if (onClick) {
           e.currentTarget.style.transform = 'translateY(0)';
           e.currentTarget.style.boxShadow = `0 4px 8px ${getTypeColor(card.type)}40`;
         }
@@ -154,7 +158,7 @@ const Card: React.FC<CardProps> = ({
           />
           
           {/* Sapped Overlay */}
-          {(card as any).sapped && (
+          {cardState?.sapped && (
             <div style={{
               position: 'absolute',
               top: 0,
@@ -244,15 +248,15 @@ const Card: React.FC<CardProps> = ({
               )}
               {/* Health (for both creatures and artifacts) */}
               <div style={{
-                background: card.currentHealth !== undefined && card.currentHealth < (card.health || 0) ? '#ff8800' : '#00ff41',
+                background: cardState?.currentHealth !== undefined && cardState?.currentHealth < (card.health || 0) ? '#ff8800' : '#00ff41',
                 color: 'black',
                 padding: '1px 4px',
                 borderRadius: 3,
                 minWidth: size === 'small' ? 12 : 16,
                 textAlign: 'center',
-                boxShadow: `0 0 4px ${card.currentHealth !== undefined && card.currentHealth < (card.health || 0) ? '#ff8800' : '#00ff41'}`
+                boxShadow: `0 0 4px ${cardState?.currentHealth !== undefined && cardState?.currentHealth < (card.health || 0) ? '#ff8800' : '#00ff41'}`
               }}>
-                🛡{card.currentHealth !== undefined ? `${card.currentHealth}/${card.health}` : card.health}
+                🛡{cardState?.currentHealth !== undefined ? `${cardState?.currentHealth}/${card.health}` : card.health}
               </div>
             </div>
           )}
@@ -304,7 +308,7 @@ const Card: React.FC<CardProps> = ({
           left: 4,
           right: 4,
           height: size === 'small' ? 40 : size === 'medium' ? 60 : 80,
-          background: card.isPlayable 
+          background: onClick 
             ? 'linear-gradient(135deg, #003366 0%, #0066aa 100%)'
             : 'linear-gradient(135deg, #2a2a2a 0%, #404040 100%)',
           borderRadius: 4,
@@ -312,8 +316,8 @@ const Card: React.FC<CardProps> = ({
           alignItems: 'center',
           justifyContent: 'center',
           fontSize: size === 'small' ? 16 : size === 'medium' ? 24 : 32,
-          border: `1px solid ${card.isPlayable ? getTypeColor(card.type) : '#404040'}`,
-          boxShadow: card.isPlayable ? `0 0 8px ${getTypeColor(card.type)}40` : 'none'
+          border: `1px solid ${onClick ? getTypeColor(card.type) : '#404040'}`,
+          boxShadow: onClick ? `0 0 8px ${getTypeColor(card.type)}40` : 'none'
         }}>
           {card.type === 'creature' ? '🤖' : card.type === 'spell' ? '⚡' : '🔧'}
         </div>
@@ -362,15 +366,15 @@ const Card: React.FC<CardProps> = ({
             )}
             {/* Health (for both creatures and artifacts) */}
             <div style={{
-              background: card.currentHealth !== undefined && card.currentHealth < (card.health || 0) ? '#ff8800' : '#00ff41',
+              background: cardState?.currentHealth !== undefined && cardState?.currentHealth < (card.health || 0) ? '#ff8800' : '#00ff41',
               color: 'black',
               padding: '1px 4px',
               borderRadius: 3,
               minWidth: size === 'small' ? 12 : 16,
               textAlign: 'center',
-              boxShadow: `0 0 4px ${card.currentHealth !== undefined && card.currentHealth < (card.health || 0) ? '#ff8800' : '#00ff41'}`
+              boxShadow: `0 0 4px ${cardState?.currentHealth !== undefined && cardState?.currentHealth < (card.health || 0) ? '#ff8800' : '#00ff41'}`
             }}>
-              🛡{card.currentHealth !== undefined ? `${card.currentHealth}/${card.health}` : card.health}
+              🛡{cardState?.currentHealth !== undefined ? `${cardState?.currentHealth}/${card.health}` : card.health}
             </div>
           </div>
         )}
@@ -387,7 +391,6 @@ const Card: React.FC<CardProps> = ({
         cursor: onClick ? 'pointer' : 'default',
         position: 'relative',
         borderRadius: 8,
-        transition: 'all 0.2s ease',
         ...getCardStyle(),
         ...style
       }}

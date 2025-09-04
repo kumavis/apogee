@@ -1129,28 +1129,54 @@ const DebugView: React.FC<DebugViewProps> = ({ rootDocUrl }) => {
         marginBottom: '20px',
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center'
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '12px'
       }}>
         <h1>🔍 Debug: Automerge Documents</h1>
-        <button
-          onClick={() => {
-            loadDocuments();
-            if (repoStats) {
-              collectRepoStats();
-            }
-          }}
-          style={{
-            backgroundColor: '#003333',
-            color: '#00ffff',
-            border: '1px solid #00ffff',
-            padding: '8px 16px',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          🔄 Refresh All
-        </button>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <a
+            href="/tests"
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#007bff',
+              color: 'white',
+              textDecoration: 'none',
+              borderRadius: '6px',
+              fontSize: '14px',
+              fontWeight: '500'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#0056b3';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = '#007bff';
+            }}
+          >
+            🧪 Test Benches
+          </a>
+          <button
+            onClick={() => {
+              loadDocuments();
+              if (repoStats) {
+                collectRepoStats();
+              }
+            }}
+            style={{
+              backgroundColor: '#003333',
+              color: '#00ffff',
+              border: '1px solid #00ffff',
+              padding: '8px 16px',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            🔄 Refresh All
+          </button>
+        </div>
       </div>
+
+      <h1 style={{ margin: '0 0 20px 0', color: '#00ffff' }}>Debug Information</h1>
 
       <div style={{
         backgroundColor: '#111111',

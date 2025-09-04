@@ -3,7 +3,7 @@ import { AutomergeUrl, useDocument } from '@automerge/react';
 import { deleteRootDoc, setRootDocUrl } from '../docs/rootDoc';
 import { ContactDoc } from '../docs/contact';
 import { useGameNavigation } from '../hooks/useGameNavigation';
-import AssetExample from './AssetExample';
+import { Link } from 'react-router-dom';
 
 type SettingsProps = {
   rootDocUrl: AutomergeUrl;
@@ -645,27 +645,44 @@ const Settings: React.FC<SettingsProps> = ({ rootDocUrl, selfId }) => {
         <h2 style={{ 
           fontSize: 18, 
           marginBottom: 16, 
-          color: '#00ff00',
+          color: '#ff8800',
           fontWeight: 600 
         }}>
-          🖼️ Static Assets Demo
+          🧪 Test Benches
         </h2>
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 14, marginBottom: 8, opacity: 0.8 }}>
-            Example of how static assets are loaded from the public/assets directory.
+            Access specialized testing tools for debugging and development.
           </div>
           <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 12 }}>
-            This demonstrates proper asset path handling for GitHub Pages deployment.
+            Specialized testing tools for debugging and development.
           </div>
         </div>
-        <div style={{
-          background: 'rgba(255,255,255,0.05)',
-          border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: 8,
-          padding: 16
-        }}>
-          <AssetExample />
-        </div>
+        <Link 
+          to="/tests"
+          style={{
+            background: 'linear-gradient(135deg, #ff8800 0%, #ff6600 100%)',
+            color: '#000',
+            textDecoration: 'none',
+            padding: '12px 20px',
+            borderRadius: 8,
+            fontWeight: 600,
+            fontSize: 14,
+            boxShadow: '0 2px 6px rgba(255,136,0,0.3)',
+            transition: 'all 0.2s ease',
+            display: 'inline-block'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-1px)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(255,136,0,0.4)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0px)';
+            e.currentTarget.style.boxShadow = '0 2px 6px rgba(255,136,0,0.3)';
+          }}
+        >
+          🧪 Open Test Benches
+        </Link>
       </div>
 
       <div style={{ marginBottom: 32 }}>

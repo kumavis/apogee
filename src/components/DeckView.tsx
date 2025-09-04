@@ -7,7 +7,7 @@ import { CardDoc } from '../docs/card';
 import { RootDocument } from '../docs/rootDoc';
 import { ContactDoc } from '../docs/contact';
 import { useGameNavigation } from '../hooks/useGameNavigation';
-import Card from './Card';
+import Card from './cards/Card';
 
 type DeckViewProps = {
   rootDoc: RootDocument;

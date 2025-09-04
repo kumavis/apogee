@@ -225,7 +225,7 @@ export const createSpellEffectAPI = (
       
       return battlefield.cards.map(card => ({
         instanceId: card.instanceId,
-        cardUrl: card.cardUrl
+        cardUrl: doc.instanceToCardUrl[card.instanceId]
       }));
     }
   };
@@ -319,7 +319,7 @@ export const createArtifactEffectAPI = (
       
       return battlefield.cards.map(card => ({
         instanceId: card.instanceId,
-        cardUrl: card.cardUrl
+        cardUrl: doc.instanceToCardUrl[card.instanceId]
       }));
     },
     
@@ -338,7 +338,7 @@ export const createArtifactEffectAPI = (
         })
         .map(card => ({
           instanceId: card.instanceId,
-          cardUrl: card.cardUrl
+          cardUrl: doc.instanceToCardUrl[card.instanceId]
         }));
     },
     

@@ -95,7 +95,6 @@ describe('GameEngine', () => {
       // Validate specific game state
       assertCardNotInHand(gameEngine, player1Id, testCard.url);
       assertCreatureOnBattlefield(gameEngine, player1Id, { 
-        cardUrl: testCard.url,
         currentHealth: testCard.card.health,
         sapped: true // Creatures start sapped
       });
@@ -181,7 +180,8 @@ describe('GameEngine', () => {
         player1Id, 
         creatureInstanceId, 
         player2Id, 
-        testCard.card.attack!
+        testCard.card.attack!,
+        gameEngine.getGameDoc()
       );
       
       expect(success).toBe(true);
@@ -228,7 +228,8 @@ describe('GameEngine', () => {
         player1Id,
         attackerInstanceId,
         player2Id,
-        defenderInstanceId
+        defenderInstanceId,
+        gameEngine.getGameDoc()
       );
       
       expect(success).toBe(true);
@@ -296,7 +297,8 @@ describe('GameEngine', () => {
         player1Id,
         attackerInstanceId,
         player2Id,
-        weakInstanceId
+        weakInstanceId,
+        gameEngine.getGameDoc()
       );
       
       const updatedGameDoc = gameEngine.getGameDoc();
@@ -352,7 +354,7 @@ describe('GameEngine', () => {
       });
       
       // Directly test the healCreatures function for player1
-      await gameEngine.healCreatures(player1Id);
+      await gameEngine.healCreatures(player1Id, gameEngine.getGameDoc());
       
       const gameDoc = gameEngine.getGameDoc();
       // Creature should be healed by 1
@@ -384,7 +386,7 @@ describe('GameEngine', () => {
       const artifactHandle = testSetup.repo.create<CardDoc>(artifact.card);
       gameEngine.getCardDefs().set(artifactUrl, artifactHandle);
       
-      await gameEngine.executeTriggeredAbilities('start_turn', player1Id);
+      await gameEngine.executeTriggeredAbilities('start_turn', player1Id, gameEngine.getGameDoc());
       
       const gameDoc = gameEngine.getGameDoc();
       // Should have a log entry from the triggered ability
@@ -417,6 +419,7 @@ describe('GameEngine', () => {
         'deal_damage',
         player1Id,
         'vampire-1',
+        gameEngine.getGameDoc(),
         undefined,
         { damageTarget: { playerId: player2Id }, damageAmount: 2 }
       );
@@ -534,7 +537,8 @@ describe('GameEngine', () => {
         player1Id,
         'non-existent-instance',
         player2Id,
-        3
+        3,
+        gameEngine.getGameDoc()
       );
       expect(success).toBe(false);
     });

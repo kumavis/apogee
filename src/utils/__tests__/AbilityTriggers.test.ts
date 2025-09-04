@@ -10,7 +10,9 @@ import {
   mockSelectTargets,
   TestSetup,
   addCardToBattlefield,
-  addCardToDeck
+  addCardToBattlefieldWithInstance,
+  addCardToDeck,
+  addCardToDeckWithInstance
 } from './testUtils';
 
 describe('Ability Triggers', () => {
@@ -40,16 +42,12 @@ describe('Ability Triggers', () => {
         }]
       });
       
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[0].cards.push({
-          instanceId: 'generator-1',
-          cardUrl: artifactUrl,
-          sapped: false,
-          currentHealth: 2
-        });
+      addCardToBattlefieldWithInstance(gameEngine, player1Id, 'generator-1', artifactUrl, {
+        currentHealth: 2,
+        sapped: false
       });
       
-      await gameEngine.executeTriggeredAbilities('start_turn', player1Id);
+      await gameEngine.executeTriggeredAbilities('start_turn', player1Id, gameEngine.getGameDoc());
       
       const gameDoc = gameEngine.getGameDoc();
       
@@ -89,24 +87,16 @@ describe('Ability Triggers', () => {
         }]
       });
       
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[0].cards.push(
-          {
-            instanceId: 'drawer-1',
-            cardUrl: artifact1Url,
-            sapped: false,
-            currentHealth: 3
-          },
-          {
-            instanceId: 'healer-1',
-            cardUrl: artifact2Url,
-            sapped: false,
-            currentHealth: 1
-          }
-        );
+      addCardToBattlefieldWithInstance(gameEngine, player1Id, 'drawer-1', artifact1Url, {
+        currentHealth: 3,
+        sapped: false
+      });
+      addCardToBattlefieldWithInstance(gameEngine, player1Id, 'healer-1', artifact2Url, {
+        currentHealth: 1,
+        sapped: false
       });
       
-      await gameEngine.executeTriggeredAbilities('start_turn', player1Id);
+      await gameEngine.executeTriggeredAbilities('start_turn', player1Id, gameEngine.getGameDoc());
       
       const gameDoc = gameEngine.getGameDoc();
       
@@ -136,16 +126,12 @@ describe('Ability Triggers', () => {
         }]
       });
       
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[0].cards.push({
-          instanceId: 'stalker-1',
-          cardUrl: creatureUrl,
-          sapped: false,
-          currentHealth: 3
-        });
+      addCardToBattlefieldWithInstance(gameEngine, player1Id, 'stalker-1', creatureUrl, {
+        currentHealth: 3,
+        sapped: false
       });
       
-      await gameEngine.executeTriggeredAbilities('end_turn', player1Id);
+      await gameEngine.executeTriggeredAbilities('end_turn', player1Id, gameEngine.getGameDoc());
       
       const gameDoc = gameEngine.getGameDoc();
       
@@ -170,13 +156,9 @@ describe('Ability Triggers', () => {
       });
       
       // Add artifact to player2's battlefield
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[1].cards.push({
-          instanceId: 'collector-1',
-          cardUrl: artifactUrl,
-          sapped: false,
-          currentHealth: 1
-        });
+      addCardToBattlefieldWithInstance(gameEngine, player2Id, 'collector-1', artifactUrl, {
+        currentHealth: 1,
+        sapped: false
       });
       
       // Create a card for player1 to play
@@ -216,13 +198,9 @@ describe('Ability Triggers', () => {
         }]
       });
       
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[0].cards.push({
-          instanceId: 'vampire-1',
-          cardUrl: vampireUrl,
-          sapped: false,
-          currentHealth: 2 // Damaged vampire
-        });
+      addCardToBattlefieldWithInstance(gameEngine, player1Id, 'vampire-1', vampireUrl, {
+        currentHealth: 2, // Damaged vampire
+        sapped: false
       });
       
       // Trigger deal_damage ability
@@ -230,6 +208,7 @@ describe('Ability Triggers', () => {
         'deal_damage',
         player1Id,
         'vampire-1',
+        gameEngine.getGameDoc(),
         mockSelectTargets,
         { 
           damageTarget: { playerId: player2Id }, 
@@ -271,20 +250,17 @@ describe('Ability Triggers', () => {
         description: 'A practice target'
       });
       
+      addCardToBattlefieldWithInstance(gameEngine, player1Id, 'lifesteal-1', lifestealUrl, {
+        currentHealth: 2,
+        sapped: false
+      });
+      addCardToBattlefieldWithInstance(gameEngine, player2Id, 'dummy-1', targetUrl, {
+        currentHealth: 5,
+        sapped: false
+      });
+      
+      // Damage player1 to test healing
       gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[0].cards.push({
-          instanceId: 'lifesteal-1',
-          cardUrl: lifestealUrl,
-          sapped: false,
-          currentHealth: 2
-        });
-        doc.playerBattlefields[1].cards.push({
-          instanceId: 'dummy-1',
-          cardUrl: targetUrl,
-          sapped: false,
-          currentHealth: 5
-        });
-        // Damage player1 to test healing
         doc.playerStates[0].health = 20;
       });
       
@@ -292,7 +268,8 @@ describe('Ability Triggers', () => {
       
       await gameEngine.attackCreatureWithCreature(
         player1Id, 'lifesteal-1',
-        player2Id, 'dummy-1'
+        player2Id, 'dummy-1',
+        gameEngine.getGameDoc()
       );
       
       const gameDoc = gameEngine.getGameDoc();
@@ -322,13 +299,9 @@ describe('Ability Triggers', () => {
         }]
       });
       
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[0].cards.push({
-          instanceId: 'berserker-1',
-          cardUrl: berserkerUrl,
-          sapped: false,
-          currentHealth: 4
-        });
+      addCardToBattlefieldWithInstance(gameEngine, player1Id, 'berserker-1', berserkerUrl, {
+        currentHealth: 4,
+        sapped: false
       });
       
       // Trigger take_damage ability
@@ -336,6 +309,7 @@ describe('Ability Triggers', () => {
         'take_damage',
         player1Id,
         'berserker-1',
+        gameEngine.getGameDoc(),
         mockSelectTargets,
         { 
           damageAmount: 2 
@@ -384,20 +358,14 @@ describe('Ability Triggers', () => {
       });
 
       // Add artifact to battlefield and spell to hand
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[0].cards.push({
-          instanceId: 'artifact-1',
-          cardUrl: resilientArtifact.url,
-          sapped: false,
-          currentHealth: 3
-        });
-        // Add to instance mapping for the artifact
-        doc.instanceToCardUrl['artifact-1'] = resilientArtifact.url;
-        // Add a card to deck so the artifact can draw
-        const deckInstanceId = `deck-instance-${Math.random().toString(36).substr(2, 9)}`;
-        doc.deck.push(deckInstanceId);
-        doc.instanceToCardUrl[deckInstanceId] = resilientArtifact.url;
+      addCardToBattlefieldWithInstance(gameEngine, player1Id, 'artifact-1', resilientArtifact.url, {
+        currentHealth: 3,
+        sapped: false
       });
+      
+      // Add a card to deck so the artifact can draw
+      const deckInstanceId = `deck-instance-${Math.random().toString(36).substr(2, 9)}`;
+      addCardToDeckWithInstance(gameEngine, deckInstanceId, resilientArtifact.url);
 
       const initialHandSize = gameEngine.getGameDoc().playerHands[0].cards.length;
       const initialArtifactHealth = gameEngine.getGameDoc().playerBattlefields[0].cards[0].currentHealth;
@@ -457,7 +425,7 @@ describe('Ability Triggers', () => {
 
       const initialHandSize = gameEngine.getGameDoc().playerHands[0].cards.length;
 
-      await gameEngine.attackCreatureWithCreature(player2Id, 'creature-1', player1Id, 'artifact-1');
+      await gameEngine.attackCreatureWithCreature(player2Id, 'creature-1', player1Id, 'artifact-1', gameEngine.getGameDoc());
       
       const gameDoc = gameEngine.getGameDoc();
 
@@ -499,13 +467,14 @@ describe('Ability Triggers', () => {
       addCardToBattlefield(gameEngine, player1Id, complexCreatureUrl, 'dragon-1', { currentHealth: 5 });
       
       // Test start_turn trigger
-      await gameEngine.executeTriggeredAbilities('start_turn', player1Id);
+      await gameEngine.executeTriggeredAbilities('start_turn', player1Id, gameEngine.getGameDoc());
       
       // Test deal_damage trigger
       await gameEngine.executeTriggeredAbilitiesForCreature(
         'deal_damage',
         player1Id,
         'dragon-1',
+        gameEngine.getGameDoc(),
         mockSelectTargets,
         { damageTarget: { playerId: player2Id }, damageAmount: 5 }
       );
@@ -515,6 +484,7 @@ describe('Ability Triggers', () => {
         'take_damage',
         player1Id,
         'dragon-1',
+        gameEngine.getGameDoc(),
         mockSelectTargets,
         { damageAmount: 3 }
       );
@@ -655,17 +625,13 @@ describe('Ability Triggers', () => {
         }]
       });
       
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[0].cards.push({
-          instanceId: 'broken-1',
-          cardUrl: brokenArtifactUrl,
-          sapped: false,
-          currentHealth: 1
-        });
+      addCardToBattlefieldWithInstance(gameEngine, player1Id, 'broken-1', brokenArtifactUrl, {
+        currentHealth: 1,
+        sapped: false
       });
       
       // Should not throw error, should handle gracefully
-      await expect(gameEngine.executeTriggeredAbilities('start_turn', player1Id)).resolves.not.toThrow();
+      await expect(gameEngine.executeTriggeredAbilities('start_turn', player1Id, gameEngine.getGameDoc())).resolves.not.toThrow();
       
       // Game should continue normally
       const gameDoc = gameEngine.getGameDoc();
@@ -697,24 +663,16 @@ describe('Ability Triggers', () => {
         }]
       });
       
-      gameEngine.getGameDocHandle().change((doc) => {
-        doc.playerBattlefields[0].cards.push(
-          {
-            instanceId: 'broken-1',
-            cardUrl: brokenArtifactUrl,
-            sapped: false,
-            currentHealth: 1
-          },
-          {
-            instanceId: 'working-1',
-            cardUrl: workingArtifactUrl,
-            sapped: false,
-            currentHealth: 1
-          }
-        );
+      addCardToBattlefieldWithInstance(gameEngine, player1Id, 'broken-1', brokenArtifactUrl, {
+        currentHealth: 1,
+        sapped: false
+      });
+      addCardToBattlefieldWithInstance(gameEngine, player1Id, 'working-1', workingArtifactUrl, {
+        currentHealth: 1,
+        sapped: false
       });
       
-      await gameEngine.executeTriggeredAbilities('start_turn', player1Id);
+      await gameEngine.executeTriggeredAbilities('start_turn', player1Id, gameEngine.getGameDoc());
       
       const gameDoc = gameEngine.getGameDoc();
       

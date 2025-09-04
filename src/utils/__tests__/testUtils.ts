@@ -324,7 +324,6 @@ export function addCardToBattlefield(
     if (battlefieldIndex !== -1) {
       doc.playerBattlefields[battlefieldIndex].cards.push({
         instanceId,
-        cardUrl,
         sapped: overrides.sapped ?? false,
         currentHealth: overrides.currentHealth ?? 1
       });
@@ -333,6 +332,30 @@ export function addCardToBattlefield(
   });
   
   return instanceId;
+}
+
+/**
+ * Add a card to a player's battlefield with a specific instance ID and card URL mapping
+ * This is useful for testing triggered abilities where you need control over the instance ID
+ */
+export function addCardToBattlefieldWithInstance(
+  gameEngine: GameEngine,
+  playerId: AutomergeUrl,
+  instanceId: string,
+  cardUrl: AutomergeUrl,
+  overrides: { currentHealth?: number; sapped?: boolean } = {}
+): void {
+  gameEngine.getGameDocHandle().change((doc) => {
+    const battlefieldIndex = doc.playerBattlefields.findIndex(battlefield => battlefield.playerId === playerId);
+    if (battlefieldIndex !== -1) {
+      doc.playerBattlefields[battlefieldIndex].cards.push({
+        instanceId,
+        sapped: overrides.sapped ?? false,
+        currentHealth: overrides.currentHealth ?? 1
+      });
+      doc.instanceToCardUrl[instanceId] = cardUrl;
+    }
+  });
 }
 
 /**
@@ -345,6 +368,20 @@ export function addCardsToDeck(gameEngine: GameEngine, cardUrls: AutomergeUrl[])
       doc.deck.push(instanceId);
       doc.instanceToCardUrl[instanceId] = cardUrl;
     });
+  });
+}
+
+/**
+ * Add a single card to deck with a specific instance ID
+ */
+export function addCardToDeckWithInstance(
+  gameEngine: GameEngine,
+  instanceId: string,
+  cardUrl: AutomergeUrl
+): void {
+  gameEngine.getGameDocHandle().change((doc) => {
+    doc.deck.push(instanceId);
+    doc.instanceToCardUrl[instanceId] = cardUrl;
   });
 }
 
@@ -482,7 +519,6 @@ export function assertCreatureOnBattlefield(
     instanceId?: string; 
     currentHealth?: number; 
     sapped?: boolean; 
-    cardUrl?: AutomergeUrl 
   }
 ): void {
   const gameDoc = gameEngine.getGameDoc();
@@ -490,8 +526,7 @@ export function assertCreatureOnBattlefield(
   expect(battlefield).toBeDefined();
   
   const creature = battlefield!.cards.find(c => 
-    (!expectedProperties.instanceId || c.instanceId === expectedProperties.instanceId) &&
-    (!expectedProperties.cardUrl || c.cardUrl === expectedProperties.cardUrl)
+    (!expectedProperties.instanceId || c.instanceId === expectedProperties.instanceId)
   );
   
   expect(creature).toBeDefined();

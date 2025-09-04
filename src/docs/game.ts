@@ -5,23 +5,15 @@ export type PlayerHand = {
   cards: string[]; // Array of card instance IDs
 };
 
-export type BattlefieldCard = {
+export type BattlefieldCardState = {
   instanceId: string; // Unique ID for this specific card instance
-  cardUrl: AutomergeUrl; // Reference to card document URL
   sapped: boolean; // True if creature has attacked this turn
   currentHealth: number; // Current health of the creature/artifact
 };
 
-// Separate game state tracking for cards that doesn't duplicate card definition data
-export type CardGameState = {
-  cardUrl: AutomergeUrl;
-  // Add any other game-specific state that needs to be tracked
-  // e.g., temporary modifications, counters, etc.
-};
-
 export type PlayerBattlefield = {
   playerId: AutomergeUrl;
-  cards: BattlefieldCard[]; // Array of battlefield cards with status
+  cards: BattlefieldCardState[]; // Array of battlefield cards with status
 };
 
 export type GameLogEntry = {
@@ -50,10 +42,10 @@ export type GameDoc = {
   
   // Deck selection - required before game can start, but can be null during lobby phase
   selectedDeckUrl: AutomergeUrl | null; // URL of the selected deck
+  instanceToCardUrl: Record<string, AutomergeUrl>; // Mapping from instance ID to card document URL
   
   // Game state
   deck: string[]; // Array of card instance IDs in deck
-  instanceToCardUrl: Record<string, AutomergeUrl>; // Mapping from instance ID to card document URL
   playerHands: PlayerHand[];
   playerBattlefields: PlayerBattlefield[];
   playerStates: PlayerState[];
