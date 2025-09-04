@@ -26,7 +26,6 @@ const TCGGameBoard: React.FC<TCGGameBoardProps> = ({
   selfId,
   gameDocHandle,
 }) => {
-  console.log("TCGGameBoard rendered");
   const { navigateToHome } = useGameNavigation();
 
   const [currentOpponentIndex, setCurrentOpponentIndex] = useState(0);

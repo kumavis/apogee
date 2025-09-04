@@ -1,5 +1,5 @@
-import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { StrictMode } from 'react'
 import App from './App.tsx'
 import {
   Repo,
@@ -28,12 +28,18 @@ if (repo && !(globalThis as any).repo) {
 // Initialize the root document
 const rootDocUrl = getOrCreateRoot(repo);
 
+// Conditionally enable React Strict Mode
+const isStrictModeEnabled = import.meta.env.DEV || import.meta.env.VITE_STRICT_MODE === 'true';
+console.log('React strict mode:', isStrictModeEnabled);
+
+const AppComponent = (
+  <RepoContext.Provider value={repo}>
+    <HashRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+      <App rootDocUrl={rootDocUrl} />
+    </HashRouter>
+  </RepoContext.Provider>
+);
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <RepoContext.Provider value={repo}>
-      <HashRouter>
-        <App rootDocUrl={rootDocUrl} />
-      </HashRouter>
-    </RepoContext.Provider>
-  </React.StrictMode>
+  isStrictModeEnabled ? <StrictMode>{AppComponent}</StrictMode> : AppComponent
 )
